@@ -1,0 +1,205 @@
+<p-toast position="top-right" />
+
+@if (auth.checking()) {
+  <main class="boot-screen" aria-live="polite">
+    <img class="brand-image brand-image--boot" src="/assets/icar-logo.jpg" alt="Logotipo ICAR" width="800" height="800" />
+    <div>
+      <strong>ICAR Sistema Comercial</strong>
+      <p>Verificando sesión segura…</p>
+    </div>
+  </main>
+} @else if (!auth.authenticated()) {
+  <main class="login-page">
+    <section class="login-story" aria-labelledby="login-story-title">
+      <a class="brand brand--light" href="/" aria-label="ICAR Sistema Comercial">
+        <img class="brand-image brand-image--cover" src="/assets/icar-logo.jpg" alt="ICAR Sabor y Calidad" width="800" height="800" />
+        <span><strong>ICAR</strong><small>Industria Cárnica Arancibia</small></span>
+      </a>
+      <div class="login-story__copy">
+        <span class="eyebrow">Sabor &amp; Calidad</span>
+        <h1 id="login-story-title">Una operación comercial con identidad ICAR.</h1>
+        <p>Administraion eficiente.</p>
+      </div>
+      <figure class="product-showcase">
+        <img src="/assets/icar-portada-productos.png" alt="Catálogo de productos ICAR Industria Cárnica Arancibia" width="1702" height="630" />
+      </figure>
+      <div class="security-note"><i class="pi pi-shield"></i><span>Acceso protegido.</span></div>
+    </section>
+
+    <section class="login-panel" aria-labelledby="login-title">
+      <div class="login-card">
+        <span class="eyebrow">Bienvenido</span>
+        <h2 id="login-title">Iniciar sesión</h2>
+        <p class="muted">Utiliza tu correo o nombre de usuario institucional.</p>
+        <form [formGroup]="loginForm" (ngSubmit)="submitLogin()" class="form-stack" novalidate>
+          <label class="field">
+            <span>Correo o usuario</span>
+            <input pInputText formControlName="identifier" autocomplete="username" placeholder="nombre@icar.bo" />
+            @if (loginForm.controls.identifier.touched && loginForm.controls.identifier.invalid) {
+              <small class="field-error">Ingresa un correo o usuario válido.</small>
+            }
+          </label>
+          <label class="field">
+            <span>Contraseña</span>
+            <p-password formControlName="password" [feedback]="false" [toggleMask]="true" autocomplete="current-password" placeholder="Tu contraseña" />
+          </label>
+          @if (loginError()) {
+            <p-message severity="error" [text]="loginError()" />
+          }
+          <p-button type="submit" label="Ingresar al sistema" icon="pi pi-arrow-right" iconPos="right" [loading]="loginBusy()" styleClass="login-submit" />
+        </form>
+        <p class="support-copy">Si olvidaste tu contraseña, solicita el restablecimiento a un administrador autorizado.</p>
+      </div>
+    </section>
+  </main>
+} @else {
+  <div class="app-shell" [class.sidebar-visible]="sidebarOpen()">
+    <aside class="sidebar" aria-label="Navegación principal">
+      <div class="sidebar__brand">
+        <img class="brand-image brand-image--sidebar" src="/assets/icar-logo.jpg" alt="Logotipo ICAR" width="800" height="800" />
+        <span><strong>ICAR</strong><small>Sistema Comercial</small></span>
+      </div>
+      <nav>
+        <span class="nav-caption">Gestión</span>
+        @for (item of navigation; track item.id) {
+          @if (can(item.permission)) {
+            <button type="button" [class.active]="activeSection() === item.id" (click)="selectSection(item.id)">
+              <i [class]="item.icon"></i><span>{{ item.label }}</span>
+            </button>
+          }
+        }
+      </nav>
+      <div class="sidebar__footer">
+        <div class="user-avatar">{{ auth.user()?.name?.slice(0, 2)?.toUpperCase() }}</div>
+        <div><strong>{{ auth.user()?.name }}</strong><small>{{ auth.user()?.roles?.join(' · ') }}</small></div>
+        <button type="button" class="icon-button" title="Cerrar sesión" aria-label="Cerrar sesión" (click)="logout()"><i class="pi pi-sign-out"></i></button>
+      </div>
+    </aside>
+    @if (sidebarOpen()) { <button type="button" class="sidebar-backdrop" aria-label="Cerrar menú" (click)="sidebarOpen.set(false)"></button> }
+
+    <main class="workspace">
+      <header class="workspace-header">
+        <div>
+          <button type="button" class="mobile-menu" aria-label="Abrir menú" (click)="sidebarOpen.set(true)"><i class="pi pi-bars"></i></button>
+          <span class="workspace-header__context">Primera iteración</span>
+          <h1>{{ sectionTitle() }}</h1>
+        </div>
+        <div class="workspace-header__actions">
+          <span class="secure-badge"><i class="pi pi-lock"></i> Sesión protegida</span>
+          <button type="button" class="user-chip" title="Usuario autenticado">
+            <span>{{ auth.user()?.name?.slice(0, 2)?.toUpperCase() }}</span>
+            <small>{{ auth.user()?.username }}</small>
+          </button>
+        </div>
+      </header>
+
+      <section class="workspace-content">
+        @switch (activeSection()) {
+          @case ('dashboard') {
+            <div class="hero-panel">
+              <div><span class="eyebrow">Control operativo</span><h2>Buenos días, {{ auth.user()?.name?.split(' ')?.[0] }}.</h2><p></p></div>
+              <div class="hero-panel__stamp"><img src="/assets/icar-logo.jpg" alt="ICAR" width="800" height="800" /><span></span></div>
+            </div>
+            <div class="metric-grid">
+              @if (can('customers.read')) { <article><span class="metric-icon coral"><i class="pi pi-users"></i></span><div><small>Clientes registrados</small><strong>{{ customerMeta().total }}</strong><span>Maestro comercial</span></div></article> }
+              @if (can('users.read')) { <article><span class="metric-icon blue"><i class="pi pi-user-edit"></i></span><div><small>Usuarios del sistema</small><strong>{{ userMeta().total }}</strong><span>Acceso administrado</span></div></article> }
+              @if (can('zones.read')) { <article><span class="metric-icon gold"><i class="pi pi-map-marker"></i></span><div><small>Zonas configuradas</small><strong>{{ zones().length }}</strong><span>Distribución territorial</span></div></article> }
+              @if (can('audit.read')) { <article><span class="metric-icon green"><i class="pi pi-history"></i></span><div><small>Eventos auditados</small><strong>{{ auditMeta().total }}</strong><span>Trazabilidad activa</span></div></article> }
+            </div>
+            <div class="dashboard-grid">
+              <article class="content-card quick-actions">
+                <div class="card-heading"><div><span>Accesos rápidos</span><h3>Operaciones frecuentes</h3></div></div>
+                <div class="quick-actions__grid">
+                  @if (can('customers.create')) { <button type="button" (click)="openCustomer()"><i class="pi pi-user-plus"></i><span><strong>Registrar cliente</strong><small>Datos comerciales y crédito</small></span><i class="pi pi-arrow-right"></i></button> }
+                  @if (can('users.create')) { <button type="button" (click)="openUser()"><i class="pi pi-id-card"></i><span><strong>Crear usuario</strong><small>Rol y acceso inicial</small></span><i class="pi pi-arrow-right"></i></button> }
+                  @if (can('zones.create')) { <button type="button" (click)="openZone()"><i class="pi pi-map"></i><span><strong>Nueva zona</strong><small>Días de distribución</small></span><i class="pi pi-arrow-right"></i></button> }
+                </div>
+              </article>
+              <article class="content-card security-summary">
+                <div class="card-heading"><div><span>Seguridad</span><h3>Acceso vigente</h3></div><i class="pi pi-verified"></i></div>
+                <div class="identity-row"><div class="user-avatar user-avatar--large">{{ auth.user()?.name?.slice(0, 2)?.toUpperCase() }}</div><div><strong>{{ auth.user()?.name }}</strong><span>{{ auth.user()?.email }}</span></div></div>
+                <dl><div><dt>Roles</dt><dd>{{ auth.user()?.roles?.join(', ') }}</dd></div><div><dt>Permisos efectivos</dt><dd>{{ auth.user()?.permissions?.length }}</dd></div></dl>
+              </article>
+            </div>
+          }
+
+          @case ('customers') {
+            <div class="page-toolbar"><div><span class="eyebrow">Maestro comercial</span><h2>Clientes y domicilios</h2><p>{{ customerMeta().total }} registros encontrados</p></div>@if (can('customers.create')) { <p-button label="Nuevo cliente" icon="pi pi-plus" (onClick)="openCustomer()" /> }</div>
+            <div class="filter-bar">
+              <label class="search-field"><i class="pi pi-search"></i><input pInputText [value]="customerSearch()" (input)="customerSearch.set($any($event.target).value)" (keyup.enter)="loadCustomers(1)" placeholder="Nombre, NIT, teléfono o contacto" /></label>
+              <p-select [options]="customerTypeOptions" [ngModel]="customerTypeFilter()" (ngModelChange)="customerTypeFilter.set($event)" placeholder="Tipo de cliente" [showClear]="true" />
+              <p-select [options]="statusOptions" [ngModel]="customerStatusFilter()" (ngModelChange)="customerStatusFilter.set($event)" placeholder="Estado" [showClear]="true" />
+              <p-select [options]="zones()" optionLabel="name" optionValue="id" [ngModel]="customerZoneFilter()" (ngModelChange)="customerZoneFilter.set($event)" placeholder="Zona" [showClear]="true" />
+              <p-select [options]="weekdayOptions" [ngModel]="customerDayFilter()" (ngModelChange)="customerDayFilter.set($event)" placeholder="Día" [showClear]="true" />
+              <p-button icon="pi pi-filter" label="Filtrar" [outlined]="true" (onClick)="loadCustomers(1)" />
+              <button type="button" class="text-button" (click)="clearCustomerFilters()">Limpiar</button>
+            </div>
+            <div class="table-card">
+              <p-table [value]="customers()" [loading]="loading()" [scrollable]="true" scrollHeight="flex" dataKey="id">
+                <ng-template #header><tr><th>Cliente</th><th>Tipo</th><th>Contacto</th><th>Condición</th><th>Domicilios / zona</th><th>Estado</th><th class="actions-cell">Acciones</th></tr></ng-template>
+                <ng-template #body let-customer><tr>
+                  <td><div class="primary-cell"><span class="entity-avatar">{{ customer.businessName.slice(0, 2).toUpperCase() }}</span><div><strong>{{ customer.businessName }}</strong><small>{{ customer.taxId ? 'NIT/CI ' + customer.taxId : 'Sin NIT/CI' }}</small></div></div></td>
+                  <td><span class="soft-badge">{{ customerTypeLabel(customer.type) }}</span></td>
+                  <td><div class="stacked-cell"><strong>{{ customer.phone }}</strong><small>{{ customer.contactName || customer.email || 'Sin contacto adicional' }}</small></div></td>
+                  <td><div class="stacked-cell"><strong>{{ customer.paymentCondition === 'CREDITO' ? 'Crédito' : 'Contado' }}</strong><small>@if (customer.paymentCondition === 'CREDITO') { Bs {{ customer.creditLimit }} · {{ customer.creditDays }} días } @else { Pago inmediato }</small></div></td>
+                  <td><div class="address-list">@for (address of customer.addresses.slice(0, 2); track address.id) { <button type="button" (click)="openAddress(customer, address)" [title]="address.address"><i class="pi pi-map-marker"></i><span>{{ address.label }} · {{ address.zone?.name || 'Sin zona' }}</span></button> } @empty { <span class="empty-inline">Sin domicilios</span> } @if (customer.addresses.length > 2) { <small>+{{ customer.addresses.length - 2 }} más</small> }</div></td>
+                  <td><p-tag [severity]="statusSeverity(customer.status)" [value]="customer.status === 'ACTIVO' ? 'Activo' : 'Inactivo'" /></td>
+                  <td class="actions-cell"><div class="row-actions">@if (can('customers.update')) { <p-button icon="pi pi-map-marker" [text]="true" [rounded]="true" severity="secondary" title="Agregar domicilio" (onClick)="openAddress(customer)" /><p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" title="Editar cliente" (onClick)="openCustomer(customer)" /> }</div></td>
+                </tr></ng-template>
+                <ng-template #emptymessage><tr><td colspan="7"><div class="empty-state"><i class="pi pi-users"></i><strong>No hay clientes con estos filtros</strong><span>Modifica la búsqueda o registra el primer cliente.</span></div></td></tr></ng-template>
+              </p-table>
+              <div class="pagination"><span>Página {{ customerMeta().page }} de {{ customerMeta().totalPages }}</span><div><p-button icon="pi pi-chevron-left" [text]="true" [disabled]="customerMeta().page <= 1" (onClick)="loadCustomers(customerMeta().page - 1)" /><p-button icon="pi pi-chevron-right" [text]="true" [disabled]="customerMeta().page >= customerMeta().totalPages" (onClick)="loadCustomers(customerMeta().page + 1)" /></div></div>
+            </div>
+          }
+
+          @case ('users') {
+            <div class="page-toolbar"><div><span class="eyebrow">Administración de acceso</span><h2>Usuarios</h2><p>{{ userMeta().total }} cuentas registradas</p></div>@if (can('users.create')) { <p-button label="Nuevo usuario" icon="pi pi-plus" (onClick)="openUser()" /> }</div>
+            <div class="filter-bar filter-bar--compact"><label class="search-field"><i class="pi pi-search"></i><input pInputText [value]="userSearch()" (input)="userSearch.set($any($event.target).value)" (keyup.enter)="loadUsers(1)" placeholder="Nombre, correo o usuario" /></label><p-select [options]="statusOptions" [ngModel]="userStatusFilter()" (ngModelChange)="userStatusFilter.set($event)" placeholder="Estado" [showClear]="true" /><p-button icon="pi pi-search" label="Buscar" [outlined]="true" (onClick)="loadUsers(1)" /></div>
+            <div class="table-card"><p-table [value]="users()" [loading]="loading()" [scrollable]="true">
+              <ng-template #header><tr><th>Usuario</th><th>Roles</th><th>Teléfono</th><th>Último acceso</th><th>Estado</th><th class="actions-cell">Acciones</th></tr></ng-template>
+              <ng-template #body let-user><tr><td><div class="primary-cell"><span class="entity-avatar entity-avatar--user">{{ user.name.slice(0, 2).toUpperCase() }}</span><div><strong>{{ user.name }}</strong><small>{{ user.email }} · @{{ user.username }}</small></div></div></td><td><div class="tag-list">@for (role of user.roles; track role.id) { <span class="soft-badge">{{ role.name }}</span> }</div></td><td>{{ user.phone || '—' }}</td><td>{{ formatDate(user.lastLoginAt) }}</td><td><p-tag [severity]="statusSeverity(user.status)" [value]="user.status === 'ACTIVO' ? 'Activo' : 'Inactivo'" /></td><td class="actions-cell"><div class="row-actions">@if (can('users.update')) { <p-button icon="pi pi-key" [text]="true" [rounded]="true" severity="secondary" title="Restablecer contraseña" (onClick)="openPasswordReset(user)" /><p-button icon="pi pi-pencil" [text]="true" [rounded]="true" severity="secondary" title="Editar" (onClick)="openUser(user)" /> }</div></td></tr></ng-template>
+              <ng-template #emptymessage><tr><td colspan="6"><div class="empty-state"><i class="pi pi-user"></i><strong>No se encontraron usuarios</strong></div></td></tr></ng-template>
+            </p-table><div class="pagination"><span>Página {{ userMeta().page }} de {{ userMeta().totalPages }}</span><div><p-button icon="pi pi-chevron-left" [text]="true" [disabled]="userMeta().page <= 1" (onClick)="loadUsers(userMeta().page - 1)" /><p-button icon="pi pi-chevron-right" [text]="true" [disabled]="userMeta().page >= userMeta().totalPages" (onClick)="loadUsers(userMeta().page + 1)" /></div></div></div>
+          }
+
+          @case ('roles') {
+            <div class="page-toolbar"><div><span class="eyebrow">Control de acceso</span><h2>Roles y permisos</h2><p>Los permisos se aplican en cada operación de la API.</p></div>@if (can('roles.create')) { <p-button label="Nuevo rol" icon="pi pi-plus" (onClick)="openRole()" /> }</div>
+            <div class="role-grid">@for (role of roles(); track role.id) { <article class="role-card"><div class="role-card__top"><span class="role-icon"><i class="pi pi-shield"></i></span><p-tag [severity]="statusSeverity(role.status)" [value]="role.status === 'ACTIVO' ? 'Activo' : 'Inactivo'" /></div><h3>{{ role.name }}</h3><p>{{ role.description || 'Rol operativo del sistema' }}</p><div class="permission-summary"><strong>{{ role.permissions.length }} permisos</strong><div>@for (permission of role.permissions.slice(0, 5); track permission.id) { <span>{{ permission.key }}</span> } @if (role.permissions.length > 5) { <span>+{{ role.permissions.length - 5 }}</span> }</div></div><footer><span>@if (role.isSystem) { <i class="pi pi-lock"></i> Rol del sistema } @else { Rol personalizado }</span>@if (can('roles.update')) { <p-button label="Configurar" icon="pi pi-pencil" [text]="true" (onClick)="openRole(role)" /> }</footer></article> }</div>
+          }
+
+          @case ('zones') {
+            <div class="page-toolbar"><div><span class="eyebrow">Cobertura logística</span><h2>Zonas y días de distribución</h2><p>Relaciona territorio, horario y domicilio de entrega.</p></div>@if (can('zones.create')) { <p-button label="Nueva zona" icon="pi pi-plus" (onClick)="openZone()" /> }</div>
+            <div class="zone-grid">@for (zone of zones(); track zone.id) { <article class="zone-card"><header><div class="zone-pin"><i class="pi pi-map-marker"></i></div><div><h3>{{ zone.name }}</h3><p>{{ zone.description || 'Sin descripción' }}</p></div><p-tag [severity]="statusSeverity(zone.status)" [value]="zone.status === 'ACTIVO' ? 'Activa' : 'Inactiva'" /></header><div class="schedule-list"><span class="nav-caption">Calendario de distribución</span>@for (day of zone.distributionDays; track day.id) { <div><span>{{ weekdayName(day.weekday) }}</span><strong>{{ timeRange(day.startTime, day.endTime) }}</strong><p-tag [severity]="statusSeverity(day.status)" [value]="day.status === 'ACTIVO' ? 'Activo' : 'Inactivo'" /></div> } @empty { <div class="empty-schedule">Aún no tiene días programados.</div> }</div><footer>@if (can('zones.create')) { <p-button label="Agregar día" icon="pi pi-calendar-plus" [text]="true" (onClick)="openDay(zone)" /> } @if (can('zones.update')) { <p-button label="Editar zona" icon="pi pi-pencil" [text]="true" severity="secondary" (onClick)="openZone(zone)" /> }</footer></article> }</div>
+          }
+
+          @case ('audit') {
+            <div class="page-toolbar"><div><span class="eyebrow">Trazabilidad</span><h2>Eventos de auditoría</h2><p>{{ auditMeta().total }} operaciones registradas sin almacenar secretos.</p></div></div>
+            <div class="filter-bar filter-bar--compact"><label class="field-inline"><span>Módulo</span><input pInputText [value]="auditModuleFilter()" (input)="auditModuleFilter.set($any($event.target).value)" placeholder="customers" /></label><label class="field-inline"><span>Acción exacta</span><input pInputText [value]="auditActionFilter()" (input)="auditActionFilter.set($any($event.target).value)" placeholder="CREAR_CLIENTE" /></label><p-button label="Aplicar" icon="pi pi-filter" [outlined]="true" (onClick)="loadAudit(1)" /></div>
+            <div class="table-card"><p-table [value]="auditEvents()" [loading]="loading()" [scrollable]="true"><ng-template #header><tr><th>Fecha y hora</th><th>Actor</th><th>Módulo / acción</th><th>Entidad</th><th>Resultado</th><th>Contexto</th></tr></ng-template><ng-template #body let-event><tr><td>{{ formatDate(event.occurredAt) }}</td><td><div class="stacked-cell"><strong>{{ event.user?.name || 'No identificado' }}</strong><small>{{ event.ipAddress || 'IP no disponible' }}</small></div></td><td><div class="stacked-cell"><strong>{{ event.action }}</strong><small>{{ event.module }}</small></div></td><td><div class="stacked-cell"><strong>{{ event.entity }}</strong><small>{{ event.entityId || 'Sin referencia' }}</small></div></td><td><p-tag [severity]="statusSeverity(event.result)" [value]="event.result" /></td><td><code class="metadata-preview" [title]="jsonPreview(event.metadata)">{{ jsonPreview(event.metadata) }}</code></td></tr></ng-template><ng-template #emptymessage><tr><td colspan="6"><div class="empty-state"><i class="pi pi-history"></i><strong>No existen eventos con estos filtros</strong></div></td></tr></ng-template></p-table><div class="pagination"><span>Página {{ auditMeta().page }} de {{ auditMeta().totalPages }}</span><div><p-button icon="pi pi-chevron-left" [text]="true" [disabled]="auditMeta().page <= 1" (onClick)="loadAudit(auditMeta().page - 1)" /><p-button icon="pi pi-chevron-right" [text]="true" [disabled]="auditMeta().page >= auditMeta().totalPages" (onClick)="loadAudit(auditMeta().page + 1)" /></div></div></div>
+          }
+        }
+      </section>
+    </main>
+  </div>
+}
+
+<p-dialog [visible]="customerDialog()" (visibleChange)="customerDialog.set($event)" [modal]="true" [style]="{ width: 'min(760px, 96vw)' }" [header]="editingCustomerId() ? 'Editar cliente' : 'Registrar cliente'" [draggable]="false">
+  <form [formGroup]="customerForm" class="dialog-form" (ngSubmit)="saveCustomer()">
+    <div class="form-grid"><label class="field"><span>Tipo de cliente *</span><p-select formControlName="type" [options]="customerTypeOptions" /></label><label class="field field--wide"><span>Nombre o razón social *</span><input pInputText formControlName="businessName" /></label><label class="field"><span>NIT / CI</span><input pInputText formControlName="taxId" /></label><label class="field"><span>Persona de contacto</span><input pInputText formControlName="contactName" /></label><label class="field"><span>Teléfono *</span><input pInputText formControlName="phone" /></label><label class="field"><span>WhatsApp</span><input pInputText formControlName="whatsapp" /></label><label class="field"><span>Correo</span><input pInputText formControlName="email" type="email" /></label><label class="field"><span>Condición de pago *</span><p-select formControlName="paymentCondition" [options]="paymentOptions" /></label><label class="field"><span>Límite de crédito (Bs)</span><p-inputnumber formControlName="creditLimit" mode="decimal" [minFractionDigits]="2" [min]="0" /></label><label class="field"><span>Días de crédito</span><p-inputnumber formControlName="creditDays" [min]="0" [max]="365" /></label>@if (editingCustomerId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }</div>
+    <div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="customerDialog.set(false)" /><p-button type="submit" [label]="editingCustomerId() ? 'Guardar cambios' : 'Registrar cliente'" icon="pi pi-check" [loading]="saving()" /></div>
+  </form>
+</p-dialog>
+
+<p-dialog [visible]="userDialog()" (visibleChange)="userDialog.set($event)" [modal]="true" [style]="{ width: 'min(700px, 96vw)' }" [header]="editingUserId() ? 'Editar usuario' : 'Crear usuario'" [draggable]="false">
+  <form [formGroup]="userForm" class="dialog-form" (ngSubmit)="saveUser()"><div class="form-grid"><label class="field field--wide"><span>Nombre completo *</span><input pInputText formControlName="name" /></label><label class="field"><span>Nombre de usuario *</span><input pInputText formControlName="username" /></label><label class="field"><span>Correo *</span><input pInputText type="email" formControlName="email" /></label><label class="field"><span>Teléfono</span><input pInputText formControlName="phone" /></label>@if (!editingUserId()) { <label class="field"><span>Contraseña temporal *</span><p-password formControlName="password" [toggleMask]="true" [feedback]="true" /></label> }<label class="field field--wide"><span>Roles *</span><p-multiselect formControlName="roleIds" [options]="roles()" optionLabel="name" optionValue="id" placeholder="Seleccionar roles" display="chip" /></label>@if (editingUserId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }</div><p class="form-help"><i class="pi pi-info-circle"></i> La contraseña requiere al menos 10 caracteres, mayúscula, minúscula, número y símbolo.</p><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="userDialog.set(false)" /><p-button type="submit" [label]="editingUserId() ? 'Guardar cambios' : 'Crear usuario'" icon="pi pi-check" [loading]="saving()" /></div></form>
+</p-dialog>
+
+<p-dialog [visible]="passwordDialog()" (visibleChange)="passwordDialog.set($event)" [modal]="true" [style]="{ width: 'min(470px, 96vw)' }" header="Restablecer contraseña" [draggable]="false"><form [formGroup]="passwordForm" class="dialog-form" (ngSubmit)="resetPassword()"><label class="field"><span>Nueva contraseña segura *</span><p-password formControlName="newPassword" [toggleMask]="true" [feedback]="true" /></label><p class="form-help"><i class="pi pi-exclamation-triangle"></i> Esta acción invalidará todas las sesiones actuales del usuario.</p><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="passwordDialog.set(false)" /><p-button type="submit" label="Restablecer" icon="pi pi-key" [loading]="saving()" /></div></form></p-dialog>
+
+<p-dialog [visible]="roleDialog()" (visibleChange)="roleDialog.set($event)" [modal]="true" [style]="{ width: 'min(720px, 96vw)' }" [header]="editingRoleId() ? 'Configurar rol' : 'Crear rol'" [draggable]="false"><form [formGroup]="roleForm" class="dialog-form" (ngSubmit)="saveRole()"><div class="form-grid"><label class="field"><span>Nombre *</span><input pInputText formControlName="name" /></label>@if (editingRoleId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }<label class="field field--full"><span>Descripción</span><textarea pTextarea formControlName="description" rows="2"></textarea></label><label class="field field--full"><span>Permisos por módulo y operación</span><p-multiselect formControlName="permissionIds" [options]="permissions()" optionLabel="description" optionValue="id" placeholder="Seleccionar permisos" display="chip"><ng-template #item let-permission><div class="permission-option"><strong>{{ permission.description }}</strong><small>{{ permission.key }}</small></div></ng-template></p-multiselect></label></div><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="roleDialog.set(false)" /><p-button type="submit" label="Guardar rol" icon="pi pi-check" [loading]="saving()" /></div></form></p-dialog>
+
+<p-dialog [visible]="zoneDialog()" (visibleChange)="zoneDialog.set($event)" [modal]="true" [style]="{ width: 'min(560px, 96vw)' }" [header]="editingZoneId() ? 'Editar zona' : 'Nueva zona'" [draggable]="false"><form [formGroup]="zoneForm" class="dialog-form" (ngSubmit)="saveZone()"><div class="form-grid"><label class="field"><span>Nombre *</span><input pInputText formControlName="name" /></label>@if (editingZoneId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }<label class="field field--full"><span>Descripción</span><textarea pTextarea formControlName="description" rows="3"></textarea></label></div><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="zoneDialog.set(false)" /><p-button type="submit" label="Guardar zona" icon="pi pi-check" [loading]="saving()" /></div></form></p-dialog>
+
+<p-dialog [visible]="dayDialog()" (visibleChange)="dayDialog.set($event)" [modal]="true" [style]="{ width: 'min(560px, 96vw)' }" header="Programar día de distribución" [draggable]="false"><form [formGroup]="dayForm" class="dialog-form" (ngSubmit)="saveDay()"><p class="dialog-intro">Zona: <strong>{{ selectedZone()?.name }}</strong></p><div class="form-grid"><label class="field"><span>Día de la semana *</span><p-select formControlName="weekday" [options]="weekdayOptions" /></label><span></span><label class="field"><span>Hora inicial</span><input pInputText type="time" formControlName="startTime" /></label><label class="field"><span>Hora final</span><input pInputText type="time" formControlName="endTime" /></label></div><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="dayDialog.set(false)" /><p-button type="submit" label="Agregar día" icon="pi pi-calendar-plus" [loading]="saving()" /></div></form></p-dialog>
+
+<p-dialog [visible]="addressDialog()" (visibleChange)="$event ? null : closeAddressDialog()" [modal]="true" [style]="{ width: 'min(980px, 98vw)' }" [header]="editingAddressId() ? 'Editar domicilio' : 'Agregar domicilio'" [draggable]="false"><form [formGroup]="addressForm" class="address-form" (ngSubmit)="saveAddress()"><div class="address-form__fields"><p class="dialog-intro">Cliente: <strong>{{ selectedCustomer()?.businessName }}</strong></p><div class="form-grid"><label class="field"><span>Etiqueta *</span><input pInputText formControlName="label" placeholder="Principal, sucursal…" /></label><label class="field field--wide"><span>Dirección *</span><input pInputText formControlName="address" /></label><label class="field field--full"><span>Referencia</span><textarea pTextarea formControlName="reference" rows="2"></textarea></label><label class="field"><span>Zona</span><p-select formControlName="zoneId" [options]="zones()" optionLabel="name" optionValue="id" placeholder="Seleccionar zona" [showClear]="true" (onChange)="onAddressZoneChange()" /></label><label class="field"><span>Día programado</span><p-select formControlName="distributionDayId" [options]="addressDays()" placeholder="Seleccionar día" [showClear]="true" /></label><label class="field"><span>Latitud</span><p-inputnumber formControlName="latitude" [minFractionDigits]="6" [maxFractionDigits]="6" [min]="-90" [max]="90" /></label><label class="field"><span>Longitud</span><p-inputnumber formControlName="longitude" [minFractionDigits]="6" [maxFractionDigits]="6" [min]="-180" [max]="180" /></label><label class="checkbox-field"><p-checkbox formControlName="isPrimary" [binary]="true" inputId="primary-address" /><span>Domicilio principal</span></label>@if (editingAddressId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }</div></div><div class="map-panel"><div><strong>Ubicación en OpenStreetMap</strong><span>Haz clic en el mapa para capturar coordenadas válidas.</span></div><div id="address-map" class="address-map" aria-label="Mapa para seleccionar la ubicación del domicilio"></div></div><div class="dialog-footer address-form__footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="closeAddressDialog()" /><p-button type="submit" label="Guardar domicilio" icon="pi pi-map-marker" [loading]="saving()" /></div></form></p-dialog>

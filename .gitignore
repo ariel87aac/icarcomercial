@@ -1,0 +1,19 @@
+.env
+.DS_Store
+node_modules/
+dist/
+coverage/
+*.log
+*.tsbuildinfo
+vitest.config.mjs
+vitest.config.mjs.map
+vitest.config.d.mts
+
+
+# Datos generados por los contenedores
+database/backups/*.sql
+database/backups/*.dump
+database/backups/*.gz
+
+# Archivos temporales de análisis
+tmp/

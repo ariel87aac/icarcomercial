@@ -1,0 +1,48 @@
+{
+  "name": "icar-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "API REST del sistema comercial ICAR",
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "start": "nest start",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main.js",
+    "migration:run": "node ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js",
+    "migration:revert": "node ./node_modules/typeorm/cli.js migration:revert -d dist/database/data-source.js",
+    "test": "vitest run",
+    "test:cov": "vitest run --coverage",
+    "test:acceptance": "node scripts/iteration-one.acceptance.mjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "12.0.1",
+    "@nestjs/config": "12.0.0",
+    "@nestjs/core": "12.0.1",
+    "@nestjs/jwt": "12.0.1",
+    "@nestjs/platform-express": "12.0.1",
+    "@nestjs/typeorm": "12.0.1",
+    "bcryptjs": "3.0.3",
+    "class-transformer": "0.5.1",
+    "class-validator": "0.15.1",
+    "dotenv": "17.2.3",
+    "pg": "8.23.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "typeorm": "0.3.31"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "12.0.0",
+    "@nestjs/schematics": "12.0.0",
+    "@nestjs/testing": "12.0.1",
+    "@types/node": "24.10.1",
+    "@types/express": "5.0.6",
+    "@swc/core": "1.16.1",
+    "@vitest/coverage-v8": "4.1.11",
+    "prettier": "3.7.4",
+    "typescript": "6.0.3",
+    "unplugin-swc": "1.5.11",
+    "vitest": "4.1.11"
+  }
+}

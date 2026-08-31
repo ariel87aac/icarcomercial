@@ -1,0 +1,90 @@
+name: icar-sistema-comercial
+
+services:
+  database:
+    build:
+      context: ./database
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-icar_comercial}
+      POSTGRES_USER: ${POSTGRES_USER:-icar_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cambiar-en-desarrollo}
+      TZ: UTC
+      PGTZ: UTC
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./database/backups:/backups
+    networks:
+      - data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      DATABASE_HOST: database
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${POSTGRES_DB:-icar_comercial}
+      DATABASE_USER: ${POSTGRES_USER:-icar_app}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-cambiar-en-desarrollo}
+      DATABASE_SSL: ${DATABASE_SSL:-false}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
+      JWT_SECRET: ${JWT_SECRET:-desarrollo-icar-cambiar-este-secreto-2026}
+      JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
+      REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-604800}
+      PASSWORD_RESET_TTL_SECONDS: ${PASSWORD_RESET_TTL_SECONDS:-1800}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@icar.local}
+      INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-Cambiar123!}
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - web
+      - data
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - web
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres_data:
+
+networks:
+  web:
+  data:
+    internal: true
