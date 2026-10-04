@@ -1,12 +1,15 @@
 export type RecordStatus = 'ACTIVO' | 'INACTIVO';
 export type CustomerType = 'MINORISTA' | 'DISTRIBUIDOR' | 'MAYORISTA';
 export type PaymentCondition = 'CONTADO' | 'CREDITO';
+export type UserType = 'INTERNO' | 'CLIENTE';
 
 export interface SessionUser {
   id: string;
   name: string;
   email: string;
   username: string;
+  type: UserType;
+  customerId: string | null;
   roles: string[];
   permissions: string[];
 }
@@ -34,9 +37,22 @@ export interface User {
   username: string;
   email: string;
   phone: string | null;
+  type: UserType;
   status: RecordStatus;
   lastLoginAt: string | null;
   roles: Role[];
+}
+
+export interface CustomerAccount {
+  customerId: string;
+  userId: string;
+  isPrimary: boolean;
+  status: RecordStatus;
+  createdAt: string;
+  user: Pick<
+    User,
+    'id' | 'name' | 'username' | 'email' | 'phone' | 'type' | 'status'
+  >;
 }
 
 export interface DistributionDay {
@@ -86,6 +102,7 @@ export interface Customer {
   creditDays: number;
   status: RecordStatus;
   addresses: CustomerAddress[];
+  userLinks: CustomerAccount[];
   createdAt: string;
   updatedAt: string;
 }
@@ -108,4 +125,3 @@ export interface Paginated<T> {
   data: T[];
   meta: { page: number; limit: number; total: number; totalPages: number };
 }
-

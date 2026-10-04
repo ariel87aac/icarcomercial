@@ -8,7 +8,7 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-icar_comercial}
       POSTGRES_USER: ${POSTGRES_USER:-icar_app}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cambiar-en-desarrollo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
       TZ: UTC
       PGTZ: UTC
     volumes:
@@ -36,16 +36,16 @@ services:
       DATABASE_PORT: 5432
       DATABASE_NAME: ${POSTGRES_DB:-icar_comercial}
       DATABASE_USER: ${POSTGRES_USER:-icar_app}
-      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:-cambiar-en-desarrollo}
+      DATABASE_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD en .env}
       DATABASE_SSL: ${DATABASE_SSL:-false}
       CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:8080}
-      JWT_SECRET: ${JWT_SECRET:-desarrollo-icar-cambiar-este-secreto-2026}
+      JWT_SECRET: ${JWT_SECRET:?Defina JWT_SECRET en .env}
       JWT_ACCESS_TTL_SECONDS: ${JWT_ACCESS_TTL_SECONDS:-900}
       REFRESH_TOKEN_TTL_SECONDS: ${REFRESH_TOKEN_TTL_SECONDS:-604800}
       PASSWORD_RESET_TTL_SECONDS: ${PASSWORD_RESET_TTL_SECONDS:-1800}
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-admin@icar.local}
       INITIAL_ADMIN_USERNAME: ${INITIAL_ADMIN_USERNAME:-admin}
-      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-Cambiar123!}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?Defina INITIAL_ADMIN_PASSWORD en .env}
     depends_on:
       database:
         condition: service_healthy

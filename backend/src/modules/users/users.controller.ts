@@ -5,10 +5,11 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { UsersService } from './users.service';
 
-@Controller('users')
+@Controller(['users', 'usuarios'])
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -51,3 +52,20 @@ export class UsersController {
   }
 }
 
+@Controller('me')
+export class ProfileController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Get()
+  profile(@CurrentUser() actor: AuthenticatedUser) {
+    return this.usersService.findOwnProfile(actor);
+  }
+
+  @Patch()
+  updateProfile(
+    @Body() dto: UpdateOwnProfileDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.usersService.updateOwnProfile(actor, dto);
+  }
+}

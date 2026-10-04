@@ -17,7 +17,6 @@ export function databaseConfig(config: ConfigService): TypeOrmModuleOptions {
     synchronize: false,
     retryAttempts: 10,
     retryDelay: 3_000,
-    logging: config.get<string>('NODE_ENV') === 'development',
+    logging: false,
   };
 }
-

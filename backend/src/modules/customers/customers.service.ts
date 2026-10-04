@@ -1,16 +1,27 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { hash } from 'bcryptjs';
 import { Brackets, DataSource, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '../../common/dto/pagination-query.dto';
+import { RecordStatus } from '../../common/enums/record-status.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AuditService } from '../audit/audit.service';
+import { Role } from '../access-control/entities/role.entity';
+import { UserSession } from '../auth/entities/user-session.entity';
+import { User } from '../users/entities/user.entity';
+import { UserType } from '../users/entities/user-type.enum';
 import { DistributionDay } from '../zones/entities/distribution-day.entity';
 import { Zone } from '../zones/entities/zone.entity';
 import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
+import {
+  CreateCustomerAccountDto,
+  UpdateCustomerAccountDto,
+} from './dto/customer-account.dto';
 import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
 import { CustomerAddress } from './entities/customer-address.entity';
 import { Customer } from './entities/customer.entity';
+import { CustomerUser } from './entities/customer-user.entity';
 import { PaymentCondition } from './entities/customer.enums';
 
 @Injectable()
@@ -20,6 +31,10 @@ export class CustomersService {
     private readonly customerRepository: Repository<Customer>,
     @InjectRepository(CustomerAddress)
     private readonly addressRepository: Repository<CustomerAddress>,
+    @InjectRepository(CustomerUser)
+    private readonly accountRepository: Repository<CustomerUser>,
+    @InjectRepository(User) private readonly userRepository: Repository<User>,
+    @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
     @InjectRepository(Zone) private readonly zoneRepository: Repository<Zone>,
     @InjectRepository(DistributionDay)
     private readonly dayRepository: Repository<DistributionDay>,
@@ -27,13 +42,18 @@ export class CustomersService {
     private readonly auditService: AuditService,
   ) {}
 
-  async findAll(query: CustomerQueryDto): Promise<PaginatedResponse<Customer>> {
+  async findAll(
+    query: CustomerQueryDto,
+    actor: AuthenticatedUser,
+  ): Promise<PaginatedResponse<Customer>> {
     const builder = this.customerRepository
       .createQueryBuilder('customer')
       .distinct(true)
       .leftJoinAndSelect('customer.addresses', 'address')
       .leftJoinAndSelect('address.zone', 'zone')
       .leftJoinAndSelect('address.distributionDay', 'day')
+      .leftJoinAndSelect('customer.userLinks', 'accountLink')
+      .leftJoinAndSelect('accountLink.user', 'accountUser')
       .orderBy('customer.businessName', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
@@ -53,16 +73,25 @@ export class CustomersService {
     if (query.status) builder.andWhere('customer.status = :status', { status: query.status });
     if (query.zoneId) builder.andWhere('address.zoneId = :zoneId', { zoneId: query.zoneId });
     if (query.weekday) builder.andWhere('day.weekday = :weekday', { weekday: query.weekday });
+    if (actor.type === UserType.CUSTOMER) {
+      builder.andWhere('customer.id = :scopedCustomerId', {
+        scopedCustomerId: actor.customerId,
+      });
+    }
 
     const [customers, total] = await builder.getManyAndCount();
     return paginate(customers, total, query.page, query.limit);
   }
 
-  async findOne(id: string): Promise<Customer> {
+  async findOne(id: string, actor?: AuthenticatedUser): Promise<Customer> {
+    if (actor?.type === UserType.CUSTOMER && actor.customerId !== id) {
+      throw new NotFoundException('Cliente no encontrado');
+    }
     const customer = await this.customerRepository.findOne({
       where: { id },
       relations: {
         addresses: { zone: true, distributionDay: true },
+        userLinks: { user: true },
       },
       order: { addresses: { isPrimary: 'DESC', createdAt: 'ASC' } },
     });
@@ -92,11 +121,12 @@ export class CustomersService {
       result: 'EXITOSO',
       metadata: { type: customer.type, businessName: customer.businessName, taxId: customer.taxId },
     });
-    return this.findOne(customer.id);
+    return this.findOne(customer.id, actor);
   }
 
   async update(id: string, dto: UpdateCustomerDto, actor: AuthenticatedUser): Promise<Customer> {
-    const customer = await this.findOne(id);
+    const customer = await this.findOne(id, actor);
+    const previousStatus = customer.status;
     const condition = dto.paymentCondition ?? customer.paymentCondition;
     const creditLimit = dto.creditLimit ?? Number(customer.creditLimit);
     const creditDays = dto.creditDays ?? customer.creditDays;
@@ -122,20 +152,32 @@ export class CustomersService {
     if (dto.creditDays !== undefined) changes.creditDays = dto.creditDays;
     if (dto.status !== undefined) changes.status = dto.status;
     await this.customerRepository.update(id, changes);
+    const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.auditService.record({
       userId: actor.id,
       module: 'customers',
-      action: 'ACTUALIZAR_CLIENTE',
+      action: statusChanged
+        ? dto.status === 'ACTIVO'
+          ? 'ACTIVAR_CLIENTE'
+          : 'DESACTIVAR_CLIENTE'
+        : 'ACTUALIZAR_CLIENTE',
       entity: 'clientes',
       entityId: customer.id,
       result: 'EXITOSO',
-      metadata: { fields: Object.keys(dto), status: dto.status ?? customer.status },
+      metadata: {
+        fields: Object.keys(dto),
+        previousStatus,
+        status: dto.status ?? customer.status,
+      },
     });
-    return this.findOne(id);
+    return this.findOne(id, actor);
   }
 
-  async addresses(customerId: string): Promise<CustomerAddress[]> {
-    await this.findOne(customerId);
+  async addresses(
+    customerId: string,
+    actor: AuthenticatedUser,
+  ): Promise<CustomerAddress[]> {
+    await this.findOne(customerId, actor);
     return this.addressRepository.find({
       where: { customerId },
       relations: { zone: true, distributionDay: true },
@@ -148,7 +190,7 @@ export class CustomersService {
     dto: CreateAddressDto,
     actor: AuthenticatedUser,
   ): Promise<CustomerAddress> {
-    await this.findOne(customerId);
+    await this.findOne(customerId, actor);
     await this.validateAddress(dto);
     const saved = await this.dataSource.transaction(async (manager) => {
       const repository = manager.getRepository(CustomerAddress);
@@ -184,14 +226,130 @@ export class CustomersService {
     });
   }
 
+  async createAccount(
+    customerId: string,
+    dto: CreateCustomerAccountDto,
+    actor: AuthenticatedUser,
+  ): Promise<CustomerUser> {
+    await this.findOne(customerId, actor);
+    const identity = await this.userRepository
+      .createQueryBuilder('user')
+      .where(
+        '(lower(user.email) = lower(:email) OR lower(user.username) = lower(:username))',
+        { email: dto.email, username: dto.username },
+      )
+      .getOne();
+    if (identity) {
+      throw new ConflictException('El correo o nombre de usuario ya está registrado');
+    }
+    const customerRole = await this.roleRepository.findOne({
+      where: { name: 'CLIENTE', status: RecordStatus.ACTIVE },
+    });
+    if (!customerRole) {
+      throw new NotFoundException('El rol de cliente no está disponible');
+    }
+
+    const link = await this.dataSource.transaction(async (manager) => {
+      const userRepository = manager.getRepository(User);
+      const linkRepository = manager.getRepository(CustomerUser);
+      if (dto.isPrimary) {
+        await linkRepository.update(
+          { customerId, isPrimary: true },
+          { isPrimary: false },
+        );
+      }
+      const user = await userRepository.save(
+        userRepository.create({
+          name: dto.name,
+          username: dto.username,
+          email: dto.email,
+          phone: dto.phone?.trim() || null,
+          passwordHash: await hash(dto.password, 12),
+          type: UserType.CUSTOMER,
+          roles: [customerRole],
+        }),
+      );
+      return linkRepository.save(
+        linkRepository.create({
+          customerId,
+          userId: user.id,
+          isPrimary: dto.isPrimary,
+        }),
+      );
+    });
+
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'customer_accounts',
+      action: 'CREAR_CUENTA_CLIENTE',
+      entity: 'clientes_usuarios',
+      entityId: link.userId,
+      result: 'EXITOSO',
+      metadata: { customerId, email: dto.email, isPrimary: dto.isPrimary },
+    });
+    return this.accountRepository.findOneOrFail({
+      where: { customerId, userId: link.userId },
+      relations: { user: true },
+    });
+  }
+
+  async updateAccount(
+    customerId: string,
+    userId: string,
+    dto: UpdateCustomerAccountDto,
+    actor: AuthenticatedUser,
+  ): Promise<CustomerUser> {
+    await this.findOne(customerId, actor);
+    const link = await this.accountRepository.findOne({
+      where: { customerId, userId },
+      relations: { user: true },
+    });
+    if (!link) throw new NotFoundException('Cuenta de cliente no encontrada');
+    const previousStatus = link.status;
+    await this.dataSource.transaction(async (manager) => {
+      link.status = dto.status;
+      link.user.status = dto.status;
+      await manager.getRepository(CustomerUser).save(link);
+      await manager.getRepository(User).save(link.user);
+      if (dto.status === 'INACTIVO') {
+        await manager
+          .getRepository(UserSession)
+          .createQueryBuilder()
+          .update()
+          .set({ revokedAt: new Date() })
+          .where('usuario_id = :userId', { userId })
+          .andWhere('revocada_at IS NULL')
+          .execute();
+      }
+    });
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'customer_accounts',
+      action:
+        dto.status === 'ACTIVO'
+          ? 'ACTIVAR_CUENTA_CLIENTE'
+          : 'DESACTIVAR_CUENTA_CLIENTE',
+      entity: 'clientes_usuarios',
+      entityId: userId,
+      result: 'EXITOSO',
+      metadata: { customerId, previousStatus, status: dto.status },
+    });
+    return this.accountRepository.findOneOrFail({
+      where: { customerId, userId },
+      relations: { user: true },
+    });
+  }
+
   async updateAddress(
     customerId: string,
     addressId: string,
     dto: UpdateAddressDto,
     actor: AuthenticatedUser,
   ): Promise<CustomerAddress> {
+    await this.findOne(customerId, actor);
     const address = await this.addressRepository.findOne({ where: { id: addressId, customerId } });
     if (!address) throw new NotFoundException('Domicilio no encontrado');
+    const previousStatus = address.status;
     await this.validateAddress({
       latitude: dto.latitude ?? (address.latitude ? Number(address.latitude) : undefined),
       longitude: dto.longitude ?? (address.longitude ? Number(address.longitude) : undefined),
@@ -210,19 +368,41 @@ export class CustomersService {
       });
       await repository.save(address);
     });
+    const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.auditService.record({
       userId: actor.id,
       module: 'customers',
-      action: 'ACTUALIZAR_DOMICILIO',
+      action: statusChanged
+        ? dto.status === 'ACTIVO'
+          ? 'ACTIVAR_DOMICILIO'
+          : 'DESACTIVAR_DOMICILIO'
+        : 'ACTUALIZAR_DOMICILIO',
       entity: 'domicilios_cliente',
       entityId: address.id,
       result: 'EXITOSO',
-      metadata: { customerId, fields: Object.keys(dto) },
+      metadata: {
+        customerId,
+        fields: Object.keys(dto),
+        previousStatus,
+        status: dto.status ?? address.status,
+      },
     });
     return this.addressRepository.findOneOrFail({
       where: { id: address.id },
       relations: { zone: true, distributionDay: true },
     });
+  }
+
+  async updateAddressById(
+    addressId: string,
+    dto: UpdateAddressDto,
+    actor: AuthenticatedUser,
+  ): Promise<CustomerAddress> {
+    const address = await this.addressRepository.findOne({
+      where: { id: addressId },
+    });
+    if (!address) throw new NotFoundException('Domicilio no encontrado');
+    return this.updateAddress(address.customerId, addressId, dto, actor);
   }
 
   private validateCredit(condition: PaymentCondition, limit: number, days: number): void {

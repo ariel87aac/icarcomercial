@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsDateString, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class AuditQueryDto extends PaginationQueryDto {
@@ -28,6 +35,10 @@ export class AuditQueryDto extends PaginationQueryDto {
   entityId?: string;
 
   @IsOptional()
+  @IsIn(['EXITOSO', 'RECHAZADO', 'ERROR'])
+  result?: 'EXITOSO' | 'RECHAZADO' | 'ERROR';
+
+  @IsOptional()
   @IsDateString()
   from?: string;
 
@@ -35,4 +46,3 @@ export class AuditQueryDto extends PaginationQueryDto {
   @IsDateString()
   to?: string;
 }
-

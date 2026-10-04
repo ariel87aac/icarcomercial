@@ -12,7 +12,7 @@ class CookieJar {
   absorb(headers) {
     const cookies = typeof headers.getSetCookie === 'function'
       ? headers.getSetCookie()
-      : (headers.get('set-cookie') ? [headers.get('set-cookie')] : []);
+      : headers.get('set-cookie') ? [headers.get('set-cookie')] : [];
     for (const cookie of cookies) {
       const pair = cookie.split(';', 1)[0];
       const separator = pair.indexOf('=');
@@ -77,37 +77,53 @@ async function cleanupAcceptanceData() {
   });
   await client.connect();
   try {
-    await client.query(`
-      BEGIN;
-      CREATE TEMP TABLE qa_users ON COMMIT DROP AS
-        SELECT id FROM usuarios
-        WHERE email IN ('lector.${suffix}@icar.local', 'inactivo.${suffix}@icar.local');
-      CREATE TEMP TABLE qa_roles ON COMMIT DROP AS
-        SELECT id FROM roles WHERE name = 'LECTOR_CLIENTES_${suffix.toUpperCase()}';
-      CREATE TEMP TABLE qa_customers ON COMMIT DROP AS
-        SELECT id FROM clientes WHERE nombre_razon_social = 'Cliente Aceptación ${suffix}';
-      CREATE TEMP TABLE qa_addresses ON COMMIT DROP AS
-        SELECT id FROM domicilios_cliente WHERE cliente_id IN (SELECT id FROM qa_customers);
-      CREATE TEMP TABLE qa_zones ON COMMIT DROP AS
-        SELECT id FROM zonas WHERE nombre = 'Zona Aceptación ${suffix}';
-      CREATE TEMP TABLE qa_days ON COMMIT DROP AS
-        SELECT id FROM dias_distribucion WHERE zona_id IN (SELECT id FROM qa_zones);
-      DELETE FROM eventos_auditoria
-      WHERE usuario_id IN (SELECT id FROM qa_users)
-        OR entidad_id IN (SELECT id::text FROM qa_users)
-        OR entidad_id IN (SELECT id::text FROM qa_roles)
-        OR entidad_id IN (SELECT id::text FROM qa_customers)
-        OR entidad_id IN (SELECT id::text FROM qa_addresses)
-        OR entidad_id IN (SELECT id::text FROM qa_zones)
-        OR entidad_id IN (SELECT id::text FROM qa_days);
-      DELETE FROM domicilios_cliente WHERE id IN (SELECT id FROM qa_addresses);
-      DELETE FROM clientes WHERE id IN (SELECT id FROM qa_customers);
-      DELETE FROM dias_distribucion WHERE id IN (SELECT id FROM qa_days);
-      DELETE FROM zonas WHERE id IN (SELECT id FROM qa_zones);
-      DELETE FROM usuarios WHERE id IN (SELECT id FROM qa_users);
-      DELETE FROM roles WHERE id IN (SELECT id FROM qa_roles);
-      COMMIT;
-    `);
+    await client.query('BEGIN');
+    const users = await client.query(
+      'SELECT id FROM usuarios WHERE email = ANY($1::text[])',
+      [[
+        `inactivo.${suffix}@icar.local`,
+        `lector.${suffix}@icar.local`,
+        `ventas.${suffix}@icar.local`,
+        `cliente.${suffix}@icar.local`,
+      ]],
+    );
+    const userIds = users.rows.map((row) => row.id);
+    const roles = await client.query(
+      'SELECT id FROM roles WHERE name = $1',
+      [`LECTOR_CLIENTES_${suffix.toUpperCase()}`],
+    );
+    const roleIds = roles.rows.map((row) => row.id);
+    const customers = await client.query(
+      'SELECT id FROM clientes WHERE nombre_razon_social = ANY($1::text[])',
+      [[`Cliente Aceptación A ${suffix}`, `Cliente Aceptación B ${suffix}`]],
+    );
+    const customerIds = customers.rows.map((row) => row.id);
+    const zones = await client.query(
+      'SELECT id FROM zonas WHERE nombre = $1',
+      [`Zona Aceptación ${suffix}`],
+    );
+    const zoneIds = zones.rows.map((row) => row.id);
+
+    await client.query(
+      `DELETE FROM eventos_auditoria
+       WHERE usuario_id = ANY($1::uuid[])
+          OR entidad_id = ANY($2::text[])
+          OR metadatos->>'customerId' = ANY($3::text[])`,
+      [userIds, [...userIds, ...roleIds, ...customerIds, ...zoneIds], customerIds],
+    );
+    await client.query(
+      'DELETE FROM domicilios_cliente WHERE cliente_id = ANY($1::uuid[])',
+      [customerIds],
+    );
+    await client.query('DELETE FROM clientes WHERE id = ANY($1::uuid[])', [customerIds]);
+    await client.query(
+      'DELETE FROM dias_distribucion WHERE zona_id = ANY($1::uuid[])',
+      [zoneIds],
+    );
+    await client.query('DELETE FROM zonas WHERE id = ANY($1::uuid[])', [zoneIds]);
+    await client.query('DELETE FROM usuarios WHERE id = ANY($1::uuid[])', [userIds]);
+    await client.query('DELETE FROM roles WHERE id = ANY($1::uuid[])', [roleIds]);
+    await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
@@ -116,178 +132,239 @@ async function cleanupAcceptanceData() {
   }
 }
 
-const adminJar = new CookieJar();
-const validLogin = await expectStatus('/api/auth/login', {
-  method: 'POST',
-  jar: adminJar,
-  body: { identifier: adminIdentifier, password: adminPassword },
-}, 200, 'CP01');
-assert.equal(validLogin.payload.user.email, adminIdentifier.toLowerCase());
-assert(adminJar.values.has('icar_access'));
-passed('CP01', 'inicio de sesión válido y acceso concedido');
+try {
+  const adminJar = new CookieJar();
+  const validLogin = await expectStatus('/api/auth/login', {
+    method: 'POST',
+    jar: adminJar,
+    body: { identifier: adminIdentifier, password: adminPassword },
+  }, 200, 'CP-01');
+  assert.equal(validLogin.payload.user.email, adminIdentifier.toLowerCase());
+  assert(adminJar.values.has('icar_access'));
+  passed('CP-01', 'la cuenta interna activa inicia una sesión válida');
 
-const invalidJar = new CookieJar();
-const invalidLogin = await expectStatus('/api/auth/login', {
-  method: 'POST',
-  jar: invalidJar,
-  body: { identifier: adminIdentifier, password: 'Credencial-Incorrecta-987!' },
-}, 401, 'CP02');
-assert.match(String(invalidLogin.payload.message), /Credenciales inválidas|cuenta no disponible/i);
-assert(!invalidJar.values.has('icar_access'));
-passed('CP02', 'credenciales inválidas devuelven mensaje genérico y ningún token');
+  const invalidJar = new CookieJar();
+  const invalidLogin = await expectStatus('/api/auth/login', {
+    method: 'POST',
+    jar: invalidJar,
+    body: { identifier: adminIdentifier, password: 'Credencial-Incorrecta-987!' },
+  }, 401, 'CP-02');
+  assert.match(String(invalidLogin.payload.message), /Credenciales inválidas|cuenta no disponible/i);
+  assert(!invalidJar.values.has('icar_access'));
+  passed('CP-02', 'las credenciales inválidas no revelan el dato incorrecto');
 
-const rolesResponse = await expectStatus('/api/roles', { jar: adminJar }, 200, 'roles');
-const permissionsResponse = await expectStatus('/api/permissions', { jar: adminJar }, 200, 'permissions');
-const customerRead = permissionsResponse.payload.find((permission) => permission.key === 'customers.read');
-assert(customerRead, 'No existe customers.read');
+  const rolesResponse = await expectStatus('/api/roles', { jar: adminJar }, 200, 'roles');
+  const permissionsResponse = await expectStatus('/api/permissions', { jar: adminJar }, 200, 'permisos');
+  const customerRead = permissionsResponse.payload.find((permission) => permission.key === 'customers.read');
+  assert(customerRead, 'No existe customers.read');
 
-const restrictedRole = await expectStatus('/api/roles', {
-  method: 'POST',
-  jar: adminJar,
-  body: {
-    name: `LECTOR_CLIENTES_${suffix}`,
-    description: 'Rol temporal de aceptación',
-    permissionIds: [customerRead.id],
-  },
-}, 201, 'crear rol restringido');
+  const inactiveUser = await expectStatus('/api/usuarios', {
+    method: 'POST',
+    jar: adminJar,
+    body: {
+      name: 'Usuario Inactivo',
+      username: `inactivo.${suffix}`,
+      email: `inactivo.${suffix}@icar.local`,
+      password: 'Segura1234!',
+      roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
+    },
+  }, 201, 'crear usuario inactivo');
+  await expectStatus(`/api/usuarios/${inactiveUser.payload.id}`, {
+    method: 'PATCH', jar: adminJar, body: { status: 'INACTIVO' },
+  }, 200, 'inactivar usuario');
+  await expectStatus('/api/auth/login', {
+    method: 'POST',
+    body: { identifier: inactiveUser.payload.email, password: 'Segura1234!' },
+  }, 401, 'CP-03');
+  passed('CP-03', 'una cuenta inactiva no puede autenticarse');
 
-const restrictedUser = await expectStatus('/api/users', {
-  method: 'POST',
-  jar: adminJar,
-  body: {
-    name: 'Usuario Restringido',
-    username: `lector.${suffix}`,
-    email: `lector.${suffix}@icar.local`,
-    password: 'Segura1234!',
-    roleIds: [restrictedRole.payload.id],
-  },
-}, 201, 'crear usuario restringido');
+  const zone = await expectStatus('/api/zonas', {
+    method: 'POST', jar: adminJar,
+    body: { name: `Zona Aceptación ${suffix}`, description: 'Zona temporal' },
+  }, 201, 'crear zona');
+  const day = await expectStatus(`/api/zonas/${zone.payload.id}/dias-distribucion`, {
+    method: 'POST', jar: adminJar,
+    body: { weekday: 3, startTime: '08:00', endTime: '12:00' },
+  }, 201, 'crear día');
 
-const inactiveUser = await expectStatus('/api/users', {
-  method: 'POST',
-  jar: adminJar,
-  body: {
-    name: 'Usuario Inactivo',
-    username: `inactivo.${suffix}`,
-    email: `inactivo.${suffix}@icar.local`,
-    password: 'Segura1234!',
-    roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
-  },
-}, 201, 'crear usuario inactivo');
-await expectStatus(`/api/users/${inactiveUser.payload.id}`, {
-  method: 'PATCH',
-  jar: adminJar,
-  body: { status: 'INACTIVO' },
-}, 200, 'inactivar usuario');
-await expectStatus('/api/auth/login', {
-  method: 'POST',
-  body: { identifier: inactiveUser.payload.email, password: 'Segura1234!' },
-}, 401, 'CP03');
-passed('CP03', 'usuario inactivo no puede autenticarse');
+  const customerA = await expectStatus('/api/clientes', {
+    method: 'POST', jar: adminJar,
+    body: {
+      type: 'DISTRIBUIDOR',
+      businessName: `Cliente Aceptación A ${suffix}`,
+      taxId: `ACEPT-A-${suffix}`,
+      contactName: 'Contacto A',
+      phone: `71${suffix.slice(-6).padStart(6, '0')}`,
+      whatsapp: `71${suffix.slice(-6).padStart(6, '0')}`,
+      email: `contacto.a.${suffix}@example.test`,
+      paymentCondition: 'CREDITO',
+      creditLimit: 5000,
+      creditDays: 15,
+    },
+  }, 201, 'crear cliente A');
+  const customerB = await expectStatus('/api/clientes', {
+    method: 'POST', jar: adminJar,
+    body: {
+      type: 'MINORISTA',
+      businessName: `Cliente Aceptación B ${suffix}`,
+      taxId: `ACEPT-B-${suffix}`,
+      phone: `72${suffix.slice(-6).padStart(6, '0')}`,
+      paymentCondition: 'CONTADO',
+      creditLimit: 0,
+      creditDays: 0,
+    },
+  }, 201, 'crear cliente B');
 
-const restrictedJar = new CookieJar();
-await expectStatus('/api/auth/login', {
-  method: 'POST',
-  jar: restrictedJar,
-  body: { identifier: restrictedUser.payload.email, password: 'Segura1234!' },
-}, 200, 'login usuario restringido');
-await expectStatus('/api/customers', {
-  method: 'POST',
-  jar: restrictedJar,
-  body: {
-    type: 'MINORISTA', businessName: `No permitido ${suffix}`, phone: '70000000',
-    paymentCondition: 'CONTADO', creditLimit: 0, creditDays: 0,
-  },
-}, 403, 'CP04');
-await expectStatus('/api/customers?page=1&limit=1', { jar: restrictedJar }, 200, 'lectura permitida');
-passed('CP04', 'permiso faltante produce 403 y bloquea la creación');
+  const customerAccount = await expectStatus(`/api/clientes/${customerA.payload.id}/usuarios`, {
+    method: 'POST', jar: adminJar,
+    body: {
+      name: 'Cuenta Cliente A',
+      username: `cliente.${suffix}`,
+      email: `cliente.${suffix}@icar.local`,
+      password: 'Cliente1234!',
+      phone: '70000001',
+      isPrimary: true,
+    },
+  }, 201, 'crear cuenta de cliente');
+  assert.equal(customerAccount.payload.customerId, customerA.payload.id);
 
-const zone = await expectStatus('/api/zones', {
-  method: 'POST',
-  jar: adminJar,
-  body: { name: `Zona Aceptación ${suffix}`, description: 'Zona temporal CP07' },
-}, 201, 'crear zona');
-const day = await expectStatus(`/api/zones/${zone.payload.id}/distribution-days`, {
-  method: 'POST',
-  jar: adminJar,
-  body: { weekday: 3, startTime: '08:00', endTime: '12:00' },
-}, 201, 'crear día');
-await expectStatus(`/api/zones/${zone.payload.id}`, {
-  method: 'PATCH',
-  jar: adminJar,
-  body: { description: 'Zona temporal CP07 verificada' },
-}, 200, 'editar zona con calendario');
+  const customerJar = new CookieJar();
+  const customerLogin = await expectStatus('/api/auth/login', {
+    method: 'POST', jar: customerJar,
+    body: { identifier: `cliente.${suffix}@icar.local`, password: 'Cliente1234!' },
+  }, 200, 'CP-04');
+  assert.equal(customerLogin.payload.user.type, 'CLIENTE');
+  assert.equal(customerLogin.payload.user.customerId, customerA.payload.id);
+  const profile = await expectStatus('/api/me', { jar: customerJar }, 200, 'perfil cliente');
+  assert.equal(profile.payload.customerId, customerA.payload.id);
+  passed('CP-04', 'la cuenta de cliente identifica y conserva su vínculo comercial');
 
-const customer = await expectStatus('/api/customers', {
-  method: 'POST',
-  jar: adminJar,
-  body: {
-    type: 'DISTRIBUIDOR',
-    businessName: `Cliente Aceptación ${suffix}`,
-    taxId: `ACEPT-${suffix}`,
-    contactName: 'Contacto Aceptación',
-    phone: `71${suffix.slice(-6).padStart(6, '0')}`,
-    whatsapp: `71${suffix.slice(-6).padStart(6, '0')}`,
-    email: `cliente.${suffix}@example.test`,
-    paymentCondition: 'CREDITO',
-    creditLimit: 5000,
-    creditDays: 15,
-  },
-}, 201, 'CP05');
-assert.equal(customer.payload.type, 'DISTRIBUIDOR');
-assert.equal(customer.payload.paymentCondition, 'CREDITO');
-passed('CP05', 'cliente válido registrado con sus condiciones comerciales');
+  await expectStatus(`/api/clientes/${customerA.payload.id}`, { jar: customerJar }, 200, 'cliente propio');
+  await expectStatus(`/api/clientes/${customerB.payload.id}`, { jar: customerJar }, 404, 'CP-05');
+  const scopedList = await expectStatus('/api/clientes?page=1&limit=20', { jar: customerJar }, 200, 'lista acotada');
+  assert.equal(scopedList.payload.data.length, 1);
+  assert.equal(scopedList.payload.data[0].id, customerA.payload.id);
+  passed('CP-05', 'el cliente no puede consultar registros de otro cliente');
 
-const beforeAddresses = await expectStatus(`/api/customers/${customer.payload.id}/addresses`, { jar: adminJar }, 200, 'domicilios antes');
-await expectStatus(`/api/customers/${customer.payload.id}/addresses`, {
-  method: 'POST',
-  jar: adminJar,
-  body: {
-    label: 'Inválido', address: 'Dirección fuera de rango', latitude: -91, longitude: -68,
-    zoneId: zone.payload.id, distributionDayId: day.payload.id,
-  },
-}, 400, 'CP06');
-const afterInvalid = await expectStatus(`/api/customers/${customer.payload.id}/addresses`, { jar: adminJar }, 200, 'domicilios después');
-assert.equal(afterInvalid.payload.length, beforeAddresses.payload.length);
-passed('CP06', 'coordenadas fuera de rango son rechazadas sin persistencia');
+  const restrictedRole = await expectStatus('/api/roles', {
+    method: 'POST', jar: adminJar,
+    body: {
+      name: `LECTOR_CLIENTES_${suffix}`,
+      description: 'Rol temporal de aceptación',
+      permissionIds: [customerRead.id],
+    },
+  }, 201, 'crear rol restringido');
+  const restrictedUser = await expectStatus('/api/usuarios', {
+    method: 'POST', jar: adminJar,
+    body: {
+      name: 'Usuario Restringido',
+      username: `lector.${suffix}`,
+      email: `lector.${suffix}@icar.local`,
+      password: 'Segura1234!',
+      roleIds: [restrictedRole.payload.id],
+    },
+  }, 201, 'crear usuario restringido');
+  const restrictedJar = new CookieJar();
+  await expectStatus('/api/auth/login', {
+    method: 'POST', jar: restrictedJar,
+    body: { identifier: restrictedUser.payload.email, password: 'Segura1234!' },
+  }, 200, 'login restringido');
+  await expectStatus('/api/clientes', {
+    method: 'POST', jar: restrictedJar,
+    body: {
+      type: 'MINORISTA', businessName: `No permitido ${suffix}`, phone: '70000000',
+      paymentCondition: 'CONTADO', creditLimit: 0, creditDays: 0,
+    },
+  }, 403, 'CP-06');
+  passed('CP-06', 'la API responde 403 y no ejecuta una operación sin permiso');
 
-const address = await expectStatus(`/api/customers/${customer.payload.id}/addresses`, {
-  method: 'POST',
-  jar: adminJar,
-  body: {
-    label: 'Principal',
-    address: 'Avenida Arce 1234, La Paz',
-    reference: 'Frente a la plaza',
-    latitude: -16.509212,
-    longitude: -68.126711,
-    zoneId: zone.payload.id,
-    distributionDayId: day.payload.id,
-    isPrimary: true,
-  },
-}, 201, 'CP07');
-assert.equal(address.payload.zone.id, zone.payload.id);
-assert.equal(address.payload.distributionDay.id, day.payload.id);
-passed('CP07', 'domicilio relacionado con zona, día y coordenadas válidas');
+  const salesUser = await expectStatus('/api/usuarios', {
+    method: 'POST', jar: adminJar,
+    body: {
+      name: 'Usuario Ventas',
+      username: `ventas.${suffix}`,
+      email: `ventas.${suffix}@icar.local`,
+      password: 'Segura1234!',
+      roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
+    },
+  }, 201, 'crear usuario ventas');
+  const salesJar = new CookieJar();
+  await expectStatus('/api/auth/login', {
+    method: 'POST', jar: salesJar,
+    body: { identifier: salesUser.payload.email, password: 'Segura1234!' },
+  }, 200, 'login ventas');
+  const salesCustomers = await expectStatus('/api/clientes?page=1&limit=20', { jar: salesJar }, 200, 'CP-07');
+  assert(salesCustomers.payload.data.some((customer) => customer.id === customerA.payload.id));
+  passed('CP-07', 'Ventas consulta los clientes autorizados por su rol');
 
-await expectStatus(`/api/customers/${customer.payload.id}`, {
-  method: 'PATCH',
-  jar: adminJar,
-  body: { contactName: 'Contacto Actualizado' },
-}, 200, 'actualizar cliente');
-const audit = await expectStatus(`/api/audit-events?page=1&limit=20&action=ACTUALIZAR_CLIENTE&entityId=${customer.payload.id}`, { jar: adminJar }, 200, 'CP08');
-assert(audit.payload.data.length >= 1);
-const updateEvent = audit.payload.data[0];
-assert.equal(updateEvent.userId, validLogin.payload.user.id);
-assert.equal(updateEvent.entityId, customer.payload.id);
-assert(updateEvent.occurredAt);
-assert(!/password|token|secret/i.test(JSON.stringify(updateEvent.metadata)));
-passed('CP08', 'actualización auditable con actor, fecha, acción y referencia sin secretos');
+  const customerAudit = await expectStatus(
+    `/api/auditoria?page=1&limit=20&action=CREAR_CLIENTE&entityId=${customerA.payload.id}`,
+    { jar: adminJar }, 200, 'CP-08',
+  );
+  assert(customerAudit.payload.data.length >= 1);
+  assert.equal(customerAudit.payload.data[0].userId, validLogin.payload.user.id);
+  passed('CP-08', 'el alta de cliente genera su evento de auditoría');
 
-const previousSession = adminJar.clone();
-await expectStatus('/api/auth/logout', { method: 'POST', jar: adminJar, body: {} }, 200, 'logout');
-await expectStatus('/api/auth/me', { jar: previousSession }, 401, 'sesión revocada');
-passed('HU01', 'cierre de sesión invalida la sesión en servidor');
+  await expectStatus('/api/clientes', {
+    method: 'POST', jar: adminJar,
+    body: {
+      type: 'DISTRIBUIDOR', businessName: `Duplicado ${suffix}`,
+      taxId: `ACEPT-A-${suffix}`, phone: '70000009',
+      paymentCondition: 'CONTADO', creditLimit: 0, creditDays: 0,
+    },
+  }, 409, 'CP-09');
+  passed('CP-09', 'la identificación única duplicada se rechaza con un mensaje controlado');
 
-process.stdout.write(`\n${results.length} comprobaciones de aceptación superadas.\n`);
-await cleanupAcceptanceData();
-process.stdout.write('Datos temporales de aceptación eliminados.\n');
+  const beforeAddresses = await expectStatus(
+    `/api/clientes/${customerA.payload.id}/domicilios`, { jar: adminJar }, 200, 'domicilios antes',
+  );
+  await expectStatus(`/api/clientes/${customerA.payload.id}/domicilios`, {
+    method: 'POST', jar: adminJar,
+    body: {
+      label: 'Inválido', address: 'Dirección fuera de rango', latitude: -91, longitude: -68,
+      zoneId: zone.payload.id, distributionDayId: day.payload.id,
+    },
+  }, 400, 'CP-10');
+  const afterInvalid = await expectStatus(
+    `/api/clientes/${customerA.payload.id}/domicilios`, { jar: adminJar }, 200, 'domicilios después',
+  );
+  assert.equal(afterInvalid.payload.length, beforeAddresses.payload.length);
+  passed('CP-10', 'las coordenadas fuera de rango no alteran los datos persistidos');
+
+  const address = await expectStatus(`/api/clientes/${customerA.payload.id}/domicilios`, {
+    method: 'POST', jar: adminJar,
+    body: {
+      label: 'Principal', address: 'Avenida Arce 1234, La Paz', reference: 'Frente a la plaza',
+      latitude: -16.509212, longitude: -68.126711,
+      zoneId: zone.payload.id, distributionDayId: day.payload.id, isPrimary: true,
+    },
+  }, 201, 'CP-11');
+  assert.equal(address.payload.zone.id, zone.payload.id);
+  assert.equal(address.payload.distributionDay.id, day.payload.id);
+  passed('CP-11', 'la zona activa conserva y expone su día programado');
+
+  await expectStatus(`/api/clientes/${customerA.payload.id}`, {
+    method: 'PATCH', jar: adminJar, body: { contactName: 'Contacto Actualizado' },
+  }, 200, 'actualizar cliente');
+  const from = encodeURIComponent(new Date(Date.now() - 60_000).toISOString());
+  const audit = await expectStatus(
+    `/api/auditoria?page=1&limit=20&userId=${validLogin.payload.user.id}&action=ACTUALIZAR_CLIENTE&entity=clientes&result=EXITOSO&from=${from}`,
+    { jar: adminJar }, 200, 'CP-12',
+  );
+  assert(audit.payload.data.length >= 1);
+  const updateEvent = audit.payload.data[0];
+  assert.equal(updateEvent.entityId, customerA.payload.id);
+  assert(updateEvent.occurredAt);
+  assert(!/password|token|secret/i.test(JSON.stringify(updateEvent.metadata)));
+  passed('CP-12', 'la consulta de auditoría filtra y conserva eventos sin secretos');
+
+  const previousSession = adminJar.clone();
+  await expectStatus('/api/auth/logout', { method: 'POST', jar: adminJar, body: {} }, 200, 'logout');
+  await expectStatus('/api/auth/me', { jar: previousSession }, 401, 'sesión revocada');
+  passed('HU-01', 'el cierre invalida la sesión renovable en el servidor');
+
+  process.stdout.write(`\n${results.length} comprobaciones de aceptación superadas.\n`);
+} finally {
+  await cleanupAcceptanceData();
+  process.stdout.write('Datos temporales de aceptación eliminados.\n');
+}

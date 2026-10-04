@@ -10,8 +10,10 @@ import { UserSession } from '../auth/entities/user-session.entity';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
 import { UserQueryDto } from './dto/user-query.dto';
 import { User } from './entities/user.entity';
+import { UserType } from './entities/user-type.enum';
 
 @Injectable()
 export class UsersService {
@@ -29,6 +31,7 @@ export class UsersService {
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
       .distinct(true)
+      .andWhere('user.type = :userType', { userType: UserType.INTERNAL })
       .orderBy('user.name', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
@@ -56,6 +59,7 @@ export class UsersService {
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
       .where('user.id = :id', { id })
+      .andWhere('user.type = :userType', { userType: UserType.INTERNAL })
       .getOne();
     if (!user) throw new NotFoundException('Usuario no encontrado');
     return user;
@@ -71,6 +75,7 @@ export class UsersService {
         email: dto.email,
         phone: dto.phone?.trim() || null,
         passwordHash: await hash(dto.password, 12),
+        type: UserType.INTERNAL,
         roles,
       }),
     );
@@ -88,6 +93,7 @@ export class UsersService {
 
   async update(id: string, dto: UpdateUserDto, actor: AuthenticatedUser): Promise<User> {
     const user = await this.findOne(id);
+    const previousStatus = user.status;
     if (dto.email || dto.username) {
       await this.assertIdentityAvailable(dto.email ?? user.email, dto.username ?? user.username, id);
     }
@@ -97,6 +103,7 @@ export class UsersService {
     if (dto.phone !== undefined) user.phone = dto.phone?.trim() || null;
     if (dto.status !== undefined) user.status = dto.status;
     if (dto.roleIds) user.roles = await this.resolveRoles(dto.roleIds);
+    const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.userRepository.save(user);
     if (dto.status === 'INACTIVO') {
       await this.sessionRepository.update(
@@ -107,13 +114,80 @@ export class UsersService {
     await this.auditService.record({
       userId: actor.id,
       module: 'users',
-      action: 'ACTUALIZAR_USUARIO',
+      action: statusChanged
+        ? dto.status === 'ACTIVO'
+          ? 'ACTIVAR_USUARIO'
+          : 'DESACTIVAR_USUARIO'
+        : 'ACTUALIZAR_USUARIO',
       entity: 'usuarios',
       entityId: user.id,
       result: 'EXITOSO',
-      metadata: { fields: Object.keys(dto), status: user.status, roles: user.roles.map((role) => role.name) },
+      metadata: {
+        fields: Object.keys(dto),
+        previousStatus,
+        status: user.status,
+        roles: user.roles.map((role) => role.name),
+      },
     });
     return this.findOne(id);
+  }
+
+  async findOwnProfile(actor: AuthenticatedUser) {
+    const user = await this.userRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.roles', 'role')
+      .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.customerLinks', 'customerLink')
+      .leftJoinAndSelect('customerLink.customer', 'customer')
+      .leftJoinAndSelect('customer.addresses', 'address')
+      .leftJoinAndSelect('address.zone', 'zone')
+      .leftJoinAndSelect('address.distributionDay', 'distributionDay')
+      .where('user.id = :id', { id: actor.id })
+      .getOne();
+    if (!user) throw new NotFoundException('Perfil no encontrado');
+    const customerLink = user.customerLinks?.find(
+      (link) => link.customerId === actor.customerId,
+    );
+    return {
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      email: user.email,
+      phone: user.phone,
+      type: user.type,
+      status: user.status,
+      roles: user.roles.map((role) => role.name),
+      permissions: [
+        ...new Set(
+          user.roles.flatMap((role) =>
+            role.permissions?.map((permission) => permission.key) ?? [],
+          ),
+        ),
+      ],
+      customerId: customerLink?.customerId ?? null,
+      customer: customerLink?.customer ?? null,
+    };
+  }
+
+  async updateOwnProfile(
+    actor: AuthenticatedUser,
+    dto: UpdateOwnProfileDto,
+  ) {
+    const user = await this.userRepository.findOne({ where: { id: actor.id } });
+    if (!user) throw new NotFoundException('Perfil no encontrado');
+    if (dto.name !== undefined) user.name = dto.name;
+    if (dto.phone !== undefined) user.phone = dto.phone.trim() || null;
+    await this.userRepository.save(user);
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'users',
+      action: 'ACTUALIZAR_PERFIL',
+      entity: 'usuarios',
+      entityId: actor.id,
+      result: 'EXITOSO',
+      metadata: { fields: Object.keys(dto) },
+    });
+    return this.findOwnProfile(actor);
   }
 
   async adminResetPassword(
@@ -121,8 +195,7 @@ export class UsersService {
     dto: AdminResetPasswordDto,
     actor: AuthenticatedUser,
   ): Promise<{ message: string }> {
-    const user = await this.userRepository.findOne({ where: { id } });
-    if (!user) throw new NotFoundException('Usuario no encontrado');
+    const user = await this.findOne(id);
     user.passwordHash = await hash(dto.newPassword, 12);
     await this.userRepository.save(user);
     await this.sessionRepository.update(

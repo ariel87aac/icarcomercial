@@ -52,6 +52,7 @@ export class AuditService {
     if (query.entity) builder.andWhere('event.entity = :entity', { entity: query.entity });
     if (query.action) builder.andWhere('event.action = :action', { action: query.action });
     if (query.entityId) builder.andWhere('event.entityId = :entityId', { entityId: query.entityId });
+    if (query.result) builder.andWhere('event.result = :result', { result: query.result });
     if (query.from) builder.andWhere('event.occurredAt >= :from', { from: query.from });
     if (query.to) builder.andWhere('event.occurredAt <= :to', { to: query.to });
 
@@ -59,4 +60,3 @@ export class AuditService {
     return paginate(events, total, query.page, query.limit);
   }
 }
-

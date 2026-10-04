@@ -12,6 +12,7 @@ import { RecordStatus } from '../../common/enums/record-status.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AuditService } from '../audit/audit.service';
 import { User } from '../users/entities/user.entity';
+import { UserType } from '../users/entities/user-type.enum';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ConfirmRecoveryDto, RequestRecoveryDto } from './dto/recovery.dto';
 import { LoginDto } from './dto/login.dto';
@@ -24,6 +25,8 @@ export interface SessionView {
     name: string;
     username: string;
     email: string;
+    type: UserType;
+    customerId: string | null;
     roles: string[];
     permissions: string[];
   };
@@ -65,7 +68,13 @@ export class AuthService {
   async login(dto: LoginDto, context: RequestContext): Promise<IssuedSession> {
     const user = await this.findUserForAuthentication(dto.identifier);
     const valid = user ? await compare(dto.password, user.passwordHash) : false;
-    if (!user || !valid || user.status !== RecordStatus.ACTIVE || !this.hasActiveRole(user)) {
+    if (
+      !user ||
+      !valid ||
+      user.status !== RecordStatus.ACTIVE ||
+      !this.hasActiveRole(user) ||
+      !this.hasActiveCustomerScope(user)
+    ) {
       await this.auditService.record({
         userId: user?.id ?? null,
         module: 'auth',
@@ -100,11 +109,18 @@ export class AuthService {
       .leftJoinAndSelect('session.user', 'user')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.customerLinks', 'customerLink')
+      .leftJoinAndSelect('customerLink.customer', 'customer')
       .where('session.refreshTokenHash = :hash', { hash: this.tokenHash(refreshToken) })
       .andWhere('session.revokedAt IS NULL')
       .andWhere('session.expiresAt > now()')
       .getOne();
-    if (!session || session.user.status !== RecordStatus.ACTIVE || !this.hasActiveRole(session.user)) {
+    if (
+      !session ||
+      session.user.status !== RecordStatus.ACTIVE ||
+      !this.hasActiveRole(session.user) ||
+      !this.hasActiveCustomerScope(session.user)
+    ) {
       throw new UnauthorizedException('La sesión expiró o fue invalidada');
     }
     session.revokedAt = new Date();
@@ -246,12 +262,15 @@ export class AuthService {
 
   private sessionView(user: User): SessionView {
     const activeRoles = user.roles.filter((role) => role.status === RecordStatus.ACTIVE);
+    const customerId = this.activeCustomerId(user);
     return {
       user: {
         id: user.id,
         name: user.name,
         username: user.username,
         email: user.email,
+        type: user.type,
+        customerId,
         roles: activeRoles.map((role) => role.name),
         permissions: [
           ...new Set(activeRoles.flatMap((role) => role.permissions?.map((permission) => permission.key) ?? [])),
@@ -266,6 +285,8 @@ export class AuthService {
       .addSelect('user.passwordHash')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.customerLinks', 'customerLink')
+      .leftJoinAndSelect('customerLink.customer', 'customer')
       .where('lower(user.email) = lower(:identifier)', { identifier: identifier.trim() })
       .orWhere('lower(user.username) = lower(:identifier)', { identifier: identifier.trim() })
       .getOne();
@@ -273,6 +294,20 @@ export class AuthService {
 
   private hasActiveRole(user: User): boolean {
     return user.roles.some((role) => role.status === RecordStatus.ACTIVE);
+  }
+
+  private hasActiveCustomerScope(user: User): boolean {
+    return user.type !== UserType.CUSTOMER || this.activeCustomerId(user) !== null;
+  }
+
+  private activeCustomerId(user: User): string | null {
+    return (
+      user.customerLinks?.find(
+        (link) =>
+          link.status === RecordStatus.ACTIVE &&
+          link.customer?.status === RecordStatus.ACTIVE,
+      )?.customerId ?? null
+    );
   }
 
   private tokenHash(token: string): string {
@@ -283,4 +318,3 @@ export class AuthService {
     return (this.jwtService.decode(token) as { sid?: string } | null)?.sid ?? null;
   }
 }
-

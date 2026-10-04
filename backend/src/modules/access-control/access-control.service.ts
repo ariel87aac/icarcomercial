@@ -53,6 +53,7 @@ export class AccessControlService {
 
   async updateRole(id: string, dto: UpdateRoleDto, actor: AuthenticatedUser): Promise<Role> {
     const role = await this.findRole(id);
+    const previousStatus = role.status;
     if (dto.name && role.isSystem && dto.name.trim().toUpperCase() !== role.name) {
       throw new ConflictException('Los roles del sistema no pueden renombrarse');
     }
@@ -61,15 +62,22 @@ export class AccessControlService {
     if (dto.status) role.status = dto.status;
     if (dto.permissionIds) role.permissions = await this.resolvePermissions(dto.permissionIds);
     await this.roleRepository.save(role);
+    const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.auditService.record({
       userId: actor.id,
       module: 'roles',
-      action: 'ACTUALIZAR_ROL',
+      action: statusChanged
+        ? dto.status === 'ACTIVO'
+          ? 'ACTIVAR_ROL'
+          : 'DESACTIVAR_ROL'
+        : 'ACTUALIZAR_ROL',
       entity: 'roles',
       entityId: role.id,
       result: 'EXITOSO',
       metadata: {
         fields: Object.keys(dto),
+        previousStatus,
+        status: role.status,
         permissionKeys: role.permissions.map((permission) => permission.key),
       },
     });
@@ -91,4 +99,3 @@ export class AccessControlService {
     return permissions;
   }
 }
-

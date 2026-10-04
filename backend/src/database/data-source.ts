@@ -13,8 +13,7 @@ export default new DataSource({
   database: process.env['DATABASE_NAME'],
   ssl: sslEnabled ? { rejectUnauthorized: true } : false,
   synchronize: false,
-  logging: process.env['NODE_ENV'] === 'development',
+  logging: false,
   migrationsTableName: 'migraciones',
   migrations: [join(__dirname, 'migrations', '*.js')],
 });
-

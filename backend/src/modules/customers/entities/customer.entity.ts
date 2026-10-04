@@ -2,6 +2,7 @@ import { BeforeInsert, BeforeUpdate, Column, Entity, OneToMany } from 'typeorm';
 import { AuditableEntity } from '../../../common/entities/auditable.entity';
 import { RecordStatus } from '../../../common/enums/record-status.enum';
 import { CustomerAddress } from './customer-address.entity';
+import { CustomerUser } from './customer-user.entity';
 import { CustomerType, PaymentCondition } from './customer.enums';
 
 @Entity({ name: 'clientes' })
@@ -48,6 +49,9 @@ export class Customer extends AuditableEntity {
   @OneToMany(() => CustomerAddress, (address) => address.customer, { eager: true })
   addresses: CustomerAddress[];
 
+  @OneToMany(() => CustomerUser, (link) => link.customer, { eager: true })
+  userLinks: CustomerUser[];
+
   @BeforeInsert()
   @BeforeUpdate()
   normalize(): void {
@@ -59,4 +63,3 @@ export class Customer extends AuditableEntity {
     this.contactName = this.contactName?.trim() || null;
   }
 }
-

@@ -50,19 +50,29 @@ export class ZonesService {
 
   async update(id: string, dto: UpdateZoneDto, actor: AuthenticatedUser): Promise<Zone> {
     const zone = await this.findZone(id);
+    const previousStatus = zone.status;
     const changes: Partial<Zone> = {};
     if (dto.name !== undefined) changes.name = dto.name.trim();
     if (dto.description !== undefined) changes.description = dto.description?.trim() || null;
     if (dto.status !== undefined) changes.status = dto.status;
     await this.zoneRepository.update(id, changes);
+    const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.auditService.record({
       userId: actor.id,
       module: 'zones',
-      action: 'ACTUALIZAR_ZONA',
+      action: statusChanged
+        ? dto.status === 'ACTIVO'
+          ? 'ACTIVAR_ZONA'
+          : 'DESACTIVAR_ZONA'
+        : 'ACTUALIZAR_ZONA',
       entity: 'zonas',
       entityId: zone.id,
       result: 'EXITOSO',
-      metadata: { fields: Object.keys(dto), status: dto.status ?? zone.status },
+      metadata: {
+        fields: Object.keys(dto),
+        previousStatus,
+        status: dto.status ?? zone.status,
+      },
     });
     return this.findZone(id);
   }
@@ -101,6 +111,7 @@ export class ZonesService {
   ) {
     const day = await this.dayRepository.findOne({ where: { id: dayId, zoneId } });
     if (!day) throw new NotFoundException('Día de distribución no encontrado');
+    const previousStatus = day.status;
     const start = dto.startTime ?? day.startTime ?? undefined;
     const end = dto.endTime ?? day.endTime ?? undefined;
     this.validateSchedule(start, end);
@@ -109,14 +120,24 @@ export class ZonesService {
     if (dto.endTime !== undefined) day.endTime = dto.endTime;
     if (dto.status !== undefined) day.status = dto.status;
     await this.dayRepository.save(day);
+    const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.auditService.record({
       userId: actor.id,
       module: 'zones',
-      action: 'ACTUALIZAR_DIA_DISTRIBUCION',
+      action: statusChanged
+        ? dto.status === 'ACTIVO'
+          ? 'ACTIVAR_DIA_DISTRIBUCION'
+          : 'DESACTIVAR_DIA_DISTRIBUCION'
+        : 'ACTUALIZAR_DIA_DISTRIBUCION',
       entity: 'dias_distribucion',
       entityId: day.id,
       result: 'EXITOSO',
-      metadata: { fields: Object.keys(dto), zoneId },
+      metadata: {
+        fields: Object.keys(dto),
+        zoneId,
+        previousStatus,
+        status: day.status,
+      },
     });
     return day;
   }

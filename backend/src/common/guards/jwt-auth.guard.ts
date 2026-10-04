@@ -9,6 +9,7 @@ import { RecordStatus } from '../enums/record-status.enum';
 import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
 import { readCookie } from '../utils/cookie.util';
 import { UserSession } from '../../modules/auth/entities/user-session.entity';
+import { UserType } from '../../modules/users/entities/user-type.enum';
 
 type AuthenticatedRequest = Request & { user: AuthenticatedUser };
 
@@ -38,6 +39,8 @@ export class JwtAuthGuard implements CanActivate {
         .leftJoinAndSelect('session.user', 'user')
         .leftJoinAndSelect('user.roles', 'role')
         .leftJoinAndSelect('role.permissions', 'permission')
+        .leftJoinAndSelect('user.customerLinks', 'customerLink')
+        .leftJoinAndSelect('customerLink.customer', 'customer')
         .where('session.id = :sid', { sid: payload.sid })
         .andWhere('session.userId = :uid', { uid: payload.sub })
         .andWhere('session.revokedAt IS NULL')
@@ -48,12 +51,23 @@ export class JwtAuthGuard implements CanActivate {
       }
       const roles = session.user.roles.filter((role) => role.status === RecordStatus.ACTIVE);
       if (roles.length === 0) throw new UnauthorizedException('La cuenta no tiene un rol activo');
+      const customerId =
+        session.user.customerLinks?.find(
+          (link) =>
+            link.status === RecordStatus.ACTIVE &&
+            link.customer?.status === RecordStatus.ACTIVE,
+        )?.customerId ?? null;
+      if (session.user.type === UserType.CUSTOMER && !customerId) {
+        throw new UnauthorizedException('La cuenta de cliente no está disponible');
+      }
       request.user = {
         id: session.user.id,
         sessionId: session.id,
         name: session.user.name,
         email: session.user.email,
         username: session.user.username,
+        type: session.user.type,
+        customerId,
         roles: roles.map((role) => role.name),
         permissions: [
           ...new Set(roles.flatMap((role) => role.permissions?.map((permission) => permission.key) ?? [])),
@@ -72,4 +86,3 @@ export class JwtAuthGuard implements CanActivate {
     return readCookie(request.headers.cookie, 'icar_access');
   }
 }
-

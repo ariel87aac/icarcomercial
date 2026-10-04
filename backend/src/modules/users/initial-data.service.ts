@@ -5,6 +5,7 @@ import { hash } from 'bcryptjs';
 import { Repository } from 'typeorm';
 import { Role } from '../access-control/entities/role.entity';
 import { User } from './entities/user.entity';
+import { UserType } from './entities/user-type.enum';
 
 @Injectable()
 export class InitialDataService implements OnApplicationBootstrap {
@@ -26,12 +27,12 @@ export class InitialDataService implements OnApplicationBootstrap {
         email,
         phone: null,
         passwordHash: await hash(
-          this.config.get<string>('INITIAL_ADMIN_PASSWORD', 'Cambiar123!'),
+          this.config.getOrThrow<string>('INITIAL_ADMIN_PASSWORD'),
           12,
         ),
+        type: UserType.INTERNAL,
         roles: [administrator],
       }),
     );
   }
 }
-

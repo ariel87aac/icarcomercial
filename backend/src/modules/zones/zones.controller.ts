@@ -10,7 +10,7 @@ import {
 } from './dto/zone.dto';
 import { ZonesService } from './zones.service';
 
-@Controller('zones')
+@Controller(['zones', 'zonas'])
 export class ZonesController {
   constructor(private readonly zonesService: ZonesService) {}
 
@@ -36,7 +36,7 @@ export class ZonesController {
     return this.zonesService.update(id, dto, actor);
   }
 
-  @Post(':id/distribution-days')
+  @Post([':id/distribution-days', ':id/dias-distribucion'])
   @RequirePermissions('zones.create')
   addDay(
     @Param('id', ParseUUIDPipe) id: string,
@@ -46,7 +46,10 @@ export class ZonesController {
     return this.zonesService.addDay(id, dto, actor);
   }
 
-  @Patch(':id/distribution-days/:dayId')
+  @Patch([
+    ':id/distribution-days/:dayId',
+    ':id/dias-distribucion/:dayId',
+  ])
   @RequirePermissions('zones.update')
   updateDay(
     @Param('id', ParseUUIDPipe) id: string,
@@ -57,4 +60,3 @@ export class ZonesController {
     return this.zonesService.updateDay(id, dayId, dto, actor);
   }
 }
-

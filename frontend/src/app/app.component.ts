@@ -28,6 +28,7 @@ import { AuthService } from './core/auth.service';
 import {
   AuditEvent,
   Customer,
+  CustomerAccount,
   CustomerAddress,
   Paginated,
   Permission,
@@ -36,7 +37,14 @@ import {
   Zone,
 } from './core/models';
 
-type Section = 'dashboard' | 'customers' | 'users' | 'roles' | 'zones' | 'audit';
+type Section =
+  | 'dashboard'
+  | 'customers'
+  | 'accounts'
+  | 'users'
+  | 'roles'
+  | 'zones'
+  | 'audit';
 
 interface NavigationItem {
   id: Section;
@@ -102,6 +110,7 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly zoneDialog = signal(false);
   protected readonly dayDialog = signal(false);
   protected readonly addressDialog = signal(false);
+  protected readonly accountDialog = signal(false);
   protected readonly passwordDialog = signal(false);
   protected readonly editingCustomerId = signal<string | null>(null);
   protected readonly editingUserId = signal<string | null>(null);
@@ -120,10 +129,21 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly userStatusFilter = signal<string | null>(null);
   protected readonly auditModuleFilter = signal('');
   protected readonly auditActionFilter = signal('');
+  protected readonly auditUserFilter = signal<string | null>(null);
+  protected readonly auditEntityFilter = signal('');
+  protected readonly auditResultFilter = signal<string | null>(null);
+  protected readonly auditFromFilter = signal('');
+  protected readonly auditToFilter = signal('');
 
   protected readonly navigation: NavigationItem[] = [
     { id: 'dashboard', label: 'Resumen', icon: 'pi pi-home' },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
+    {
+      id: 'accounts',
+      label: 'Cuentas de clientes',
+      icon: 'pi pi-address-book',
+      permission: 'customer_accounts.create',
+    },
     { id: 'zones', label: 'Zonas y reparto', icon: 'pi pi-map', permission: 'zones.read' },
     { id: 'users', label: 'Usuarios', icon: 'pi pi-user-edit', permission: 'users.read' },
     { id: 'roles', label: 'Roles y permisos', icon: 'pi pi-shield', permission: 'roles.read' },
@@ -142,6 +162,11 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly paymentOptions = [
     { label: 'Contado', value: 'CONTADO' },
     { label: 'Crédito', value: 'CREDITO' },
+  ];
+  protected readonly auditResultOptions = [
+    { label: 'Exitoso', value: 'EXITOSO' },
+    { label: 'Rechazado', value: 'RECHAZADO' },
+    { label: 'Error', value: 'ERROR' },
   ];
   protected readonly weekdayOptions = [
     { label: 'Lunes', value: 1 },
@@ -209,6 +234,25 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly passwordForm = this.fb.nonNullable.group({
     newPassword: ['', [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/)]],
   });
+  protected readonly accountForm = this.fb.nonNullable.group({
+    name: ['', [Validators.required, Validators.minLength(3)]],
+    username: [
+      '',
+      [Validators.required, Validators.pattern(/^[a-zA-Z0-9._-]{3,80}$/)],
+    ],
+    email: ['', [Validators.required, Validators.email]],
+    phone: [''],
+    password: [
+      '',
+      [
+        Validators.required,
+        Validators.pattern(
+          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/,
+        ),
+      ],
+    ],
+    isPrimary: [false],
+  });
 
   constructor() {
     effect(() => {
@@ -269,6 +313,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.activeSection.set(section);
     this.sidebarOpen.set(false);
     if (section === 'customers') this.loadCustomers(1);
+    if (section === 'accounts') this.loadCustomers(1);
     if (section === 'users') this.loadUsers(1);
     if (section === 'roles') this.loadRoles();
     if (section === 'zones') this.loadZones();
@@ -595,6 +640,71 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
+  protected openAccount(customer: Customer): void {
+    this.selectedCustomer.set(customer);
+    this.accountForm.reset({
+      name: customer.contactName ?? customer.businessName,
+      username: '',
+      email: customer.email ?? '',
+      phone: customer.phone,
+      password: '',
+      isPrimary: customer.userLinks.length === 0,
+    });
+    this.accountDialog.set(true);
+  }
+
+  protected saveAccount(): void {
+    if (this.accountForm.invalid || !this.selectedCustomer()) {
+      return this.accountForm.markAllAsTouched();
+    }
+    this.saving.set(true);
+    const raw = this.accountForm.getRawValue();
+    const payload = { ...raw, phone: raw.phone || undefined };
+    this.http
+      .post<CustomerAccount>(
+        `/api/customers/${this.selectedCustomer()!.id}/users`,
+        payload,
+      )
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.accountDialog.set(false);
+          this.toast(
+            'success',
+            'Cuenta de cliente creada',
+            this.selectedCustomer()!.businessName,
+          );
+          this.loadCustomers(this.customerMeta().page);
+        },
+        error: (error) => this.handleSaveError(error),
+      });
+  }
+
+  protected setAccountStatus(
+    customer: Customer,
+    account: CustomerAccount,
+  ): void {
+    const status = account.status === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO';
+    this.saving.set(true);
+    this.http
+      .patch<CustomerAccount>(
+        `/api/customers/${customer.id}/users/${account.userId}`,
+        { status },
+      )
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.toast(
+            'success',
+            status === 'ACTIVO' ? 'Cuenta habilitada' : 'Cuenta deshabilitada',
+            account.user.email,
+          );
+          this.loadCustomers(this.customerMeta().page);
+        },
+        error: (error) => this.handleSaveError(error),
+      });
+  }
+
   protected closeAddressDialog(): void {
     this.addressDialog.set(false);
     this.destroyMap();
@@ -643,6 +753,11 @@ export class AppComponent implements OnInit, OnDestroy {
     let params = new HttpParams().set('page', page).set('limit', 20);
     if (this.auditModuleFilter().trim()) params = params.set('module', this.auditModuleFilter().trim());
     if (this.auditActionFilter().trim()) params = params.set('action', this.auditActionFilter().trim());
+    if (this.auditUserFilter()) params = params.set('userId', this.auditUserFilter()!);
+    if (this.auditEntityFilter().trim()) params = params.set('entity', this.auditEntityFilter().trim());
+    if (this.auditResultFilter()) params = params.set('result', this.auditResultFilter()!);
+    if (this.auditFromFilter()) params = params.set('from', new Date(`${this.auditFromFilter()}T00:00:00`).toISOString());
+    if (this.auditToFilter()) params = params.set('to', new Date(`${this.auditToFilter()}T23:59:59.999`).toISOString());
     this.http.get<Paginated<AuditEvent>>('/api/audit-events', { params }).subscribe({
       next: (response) => {
         this.auditEvents.set(response.data);

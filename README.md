@@ -69,3 +69,4 @@ docker compose up --build -d backend
 
 La decisión tecnológica y los límites de cada capa están documentados en [`docs/stack-tecnologico.md`](docs/stack-tecnologico.md).
 
+El alcance implementado, las rutas, la matriz de permisos, el modelo de datos y las pruebas de la primera iteración están documentados en [`docs/iteracion-1.md`](docs/iteracion-1.md).

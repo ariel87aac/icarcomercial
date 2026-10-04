@@ -1,7 +1,17 @@
-import { BeforeInsert, BeforeUpdate, Column, Entity, JoinTable, ManyToMany } from 'typeorm';
+import {
+  BeforeInsert,
+  BeforeUpdate,
+  Column,
+  Entity,
+  JoinTable,
+  ManyToMany,
+  OneToMany,
+} from 'typeorm';
 import { AuditableEntity } from '../../../common/entities/auditable.entity';
 import { RecordStatus } from '../../../common/enums/record-status.enum';
 import { Role } from '../../access-control/entities/role.entity';
+import { CustomerUser } from '../../customers/entities/customer-user.entity';
+import { UserType } from './user-type.enum';
 
 @Entity({ name: 'usuarios' })
 export class User extends AuditableEntity {
@@ -20,6 +30,14 @@ export class User extends AuditableEntity {
   @Column({ name: 'telefono', type: 'varchar', length: 30, nullable: true })
   phone: string | null;
 
+  @Column({
+    name: 'tipo_usuario',
+    type: 'enum',
+    enum: UserType,
+    default: UserType.INTERNAL,
+  })
+  type: UserType;
+
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;
 
@@ -34,6 +52,9 @@ export class User extends AuditableEntity {
   })
   roles: Role[];
 
+  @OneToMany(() => CustomerUser, (link) => link.user)
+  customerLinks: CustomerUser[];
+
   @BeforeInsert()
   @BeforeUpdate()
   normalizeIdentity(): void {
@@ -42,4 +63,3 @@ export class User extends AuditableEntity {
     this.name = this.name.trim();
   }
 }
-

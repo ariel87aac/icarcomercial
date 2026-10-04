@@ -8,6 +8,7 @@ const requiredVariables = [
   'DATABASE_USER',
   'DATABASE_PASSWORD',
   'JWT_SECRET',
+  'INITIAL_ADMIN_PASSWORD',
 ] as const;
 
 export function validateEnvironment(
@@ -39,6 +40,9 @@ export function validateEnvironment(
   }
   if (!Number.isInteger(refreshTtl) || refreshTtl <= accessTtl) {
     throw new Error('REFRESH_TOKEN_TTL_SECONDS debe ser mayor que JWT_ACCESS_TTL_SECONDS');
+  }
+  if (String(environment['JWT_SECRET']).length < 32) {
+    throw new Error('JWT_SECRET debe tener al menos 32 caracteres');
   }
 
   return {
