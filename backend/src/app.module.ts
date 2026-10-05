@@ -20,6 +20,9 @@ import { PricingModule } from './modules/pricing/pricing.module';
 import { ProductionModule } from './modules/production/production.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { PreparationModule } from './modules/preparation/preparation.module';
+import { FleetModule } from './modules/fleet/fleet.module';
+import { DistributionModule } from './modules/distribution/distribution.module';
 
 @Module({
   imports: [
@@ -42,6 +45,9 @@ import { OrdersModule } from './modules/orders/orders.module';
     InventoryModule,
     OrdersModule,
     ProductionModule,
+    PreparationModule,
+    FleetModule,
+    DistributionModule,
     HealthModule,
   ],
   controllers: [AppController],

@@ -4,9 +4,12 @@ export type PaymentCondition = 'CONTADO' | 'CREDITO';
 export type UserType = 'INTERNO' | 'CLIENTE';
 export type OrderStatus = 'BORRADOR' | 'RECIBIDO' | 'CONFIRMADO';
 export type OrderOrigin = 'PORTAL' | 'INTERNO';
-export type InventoryMovementType = 'INGRESO' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
+export type InventoryMovementType = 'INGRESO' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO' | 'SALIDA_DESPACHO' | 'ENTRADA_DEVOLUCION';
 export type ProductionConsolidationStatus = 'BORRADOR' | 'EMITIDA' | 'EN_PROCESO' | 'CERRADA';
 export type ProductionConsolidationType = 'PRINCIPAL' | 'COMPLEMENTARIA';
+export type PreparationStatus = 'PENDIENTE' | 'EN_PREPARACION' | 'OBSERVADA' | 'PREPARADA' | 'ASIGNADA' | 'DESPACHADA';
+export type DistributionRouteStatus = 'BORRADOR' | 'PLANIFICADA' | 'EN_REPARTO' | 'FINALIZADA' | 'LIQUIDADA';
+export type VisitResultType = 'ENTREGADA' | 'ENTREGA_PARCIAL' | 'NO_ENTREGADA';
 
 export interface SessionUser {
   id: string;
@@ -221,7 +224,7 @@ export interface InventoryReservation {
   stock: Stock;
   orderDetail: OrderDetail;
   quantity: string;
-  status: 'ACTIVA';
+  status: 'ACTIVA' | 'CONSUMIDA';
   user: Pick<User, 'id' | 'name'>;
   createdAt: string;
 }
@@ -362,6 +365,168 @@ export interface ProductionSummaryRow {
   preparedQuantity: string;
   pendingQuantity: string;
   difference: string;
+}
+
+export interface Vehicle {
+  id: string;
+  plate: string;
+  description: string;
+  referenceCapacity: string | null;
+  status: RecordStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PreparationHistory {
+  id: string;
+  preparationId: string;
+  previousStatus: PreparationStatus | null;
+  newStatus: PreparationStatus;
+  event: 'INICIO' | 'AVANCE' | 'OBSERVACION' | 'CONFIRMACION' | 'ASIGNACION' | 'DESPACHO';
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  observation: string | null;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface OrderPreparationDetail {
+  id: string;
+  preparationId: string;
+  orderDetailId: string;
+  orderDetail: OrderDetail;
+  reservationId: string | null;
+  reservation: InventoryReservation | null;
+  stockId: string;
+  stock: Stock;
+  requestedQuantity: string;
+  reservedQuantity: string;
+  availableSnapshot: string;
+  preparedQuantity: string;
+  difference: string;
+  observation: string | null;
+  verifiedById: string | null;
+  verifiedAt: string | null;
+}
+
+export interface OrderPreparation {
+  id: string;
+  orderId: string;
+  order: Order;
+  responsibleId: string;
+  responsible: Pick<User, 'id' | 'name' | 'email'>;
+  status: PreparationStatus;
+  version: number;
+  productionReferences: string[];
+  startedAt: string;
+  confirmedBy: Pick<User, 'id' | 'name'> | null;
+  confirmedAt: string | null;
+  details: OrderPreparationDetail[];
+  history: PreparationHistory[];
+  detailCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EligibleOrder extends Order {
+  details: Array<OrderDetail & { reservation: InventoryReservation | null; availableQuantity: string }>;
+}
+
+export interface RouteResponsible {
+  id: string;
+  routeId: string;
+  userId: string;
+  user: User;
+  function: 'PRINCIPAL' | 'APOYO';
+  isPrincipal: boolean;
+}
+
+export interface VisitResultDetail {
+  id: string;
+  visitResultId: string;
+  preparationDetailId: string;
+  preparationDetail: OrderPreparationDetail;
+  deliveredQuantity: string;
+  returnedQuantity: string;
+  acceptedReturnQuantity: string;
+}
+
+export interface VisitResult {
+  id: string;
+  routeDeliveryId: string;
+  result: VisitResultType;
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  observation: string | null;
+  occurredAt: string;
+  details: VisitResultDetail[];
+}
+
+export interface RouteDelivery {
+  id: string;
+  routeId: string;
+  preparationId: string;
+  preparation: OrderPreparation;
+  orderId: string;
+  order: Order;
+  addressId: string;
+  address: CustomerAddress;
+  position: number | null;
+  status: 'PENDIENTE' | 'VISITADA';
+  result: VisitResult | null;
+}
+
+export interface RouteHistory {
+  id: string;
+  routeId: string;
+  previousStatus: DistributionRouteStatus | null;
+  newStatus: DistributionRouteStatus;
+  event: 'CREACION' | 'ASIGNACION' | 'SECUENCIA' | 'PLANIFICACION' | 'SALIDA' | 'VISITA' | 'FINALIZACION' | 'LIQUIDACION';
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  observation: string | null;
+  metadata: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface RouteSettlement {
+  id: string;
+  routeId: string;
+  completeDeliveries: number;
+  partialDeliveries: number;
+  notDelivered: number;
+  acceptedReturnQuantity: string;
+  observation: string | null;
+  occurredAt: string;
+}
+
+export interface DistributionRoute {
+  id: string;
+  code: string;
+  date: string;
+  zoneId: string;
+  zone: Zone;
+  vehicleId: string;
+  vehicle: Vehicle;
+  status: DistributionRouteStatus;
+  createdBy: Pick<User, 'id' | 'name'>;
+  observation: string | null;
+  departedAt: string | null;
+  finishedAt: string | null;
+  settledAt: string | null;
+  version: number;
+  responsibles: RouteResponsible[];
+  deliveries: RouteDelivery[];
+  history: RouteHistory[];
+  deliveryCount?: number;
+  metrics?: {
+    total: number;
+    complete: number;
+    partial: number;
+    notDelivered: number;
+    returnedQuantity: string;
+    acceptedReturnQuantity: string;
+  };
+  settlement?: RouteSettlement | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuditEvent {

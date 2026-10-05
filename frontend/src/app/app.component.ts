@@ -30,6 +30,7 @@ import { CommercialCatalogComponent } from './iteration-two/commercial-catalog.c
 import { InventoryComponent } from './iteration-two/inventory.component';
 import { OrdersComponent } from './iteration-two/orders.component';
 import { ProductionComponent } from './iteration-three/production.component';
+import { DistributionComponent } from './iteration-four/distribution.component';
 import {
   AuditEvent,
   Customer,
@@ -50,6 +51,7 @@ type Section =
   | 'orders'
   | 'inventory'
   | 'production'
+  | 'distribution'
   | 'customers'
   | 'accounts'
   | 'users'
@@ -88,6 +90,7 @@ interface NavigationItem {
     InventoryComponent,
     OrdersComponent,
     ProductionComponent,
+    DistributionComponent,
   ],
   providers: [MessageService],
   templateUrl: './app.component.html',
@@ -163,6 +166,12 @@ export class AppComponent implements OnInit, OnDestroy {
       label: 'Producción',
       icon: 'pi pi-chart-bar',
       permission: 'production.consolidations.read',
+    },
+    {
+      id: 'distribution',
+      label: 'Preparación y distribución',
+      icon: 'pi pi-truck',
+      permission: 'distribution.summary.read',
     },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
     {

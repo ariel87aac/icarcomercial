@@ -1,0 +1,34 @@
+export enum DistributionRouteStatus {
+  DRAFT = 'BORRADOR',
+  PLANNED = 'PLANIFICADA',
+  IN_DELIVERY = 'EN_REPARTO',
+  FINISHED = 'FINALIZADA',
+  SETTLED = 'LIQUIDADA',
+}
+
+export enum RouteResponsibleFunction {
+  PRINCIPAL = 'PRINCIPAL',
+  SUPPORT = 'APOYO',
+}
+
+export enum RouteDeliveryStatus {
+  PENDING = 'PENDIENTE',
+  VISITED = 'VISITADA',
+}
+
+export enum VisitResultType {
+  DELIVERED = 'ENTREGADA',
+  PARTIAL = 'ENTREGA_PARCIAL',
+  NOT_DELIVERED = 'NO_ENTREGADA',
+}
+
+export enum RouteHistoryEvent {
+  CREATION = 'CREACION',
+  ASSIGNMENT = 'ASIGNACION',
+  SEQUENCE = 'SECUENCIA',
+  PLANNING = 'PLANIFICACION',
+  DEPARTURE = 'SALIDA',
+  VISIT = 'VISITA',
+  FINISH = 'FINALIZACION',
+  SETTLEMENT = 'LIQUIDACION',
+}

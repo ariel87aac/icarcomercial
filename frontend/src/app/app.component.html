@@ -81,7 +81,7 @@
       <header class="workspace-header">
         <div>
           <button type="button" class="mobile-menu" aria-label="Abrir menú" (click)="sidebarOpen.set(true)"><i class="pi pi-bars"></i></button>
-          <span class="workspace-header__context">Tercera iteración</span>
+          <span class="workspace-header__context">Cuarta iteración</span>
           <h1>{{ sectionTitle() }}</h1>
         </div>
         <div class="workspace-header__actions">
@@ -131,6 +131,7 @@
           @case ('orders') { <app-orders /> }
           @case ('inventory') { <app-inventory /> }
           @case ('production') { <app-production /> }
+          @case ('distribution') { <app-distribution /> }
 
           @case ('customers') {
             <div class="page-toolbar"><div><span class="eyebrow">Maestro comercial</span><h2>Clientes y domicilios</h2><p>{{ customerMeta().total }} registros encontrados</p></div>@if (can('customers.create')) { <p-button label="Nuevo cliente" icon="pi pi-plus" (onClick)="openCustomer()" /> }</div>

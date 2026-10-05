@@ -2,8 +2,11 @@ export enum InventoryMovementType {
   ENTRY = 'INGRESO',
   POSITIVE_ADJUSTMENT = 'AJUSTE_POSITIVO',
   NEGATIVE_ADJUSTMENT = 'AJUSTE_NEGATIVO',
+  DISPATCH_OUT = 'SALIDA_DESPACHO',
+  RETURN_IN = 'ENTRADA_DEVOLUCION',
 }
 
 export enum InventoryReservationStatus {
   ACTIVE = 'ACTIVA',
+  CONSUMED = 'CONSUMIDA',
 }

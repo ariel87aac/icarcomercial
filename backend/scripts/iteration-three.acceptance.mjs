@@ -129,7 +129,10 @@ try {
   const scopedJar = await login(scopedUser.email, 'Produccion1234!');
   const managementJar = await login(managementUser.email, 'Gerencia1234!');
 
-  const dates = [20, 21, 22, 23, 24, 25].map(isoDate);
+  // Usar un rango futuro propio de la ejecución evita colisiones con datos
+  // locales de demostración que también poseen consolidaciones principales.
+  const acceptanceDateOffset = 400 + [...suffix].reduce((total, character) => total + character.charCodeAt(0), 0) % 300;
+  const dates = [0, 1, 2, 3, 4, 5].map((offset) => isoDate(acceptanceDateOffset + offset));
   const zone = (await expectStatus('/api/zonas', { method: 'POST', jar: adminJar, body: { name: `Zona Iteración 3 ${suffix}` } }, 201, 'zona')).payload;
   const days = new Map();
   for (const date of dates) {

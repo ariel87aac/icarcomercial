@@ -37,6 +37,15 @@ export class InventoryMovement {
   @JoinColumn({ name: 'usuario_id' })
   user: User;
 
+  @Column({ name: 'pedido_id', type: 'uuid', nullable: true })
+  orderId: string | null;
+
+  @Column({ name: 'detalle_pedido_id', type: 'uuid', nullable: true })
+  orderDetailId: string | null;
+
+  @Column({ name: 'ruta_entrega_id', type: 'uuid', nullable: true })
+  routeDeliveryId: string | null;
+
   @CreateDateColumn({ name: 'fecha_hora', type: 'timestamptz' })
   occurredAt: Date;
 }

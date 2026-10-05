@@ -74,3 +74,5 @@ El alcance implementado, las rutas, la matriz de permisos, el modelo de datos y 
 La segunda iteración de catálogo, precios, inventario y pedidos está documentada en [`docs/iteracion-2.md`](docs/iteracion-2.md).
 
 La tercera iteración de consolidación y requerimientos para Producción está documentada en [`docs/iteracion-3.md`](docs/iteracion-3.md).
+
+La cuarta iteración de preparación, despacho, rutas y distribución está documentada en [`docs/iteracion-4.md`](docs/iteracion-4.md).

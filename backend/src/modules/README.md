@@ -1,11 +1,11 @@
 # Límites del monolito modular
 
-Cada capacidad funcional se implementa como un módulo NestJS cohesivo. Las tres primeras iteraciones ya contienen `auth`, `users`, `access-control`, `customers`, `zones`, `audit`, `catalog`, `pricing`, `inventory`, `orders` y `production`, además del módulo técnico `health`. Los siguientes módulos se agregarán según las iteraciones del Trabajo Dirigido:
+Cada capacidad funcional se implementa como un módulo NestJS cohesivo. Las cuatro primeras iteraciones ya contienen `auth`, `users`, `access-control`, `customers`, `zones`, `audit`, `catalog`, `pricing`, `inventory`, `orders`, `production`, `preparation`, `fleet` y `distribution`, además del módulo técnico `health`. Los siguientes módulos se agregarán según las iteraciones del Trabajo Dirigido:
 
 - Iteración 1: `auth`, `users`, `access-control`, `customers`, `addresses`, `zones`, `audit`.
 - Iteración 2: `catalog`, `pricing`, `inventory` y `orders`; el historial de estados forma parte de `orders`.
 - Iteración 3: `production`, con consolidaciones, trazabilidad de origen, avances, historial y resumen.
-- Iteración 4: `dispatch`, `vehicles`, `routes`, `deliveries`, `route-settlement`.
+- Iteración 4: `preparation`, `fleet` y `distribution`, con despacho, vehículos, rutas, entregas, devoluciones y liquidación operativa.
 - Iteración 5: `public-tracking`, `notifications`.
 - Iteración 6: `sales`, `receipts`, `payments`, `accounts-receivable`, `reports`.
 

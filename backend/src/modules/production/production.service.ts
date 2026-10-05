@@ -349,11 +349,20 @@ export class ProductionService {
 
   async history(id: string, actor: AuthenticatedUser): Promise<ProductionConsolidationHistory[]> {
     await this.findOne(id, actor);
-    return this.historyRepository.find({
-      where: { consolidationId: id },
-      relations: { user: true },
-      order: { occurredAt: 'ASC' },
-    });
+    return this.historyRepository.createQueryBuilder('history')
+      .leftJoinAndSelect('history.user', 'user')
+      .where('history.consolidationId = :id', { id })
+      .orderBy('history.occurredAt', 'ASC')
+      .addOrderBy(`CASE "history"."evento"
+        WHEN 'GENERACION' THEN 1
+        WHEN 'RECALCULO' THEN 2
+        WHEN 'EMISION' THEN 3
+        WHEN 'INICIO' THEN 4
+        WHEN 'AVANCE' THEN 5
+        WHEN 'CIERRE' THEN 6
+        ELSE 99 END`, 'ASC')
+      .addOrderBy('history.id', 'ASC')
+      .getMany();
   }
 
   async summary(query: ProductionConsolidationQueryDto, actor: AuthenticatedUser) {
