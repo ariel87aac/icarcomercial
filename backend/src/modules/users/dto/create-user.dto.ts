@@ -43,5 +43,10 @@ export class CreateUserDto {
   @ArrayUnique()
   @IsUUID('4', { each: true })
   roleIds: string[];
-}
 
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  productLineIds?: string[];
+}

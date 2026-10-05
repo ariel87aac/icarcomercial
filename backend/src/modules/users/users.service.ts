@@ -7,6 +7,7 @@ import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.in
 import { Role } from '../access-control/entities/role.entity';
 import { AuditService } from '../audit/audit.service';
 import { UserSession } from '../auth/entities/user-session.entity';
+import { ProductLine } from '../catalog/entities/product-line.entity';
 import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -20,6 +21,7 @@ export class UsersService {
   constructor(
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     @InjectRepository(Role) private readonly roleRepository: Repository<Role>,
+    @InjectRepository(ProductLine) private readonly productLineRepository: Repository<ProductLine>,
     @InjectRepository(UserSession)
     private readonly sessionRepository: Repository<UserSession>,
     private readonly auditService: AuditService,
@@ -30,6 +32,7 @@ export class UsersService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.productLines', 'productLine')
       .distinct(true)
       .andWhere('user.type = :userType', { userType: UserType.INTERNAL })
       .orderBy('user.name', 'ASC')
@@ -58,6 +61,7 @@ export class UsersService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.productLines', 'productLine')
       .where('user.id = :id', { id })
       .andWhere('user.type = :userType', { userType: UserType.INTERNAL })
       .getOne();
@@ -68,6 +72,7 @@ export class UsersService {
   async create(dto: CreateUserDto, actor: AuthenticatedUser): Promise<User> {
     await this.assertIdentityAvailable(dto.email, dto.username);
     const roles = await this.resolveRoles(dto.roleIds);
+    const productLines = await this.resolveProductLines(dto.productLineIds ?? []);
     const user = await this.userRepository.save(
       this.userRepository.create({
         name: dto.name,
@@ -77,6 +82,7 @@ export class UsersService {
         passwordHash: await hash(dto.password, 12),
         type: UserType.INTERNAL,
         roles,
+        productLines,
       }),
     );
     await this.auditService.record({
@@ -86,7 +92,7 @@ export class UsersService {
       entity: 'usuarios',
       entityId: user.id,
       result: 'EXITOSO',
-      metadata: { email: user.email, username: user.username, roles: roles.map((role) => role.name) },
+      metadata: { email: user.email, username: user.username, roles: roles.map((role) => role.name), productLineIds: productLines.map((line) => line.id) },
     });
     return this.findOne(user.id);
   }
@@ -103,6 +109,7 @@ export class UsersService {
     if (dto.phone !== undefined) user.phone = dto.phone?.trim() || null;
     if (dto.status !== undefined) user.status = dto.status;
     if (dto.roleIds) user.roles = await this.resolveRoles(dto.roleIds);
+    if (dto.productLineIds !== undefined) user.productLines = await this.resolveProductLines(dto.productLineIds);
     const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.userRepository.save(user);
     if (dto.status === 'INACTIVO') {
@@ -127,6 +134,7 @@ export class UsersService {
         previousStatus,
         status: user.status,
         roles: user.roles.map((role) => role.name),
+        productLineIds: user.productLines?.map((line) => line.id) ?? [],
       },
     });
     return this.findOne(id);
@@ -137,6 +145,7 @@ export class UsersService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.productLines', 'productLine')
       .leftJoinAndSelect('user.customerLinks', 'customerLink')
       .leftJoinAndSelect('customerLink.customer', 'customer')
       .leftJoinAndSelect('customer.addresses', 'address')
@@ -166,6 +175,7 @@ export class UsersService {
       ],
       customerId: customerLink?.customerId ?? null,
       customer: customerLink?.customer ?? null,
+      productLineIds: user.productLines?.map((line) => line.id) ?? [],
     };
   }
 
@@ -220,6 +230,16 @@ export class UsersService {
       throw new ConflictException('No se puede asignar un rol inactivo');
     }
     return roles;
+  }
+
+  private async resolveProductLines(ids: string[]): Promise<ProductLine[]> {
+    if (!ids.length) return [];
+    const lines = await this.productLineRepository.findBy({ id: In(ids) });
+    if (lines.length !== ids.length) throw new NotFoundException('Una o más líneas productivas no existen');
+    if (lines.some((line) => line.status !== 'ACTIVO')) {
+      throw new ConflictException('No se puede asignar una línea productiva inactiva');
+    }
+    return lines;
   }
 
   private async assertIdentityAvailable(email: string, username: string, excludedId?: string) {

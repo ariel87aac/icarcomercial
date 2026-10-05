@@ -72,3 +72,5 @@ La decisión tecnológica y los límites de cada capa están documentados en [`d
 El alcance implementado, las rutas, la matriz de permisos, el modelo de datos y las pruebas de la primera iteración están documentados en [`docs/iteracion-1.md`](docs/iteracion-1.md).
 
 La segunda iteración de catálogo, precios, inventario y pedidos está documentada en [`docs/iteracion-2.md`](docs/iteracion-2.md).
+
+La tercera iteración de consolidación y requerimientos para Producción está documentada en [`docs/iteracion-3.md`](docs/iteracion-3.md).

@@ -5,6 +5,8 @@ export type UserType = 'INTERNO' | 'CLIENTE';
 export type OrderStatus = 'BORRADOR' | 'RECIBIDO' | 'CONFIRMADO';
 export type OrderOrigin = 'PORTAL' | 'INTERNO';
 export type InventoryMovementType = 'INGRESO' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
+export type ProductionConsolidationStatus = 'BORRADOR' | 'EMITIDA' | 'EN_PROCESO' | 'CERRADA';
+export type ProductionConsolidationType = 'PRINCIPAL' | 'COMPLEMENTARIA';
 
 export interface SessionUser {
   id: string;
@@ -15,6 +17,7 @@ export interface SessionUser {
   customerId: string | null;
   roles: string[];
   permissions: string[];
+  productLineIds: string[];
 }
 
 export interface Permission {
@@ -44,6 +47,7 @@ export interface User {
   status: RecordStatus;
   lastLoginAt: string | null;
   roles: Role[];
+  productLines: ProductLine[];
 }
 
 export interface CustomerAccount {
@@ -127,6 +131,7 @@ export interface UnitMeasure {
   id: string;
   name: string;
   abbreviation: string;
+  decimalScale: number;
   status: RecordStatus;
 }
 
@@ -274,6 +279,89 @@ export interface Order {
   detailCount?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ProductionConsolidationSource {
+  id: string;
+  consolidatedDetailId: string;
+  orderDetailId: string;
+  presentationId: string;
+  presentation: ProductPresentation;
+  originalQuantity: string;
+  appliedFactor: string;
+  baseContribution: string;
+  orderDetail: OrderDetail & { order: Order };
+  createdAt: string;
+}
+
+export interface ProductionProgress {
+  id: string;
+  consolidatedDetailId: string;
+  quantity: string;
+  type: 'AVANCE';
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  observation: string | null;
+  occurredAt: string;
+}
+
+export interface ProductionConsolidationDetail {
+  id: string;
+  consolidationId: string;
+  productId: string;
+  product: Product;
+  productLineId: string;
+  productLine: ProductLine;
+  baseUnitId: string;
+  baseUnit: UnitMeasure;
+  requestedQuantity: string;
+  preparedQuantity: string;
+  difference: string;
+  sources: ProductionConsolidationSource[];
+  progress: ProductionProgress[];
+}
+
+export interface ProductionConsolidation {
+  id: string;
+  deliveryDate: string;
+  version: number;
+  type: ProductionConsolidationType;
+  status: ProductionConsolidationStatus;
+  generatedBy: Pick<User, 'id' | 'name' | 'email'>;
+  emittedBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  emittedAt: string | null;
+  closedBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  closedAt: string | null;
+  details: ProductionConsolidationDetail[];
+  detailCount?: number;
+  createdAt: string;
+}
+
+export interface ProductionHistory {
+  id: string;
+  consolidationId: string;
+  previousStatus: ProductionConsolidationStatus | null;
+  newStatus: ProductionConsolidationStatus;
+  event: 'GENERACION' | 'RECALCULO' | 'EMISION' | 'INICIO' | 'AVANCE' | 'CIERRE';
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  observation: string | null;
+  occurredAt: string;
+}
+
+export interface ProductionSummaryRow {
+  deliveryDate: string;
+  version: number;
+  type: ProductionConsolidationType;
+  status: ProductionConsolidationStatus;
+  productLineId: string;
+  productLineName: string;
+  productId: string;
+  productName: string;
+  baseUnitId: string;
+  baseUnitAbbreviation: string;
+  requestedQuantity: string;
+  preparedQuantity: string;
+  pendingQuantity: string;
+  difference: string;
 }
 
 export interface AuditEvent {

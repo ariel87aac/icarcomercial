@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -37,6 +38,13 @@ export class CreateUnitMeasureDto extends CreateNamedCatalogItemDto {
   @MinLength(1)
   @MaxLength(20)
   abbreviation: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  decimalScale = 3;
 }
 
 export class UpdateUnitMeasureDto extends UpdateNamedCatalogItemDto {
@@ -45,6 +53,13 @@ export class UpdateUnitMeasureDto extends UpdateNamedCatalogItemDto {
   @MinLength(1)
   @MaxLength(20)
   abbreviation?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  decimalScale?: number;
 }
 
 export class CreateProductDto {

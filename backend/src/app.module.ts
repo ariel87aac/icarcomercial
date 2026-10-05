@@ -17,6 +17,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ZonesModule } from './modules/zones/zones.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { PricingModule } from './modules/pricing/pricing.module';
+import { ProductionModule } from './modules/production/production.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { OrdersModule } from './modules/orders/orders.module';
 
@@ -40,6 +41,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     PricingModule,
     InventoryModule,
     OrdersModule,
+    ProductionModule,
     HealthModule,
   ],
   controllers: [AppController],

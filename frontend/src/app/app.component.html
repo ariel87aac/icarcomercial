@@ -81,7 +81,7 @@
       <header class="workspace-header">
         <div>
           <button type="button" class="mobile-menu" aria-label="Abrir menú" (click)="sidebarOpen.set(true)"><i class="pi pi-bars"></i></button>
-          <span class="workspace-header__context">Segunda iteración</span>
+          <span class="workspace-header__context">Tercera iteración</span>
           <h1>{{ sectionTitle() }}</h1>
         </div>
         <div class="workspace-header__actions">
@@ -115,6 +115,7 @@
                   @if (can('zones.create')) { <button type="button" (click)="openZone()"><i class="pi pi-map"></i><span><strong>Nueva zona</strong><small>Días de distribución</small></span><i class="pi pi-arrow-right"></i></button> }
                   @if (can('catalog.read')) { <button type="button" (click)="selectSection('catalog')"><i class="pi pi-shopping-bag"></i><span><strong>Consultar catálogo</strong><small>Productos y precios aplicables</small></span><i class="pi pi-arrow-right"></i></button> }
                   @if (can('orders.read')) { <button type="button" (click)="selectSection('orders')"><i class="pi pi-shopping-cart"></i><span><strong>Gestionar pedidos</strong><small>Borrador, Recibido y Confirmado</small></span><i class="pi pi-arrow-right"></i></button> }
+                  @if (can('production.consolidations.read')) { <button type="button" (click)="selectSection('production')"><i class="pi pi-chart-bar"></i><span><strong>Consolidación para Producción</strong><small>Requerimientos, avances y diferencias</small></span><i class="pi pi-arrow-right"></i></button> }
                 </div>
               </article>
               <article class="content-card security-summary">
@@ -129,6 +130,7 @@
           @case ('catalog-admin') { <app-catalog-admin /> }
           @case ('orders') { <app-orders /> }
           @case ('inventory') { <app-inventory /> }
+          @case ('production') { <app-production /> }
 
           @case ('customers') {
             <div class="page-toolbar"><div><span class="eyebrow">Maestro comercial</span><h2>Clientes y domicilios</h2><p>{{ customerMeta().total }} registros encontrados</p></div>@if (can('customers.create')) { <p-button label="Nuevo cliente" icon="pi pi-plus" (onClick)="openCustomer()" /> }</div>
@@ -208,7 +210,7 @@
 </p-dialog>
 
 <p-dialog [visible]="userDialog()" (visibleChange)="userDialog.set($event)" [modal]="true" [style]="{ width: 'min(700px, 96vw)' }" [header]="editingUserId() ? 'Editar usuario' : 'Crear usuario'" [draggable]="false">
-  <form [formGroup]="userForm" class="dialog-form" (ngSubmit)="saveUser()"><div class="form-grid"><label class="field field--wide"><span>Nombre completo *</span><input pInputText formControlName="name" /></label><label class="field"><span>Nombre de usuario *</span><input pInputText formControlName="username" /></label><label class="field"><span>Correo *</span><input pInputText type="email" formControlName="email" /></label><label class="field"><span>Teléfono</span><input pInputText formControlName="phone" /></label>@if (!editingUserId()) { <label class="field"><span>Contraseña temporal *</span><p-password formControlName="password" [toggleMask]="true" [feedback]="true" /></label> }<label class="field field--wide"><span>Roles *</span><p-multiselect formControlName="roleIds" [options]="roles()" optionLabel="name" optionValue="id" placeholder="Seleccionar roles" display="chip" /></label>@if (editingUserId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }</div><p class="form-help"><i class="pi pi-info-circle"></i> La contraseña requiere al menos 10 caracteres, mayúscula, minúscula, número y símbolo.</p><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="userDialog.set(false)" /><p-button type="submit" [label]="editingUserId() ? 'Guardar cambios' : 'Crear usuario'" icon="pi pi-check" [loading]="saving()" /></div></form>
+  <form [formGroup]="userForm" class="dialog-form" (ngSubmit)="saveUser()"><div class="form-grid"><label class="field field--wide"><span>Nombre completo *</span><input pInputText formControlName="name" /></label><label class="field"><span>Nombre de usuario *</span><input pInputText formControlName="username" /></label><label class="field"><span>Correo *</span><input pInputText type="email" formControlName="email" /></label><label class="field"><span>Teléfono</span><input pInputText formControlName="phone" /></label>@if (!editingUserId()) { <label class="field"><span>Contraseña temporal *</span><p-password formControlName="password" [toggleMask]="true" [feedback]="true" /></label> }<label class="field field--wide"><span>Roles *</span><p-multiselect formControlName="roleIds" [options]="roles()" optionLabel="name" optionValue="id" placeholder="Seleccionar roles" display="chip" /></label>@if (productLines().length) { <label class="field field--wide"><span>Líneas productivas autorizadas</span><p-multiselect formControlName="productLineIds" [options]="productLines()" optionLabel="name" optionValue="id" placeholder="Sin restricción por línea" display="chip" /></label> }@if (editingUserId()) { <label class="field"><span>Estado</span><p-select formControlName="status" [options]="statusOptions" /></label> }</div><p class="form-help"><i class="pi pi-info-circle"></i> La contraseña requiere al menos 10 caracteres, mayúscula, minúscula, número y símbolo. Sin líneas asignadas, el acceso no se restringe por línea productiva.</p><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="userDialog.set(false)" /><p-button type="submit" [label]="editingUserId() ? 'Guardar cambios' : 'Crear usuario'" icon="pi pi-check" [loading]="saving()" /></div></form>
 </p-dialog>
 
 <p-dialog [visible]="passwordDialog()" (visibleChange)="passwordDialog.set($event)" [modal]="true" [style]="{ width: 'min(470px, 96vw)' }" header="Restablecer contraseña" [draggable]="false"><form [formGroup]="passwordForm" class="dialog-form" (ngSubmit)="resetPassword()"><label class="field"><span>Nueva contraseña segura *</span><p-password formControlName="newPassword" [toggleMask]="true" [feedback]="true" /></label><p class="form-help"><i class="pi pi-exclamation-triangle"></i> Esta acción invalidará todas las sesiones actuales del usuario.</p><div class="dialog-footer"><p-button type="button" label="Cancelar" severity="secondary" [text]="true" (onClick)="passwordDialog.set(false)" /><p-button type="submit" label="Restablecer" icon="pi pi-key" [loading]="saving()" /></div></form></p-dialog>

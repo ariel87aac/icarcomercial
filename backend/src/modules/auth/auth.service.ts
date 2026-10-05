@@ -29,6 +29,7 @@ export interface SessionView {
     customerId: string | null;
     roles: string[];
     permissions: string[];
+    productLineIds: string[];
   };
 }
 
@@ -109,6 +110,7 @@ export class AuthService {
       .leftJoinAndSelect('session.user', 'user')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.productLines', 'productLine')
       .leftJoinAndSelect('user.customerLinks', 'customerLink')
       .leftJoinAndSelect('customerLink.customer', 'customer')
       .where('session.refreshTokenHash = :hash', { hash: this.tokenHash(refreshToken) })
@@ -275,6 +277,7 @@ export class AuthService {
         permissions: [
           ...new Set(activeRoles.flatMap((role) => role.permissions?.map((permission) => permission.key) ?? [])),
         ],
+        productLineIds: user.productLines?.map((line) => line.id) ?? [],
       },
     };
   }
@@ -285,6 +288,7 @@ export class AuthService {
       .addSelect('user.passwordHash')
       .leftJoinAndSelect('user.roles', 'role')
       .leftJoinAndSelect('role.permissions', 'permission')
+      .leftJoinAndSelect('user.productLines', 'productLine')
       .leftJoinAndSelect('user.customerLinks', 'customerLink')
       .leftJoinAndSelect('customerLink.customer', 'customer')
       .where('lower(user.email) = lower(:identifier)', { identifier: identifier.trim() })

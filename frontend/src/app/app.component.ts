@@ -29,6 +29,7 @@ import { CatalogAdminComponent } from './iteration-two/catalog-admin.component';
 import { CommercialCatalogComponent } from './iteration-two/commercial-catalog.component';
 import { InventoryComponent } from './iteration-two/inventory.component';
 import { OrdersComponent } from './iteration-two/orders.component';
+import { ProductionComponent } from './iteration-three/production.component';
 import {
   AuditEvent,
   Customer,
@@ -36,6 +37,7 @@ import {
   CustomerAddress,
   Paginated,
   Permission,
+  ProductLine,
   Role,
   User,
   Zone,
@@ -47,6 +49,7 @@ type Section =
   | 'catalog-admin'
   | 'orders'
   | 'inventory'
+  | 'production'
   | 'customers'
   | 'accounts'
   | 'users'
@@ -84,6 +87,7 @@ interface NavigationItem {
     CommercialCatalogComponent,
     InventoryComponent,
     OrdersComponent,
+    ProductionComponent,
   ],
   providers: [MessageService],
   templateUrl: './app.component.html',
@@ -112,6 +116,7 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly userMeta = signal({ page: 1, total: 0, totalPages: 1 });
   protected readonly roles = signal<Role[]>([]);
   protected readonly permissions = signal<Permission[]>([]);
+  protected readonly productLines = signal<ProductLine[]>([]);
   protected readonly zones = signal<Zone[]>([]);
   protected readonly auditEvents = signal<AuditEvent[]>([]);
   protected readonly auditMeta = signal({ page: 1, total: 0, totalPages: 1 });
@@ -153,6 +158,12 @@ export class AppComponent implements OnInit, OnDestroy {
     { id: 'orders', label: 'Pedidos', icon: 'pi pi-shopping-cart', permission: 'orders.read' },
     { id: 'catalog-admin', label: 'Catálogo y precios', icon: 'pi pi-box', permission: 'catalog.manage' },
     { id: 'inventory', label: 'Inventario', icon: 'pi pi-warehouse', permission: 'inventory.read' },
+    {
+      id: 'production',
+      label: 'Producción',
+      icon: 'pi pi-chart-bar',
+      permission: 'production.consolidations.read',
+    },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
     {
       id: 'accounts',
@@ -219,6 +230,7 @@ export class AppComponent implements OnInit, OnDestroy {
     phone: [''],
     password: [''],
     roleIds: [[] as string[], Validators.required],
+    productLineIds: [[] as string[]],
     status: ['ACTIVO'],
   });
   protected readonly roleForm = this.fb.nonNullable.group({
@@ -347,6 +359,11 @@ export class AppComponent implements OnInit, OnDestroy {
       this.http.get<Permission[]>('/api/permissions').subscribe({ next: (items) => this.permissions.set(items) });
     }
     if (this.can('zones.read')) this.loadZones();
+    if (this.can('catalog.manage')) {
+      this.http.get<ProductLine[]>('/api/lineas-productivas').subscribe({
+        next: (items) => this.productLines.set(items.filter((item) => item.status === 'ACTIVO')),
+      });
+    }
   }
 
   private loadDashboard(): void {
@@ -453,6 +470,7 @@ export class AppComponent implements OnInit, OnDestroy {
       phone: user?.phone ?? '',
       password: '',
       roleIds: user?.roles.map((role) => role.id) ?? [],
+      productLineIds: user?.productLines.map((line) => line.id) ?? [],
       status: user?.status ?? 'ACTIVO',
     });
     this.userDialog.set(true);

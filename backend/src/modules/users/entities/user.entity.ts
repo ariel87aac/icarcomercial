@@ -10,6 +10,7 @@ import {
 import { AuditableEntity } from '../../../common/entities/auditable.entity';
 import { RecordStatus } from '../../../common/enums/record-status.enum';
 import { Role } from '../../access-control/entities/role.entity';
+import { ProductLine } from '../../catalog/entities/product-line.entity';
 import { CustomerUser } from '../../customers/entities/customer-user.entity';
 import { UserType } from './user-type.enum';
 
@@ -51,6 +52,14 @@ export class User extends AuditableEntity {
     inverseJoinColumn: { name: 'rol_id', referencedColumnName: 'id' },
   })
   roles: Role[];
+
+  @ManyToMany(() => ProductLine, { eager: true })
+  @JoinTable({
+    name: 'usuarios_lineas_productivas',
+    joinColumn: { name: 'usuario_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'linea_productiva_id', referencedColumnName: 'id' },
+  })
+  productLines: ProductLine[];
 
   @OneToMany(() => CustomerUser, (link) => link.user)
   customerLinks: CustomerUser[];

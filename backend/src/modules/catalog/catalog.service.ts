@@ -95,6 +95,7 @@ export class CatalogService {
     const unit = await this.unitRepository.save(this.unitRepository.create({
       name: dto.name.trim(),
       abbreviation: dto.abbreviation.trim(),
+      decimalScale: dto.decimalScale,
     }));
     await this.audit(actor, 'CREAR_UNIDAD', 'unidades_medida', unit.id, { name: unit.name, abbreviation: unit.abbreviation });
     return unit;
@@ -105,6 +106,7 @@ export class CatalogService {
     await this.assertUnitUnique(dto.name ?? unit.name, dto.abbreviation ?? unit.abbreviation, id);
     if (dto.name !== undefined) unit.name = dto.name.trim();
     if (dto.abbreviation !== undefined) unit.abbreviation = dto.abbreviation.trim();
+    if (dto.decimalScale !== undefined) unit.decimalScale = dto.decimalScale;
     if (dto.status !== undefined) unit.status = dto.status;
     const saved = await this.unitRepository.save(unit);
     await this.audit(actor, this.statusAction('UNIDAD', dto.status), 'unidades_medida', id, { fields: Object.keys(dto) });

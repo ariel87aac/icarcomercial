@@ -10,6 +10,9 @@ export class UnitMeasure extends AuditableEntity {
   @Column({ name: 'abreviatura', type: 'varchar', length: 20, unique: true })
   abbreviation: string;
 
+  @Column({ name: 'precision_decimal', type: 'smallint', default: 3 })
+  decimalScale: number;
+
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;
 
