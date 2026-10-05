@@ -31,6 +31,9 @@ export class Customer extends AuditableEntity {
   @Column({ name: 'condicion_pago', type: 'enum', enum: PaymentCondition })
   paymentCondition: PaymentCondition;
 
+  @Column({ name: 'lista_comercial', type: 'varchar', length: 80, nullable: true })
+  commercialList: string | null;
+
   @Column({
     name: 'limite_credito',
     type: 'numeric',
@@ -61,5 +64,6 @@ export class Customer extends AuditableEntity {
     this.phone = this.phone.trim();
     this.whatsapp = this.whatsapp?.trim() || null;
     this.contactName = this.contactName?.trim() || null;
+    this.commercialList = this.commercialList?.trim().toUpperCase() || null;
   }
 }

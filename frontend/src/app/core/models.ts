@@ -2,6 +2,9 @@ export type RecordStatus = 'ACTIVO' | 'INACTIVO';
 export type CustomerType = 'MINORISTA' | 'DISTRIBUIDOR' | 'MAYORISTA';
 export type PaymentCondition = 'CONTADO' | 'CREDITO';
 export type UserType = 'INTERNO' | 'CLIENTE';
+export type OrderStatus = 'BORRADOR' | 'RECIBIDO' | 'CONFIRMADO';
+export type OrderOrigin = 'PORTAL' | 'INTERNO';
+export type InventoryMovementType = 'INGRESO' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO';
 
 export interface SessionUser {
   id: string;
@@ -98,11 +101,177 @@ export interface Customer {
   whatsapp: string | null;
   email: string | null;
   paymentCondition: PaymentCondition;
+  commercialList: string | null;
   creditLimit: string;
   creditDays: number;
   status: RecordStatus;
   addresses: CustomerAddress[];
   userLinks: CustomerAccount[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductCategory {
+  id: string;
+  name: string;
+  status: RecordStatus;
+}
+
+export interface ProductLine {
+  id: string;
+  name: string;
+  status: RecordStatus;
+}
+
+export interface UnitMeasure {
+  id: string;
+  name: string;
+  abbreviation: string;
+  status: RecordStatus;
+}
+
+export interface ProductPresentation {
+  id: string;
+  productId: string;
+  unitId: string;
+  unit: UnitMeasure;
+  description: string;
+  conversionFactor: string;
+  status: RecordStatus;
+  product?: Product;
+}
+
+export interface Product {
+  id: string;
+  code: string;
+  name: string;
+  categoryId: string;
+  category: ProductCategory;
+  productLineId: string;
+  productLine: ProductLine;
+  baseUnitId: string;
+  baseUnit: UnitMeasure;
+  status: RecordStatus;
+  presentations: ProductPresentation[];
+}
+
+export interface ProductPrice {
+  id: string;
+  presentationId: string;
+  presentation?: ProductPresentation;
+  customerType: CustomerType | null;
+  commercialList: string | null;
+  amount: string;
+  validFrom: string;
+  validUntil: string | null;
+  status: RecordStatus;
+}
+
+export interface CommercialCatalogPresentation {
+  id: string;
+  description: string;
+  conversionFactor: string;
+  unit: UnitMeasure;
+  price: ProductPrice | null;
+}
+
+export interface CommercialCatalogProduct {
+  id: string;
+  code: string;
+  name: string;
+  category: ProductCategory;
+  productLine: ProductLine;
+  baseUnit: UnitMeasure;
+  presentations: CommercialCatalogPresentation[];
+}
+
+export interface Stock {
+  id: string;
+  presentationId: string;
+  presentation: ProductPresentation;
+  physicalQuantity: string;
+  reservedQuantity: string;
+  availableQuantity: string;
+  version: number;
+}
+
+export interface InventoryMovement {
+  id: string;
+  stockId: string;
+  stock: Stock;
+  type: InventoryMovementType;
+  quantity: string;
+  previousBalance: string;
+  newBalance: string;
+  reason: string;
+  userId: string;
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  occurredAt: string;
+}
+
+export interface InventoryReservation {
+  id: string;
+  orderDetailId: string;
+  stockId: string;
+  stock: Stock;
+  orderDetail: OrderDetail;
+  quantity: string;
+  status: 'ACTIVA';
+  user: Pick<User, 'id' | 'name'>;
+  createdAt: string;
+}
+
+export interface OrderDetail {
+  id: string;
+  orderId: string;
+  presentationId: string;
+  presentation: ProductPresentation;
+  requestedQuantity: string;
+  reservedQuantity: string;
+  pendingQuantity: string;
+  unitPrice: string;
+  subtotal: string;
+  productDescriptionSnapshot: string;
+  presentationDescriptionSnapshot: string;
+  unitAbbreviationSnapshot: string;
+  order?: Order;
+}
+
+export interface OrderHistory {
+  id: string;
+  orderId: string;
+  previousStatus: OrderStatus | null;
+  newStatus: OrderStatus;
+  user: Pick<User, 'id' | 'name' | 'email'>;
+  origin: OrderOrigin;
+  observation: string | null;
+  occurredAt: string;
+}
+
+export interface Order {
+  id: string;
+  code: string;
+  customerId: string;
+  customer: Customer;
+  addressId: string;
+  address: CustomerAddress;
+  requestedDate: string;
+  status: OrderStatus;
+  origin: OrderOrigin;
+  observations: string | null;
+  total: string;
+  createdBy: Pick<User, 'id' | 'name'>;
+  confirmedBy: Pick<User, 'id' | 'name'> | null;
+  receivedAt: string | null;
+  confirmedAt: string | null;
+  customerNameSnapshot: string | null;
+  customerTypeSnapshot: CustomerType | null;
+  commercialListSnapshot: string | null;
+  addressSnapshot: string | null;
+  zoneSnapshot: string | null;
+  distributionWeekdaySnapshot: number | null;
+  details: OrderDetail[];
+  detailCount?: number;
   createdAt: string;
   updatedAt: string;
 }

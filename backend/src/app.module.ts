@@ -15,6 +15,10 @@ import { AuthModule } from './modules/auth/auth.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { UsersModule } from './modules/users/users.module';
 import { ZonesModule } from './modules/zones/zones.module';
+import { CatalogModule } from './modules/catalog/catalog.module';
+import { PricingModule } from './modules/pricing/pricing.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+import { OrdersModule } from './modules/orders/orders.module';
 
 @Module({
   imports: [
@@ -32,6 +36,10 @@ import { ZonesModule } from './modules/zones/zones.module';
     UsersModule,
     CustomersModule,
     ZonesModule,
+    CatalogModule,
+    PricingModule,
+    InventoryModule,
+    OrdersModule,
     HealthModule,
   ],
   controllers: [AppController],

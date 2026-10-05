@@ -14,7 +14,8 @@
     "migration:revert": "node ./node_modules/typeorm/cli.js migration:revert -d dist/database/data-source.js",
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
-    "test:acceptance": "node scripts/iteration-one.acceptance.mjs"
+    "test:acceptance": "node scripts/iteration-one.acceptance.mjs",
+    "test:acceptance:iteration2": "node scripts/iteration-two.acceptance.mjs"
   },
   "dependencies": {
     "@nestjs/common": "12.0.1",

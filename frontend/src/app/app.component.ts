@@ -25,6 +25,10 @@ import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import * as L from 'leaflet';
 import { AuthService } from './core/auth.service';
+import { CatalogAdminComponent } from './iteration-two/catalog-admin.component';
+import { CommercialCatalogComponent } from './iteration-two/commercial-catalog.component';
+import { InventoryComponent } from './iteration-two/inventory.component';
+import { OrdersComponent } from './iteration-two/orders.component';
 import {
   AuditEvent,
   Customer,
@@ -39,6 +43,10 @@ import {
 
 type Section =
   | 'dashboard'
+  | 'catalog'
+  | 'catalog-admin'
+  | 'orders'
+  | 'inventory'
   | 'customers'
   | 'accounts'
   | 'users'
@@ -72,6 +80,10 @@ interface NavigationItem {
     TagModule,
     TextareaModule,
     ToastModule,
+    CatalogAdminComponent,
+    CommercialCatalogComponent,
+    InventoryComponent,
+    OrdersComponent,
   ],
   providers: [MessageService],
   templateUrl: './app.component.html',
@@ -137,6 +149,10 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected readonly navigation: NavigationItem[] = [
     { id: 'dashboard', label: 'Resumen', icon: 'pi pi-home' },
+    { id: 'catalog', label: 'Catálogo', icon: 'pi pi-shopping-bag', permission: 'catalog.read' },
+    { id: 'orders', label: 'Pedidos', icon: 'pi pi-shopping-cart', permission: 'orders.read' },
+    { id: 'catalog-admin', label: 'Catálogo y precios', icon: 'pi pi-box', permission: 'catalog.manage' },
+    { id: 'inventory', label: 'Inventario', icon: 'pi pi-warehouse', permission: 'inventory.read' },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
     {
       id: 'accounts',
@@ -191,6 +207,7 @@ export class AppComponent implements OnInit, OnDestroy {
     whatsapp: [''],
     email: ['', Validators.email],
     paymentCondition: ['CONTADO', Validators.required],
+    commercialList: [''],
     creditLimit: [0, [Validators.required, Validators.min(0)]],
     creditDays: [0, [Validators.required, Validators.min(0), Validators.max(365)]],
     status: ['ACTIVO'],
@@ -376,6 +393,7 @@ export class AppComponent implements OnInit, OnDestroy {
       whatsapp: customer?.whatsapp ?? '',
       email: customer?.email ?? '',
       paymentCondition: customer?.paymentCondition ?? 'CONTADO',
+      commercialList: customer?.commercialList ?? '',
       creditLimit: Number(customer?.creditLimit ?? 0),
       creditDays: customer?.creditDays ?? 0,
       status: customer?.status ?? 'ACTIVO',
@@ -394,6 +412,7 @@ export class AppComponent implements OnInit, OnDestroy {
       contactName: raw.contactName || undefined,
       whatsapp: raw.whatsapp || undefined,
       email: raw.email || undefined,
+      commercialList: raw.commercialList || undefined,
     };
     if (!id) delete payload['status'];
     const request = id
@@ -716,11 +735,24 @@ export class AppComponent implements OnInit, OnDestroy {
     if (!element) return;
     const latitude = this.addressForm.controls.latitude.value ?? -16.5;
     const longitude = this.addressForm.controls.longitude.value ?? -68.15;
-    this.map = L.map(element, { zoomControl: true }).setView([latitude, longitude], this.addressForm.controls.latitude.value ? 16 : 12);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors',
-    }).addTo(this.map);
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    });
+    const satelliteLayer = L.tileLayer(
+      'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+      {
+        maxZoom: 19,
+        attribution: '&copy; Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+      },
+    );
+    this.map = L.map(element, { zoomControl: true, layers: [streetLayer] })
+      .setView([latitude, longitude], this.addressForm.controls.latitude.value ? 16 : 12);
+    L.control.layers(
+      { 'Mapa OpenStreetMap': streetLayer, 'Vista satelital': satelliteLayer },
+      undefined,
+      { collapsed: false, position: 'topright' },
+    ).addTo(this.map);
     if (this.addressForm.controls.latitude.value !== null) this.setMapCoordinates(latitude, longitude);
     this.map.on('click', (event: L.LeafletMouseEvent) => this.setMapCoordinates(event.latlng.lat, event.latlng.lng));
     window.setTimeout(() => this.map?.invalidateSize(), 50);

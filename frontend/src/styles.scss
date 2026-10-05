@@ -106,6 +106,18 @@ body,
   font-size: 9px;
 }
 
+.leaflet-control-layers {
+  border: 1px solid rgb(0 63 125 / 22%);
+  border-radius: 0.65rem;
+  box-shadow: 0 6px 18px rgb(0 36 90 / 14%);
+  color: #17324d;
+  font-size: 11px;
+}
+
+.leaflet-control-layers-base label {
+  margin: 0.2rem 0;
+}
+
 button,
 input,
 textarea,
