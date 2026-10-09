@@ -21,6 +21,7 @@ import { InventoryReservationStatus } from '../inventory/entities/inventory.enum
 import { Stock } from '../inventory/entities/stock.entity';
 import { PricingService } from '../pricing/pricing.service';
 import { UserType } from '../users/entities/user-type.enum';
+import { TrackingService } from '../tracking/tracking.service';
 import {
   CreateOrderDto,
   OrderItemDto,
@@ -54,6 +55,7 @@ export class OrdersService {
     private readonly pricingService: PricingService,
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly trackingService: TrackingService,
   ) {}
 
   async findAll(query: OrderQueryDto, actor: AuthenticatedUser) {
@@ -321,6 +323,7 @@ export class OrdersService {
         metadata: { customerId: customer.id, total: total.toFixed(2) },
       }));
     });
+    await this.trackingService.safeCaptureOrder(id, `order.confirmed:${id}`);
     return this.findOne(id, actor);
   }
 

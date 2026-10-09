@@ -79,3 +79,5 @@ La segunda iteración de catálogo, precios, inventario y pedidos está document
 La tercera iteración de consolidación y requerimientos para Producción está documentada en [`docs/iteracion-3.md`](docs/iteracion-3.md).
 
 La cuarta iteración de preparación, despacho, rutas y distribución está documentada en [`docs/iteracion-4.md`](docs/iteracion-4.md).
+
+La quinta iteración de seguimiento público y mensajería WhatsApp con LimiteAPI está documentada en [`docs/iteracion-5.md`](docs/iteracion-5.md).

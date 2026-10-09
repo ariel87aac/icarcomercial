@@ -10,6 +10,9 @@ export type ProductionConsolidationType = 'PRINCIPAL' | 'COMPLEMENTARIA';
 export type PreparationStatus = 'PENDIENTE' | 'EN_PREPARACION' | 'OBSERVADA' | 'PREPARADA' | 'ASIGNADA' | 'DESPACHADA';
 export type DistributionRouteStatus = 'BORRADOR' | 'PLANIFICADA' | 'EN_REPARTO' | 'FINALIZADA' | 'LIQUIDADA';
 export type VisitResultType = 'ENTREGADA' | 'ENTREGA_PARCIAL' | 'NO_ENTREGADA';
+export type PublicTrackingStatus = 'PEDIDO_CONFIRMADO' | 'EN_PREPARACION' | 'PREPARADO' | 'EN_RUTA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA';
+export type NotificationEvent = 'PEDIDO_CONFIRMADO' | 'CAMBIO_RELEVANTE' | 'SALIDA_RUTA' | 'PROXIMA_ENTREGA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA' | 'PAGO_RECIBIDO';
+export type NotificationStatus = 'PENDIENTE' | 'PROCESANDO' | 'ENVIADO' | 'ENTREGADO' | 'REINTENTO' | 'FALLIDO';
 
 export interface SessionUser {
   id: string;
@@ -297,6 +300,107 @@ export interface Order {
   detailCount?: number;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface TrackingHistoryItem {
+  status: PublicTrackingStatus;
+  pendingPriorStops: number;
+  estimatedFrom: string | null;
+  estimatedUntil: string | null;
+  occurredAt: string;
+}
+
+export interface TrackingSnapshot {
+  protectedReference: string;
+  status: PublicTrackingStatus;
+  pendingPriorStops: number;
+  estimatedFrom: string | null;
+  estimatedUntil: string | null;
+  lastUpdatedAt: string;
+  history: TrackingHistoryItem[];
+}
+
+export interface TrackingLinkSummary {
+  id: string;
+  status: 'ACTIVO' | 'EXPIRADO' | 'REVOCADO';
+  expiresAt: string;
+  createdAt: string;
+  revokedAt: string | null;
+  createdBy?: Pick<User, 'id' | 'name'>;
+}
+
+export interface OrderTrackingResponse {
+  link: TrackingLinkSummary | null;
+  links?: TrackingLinkSummary[];
+  tracking: TrackingSnapshot;
+}
+
+export interface EstimationSetting {
+  id: string;
+  zoneId: string | null;
+  zone: Zone | null;
+  averageStopMinutes: number;
+  toleranceMinutes: number;
+  nextDeliveryThreshold: number;
+  validFrom: string;
+  validUntil: string | null;
+  createdBy: Pick<User, 'id' | 'name'>;
+}
+
+export interface NotificationTemplate {
+  id: string;
+  event: NotificationEvent;
+  reference: string;
+  version: number;
+  body: string;
+  allowedVariables: string[];
+  active: boolean;
+  createdAt: string;
+  createdBy: Pick<User, 'id' | 'name'>;
+}
+
+export interface ChannelSetting {
+  id: string;
+  provider: 'LIMITEAPI';
+  apiUrl: string;
+  tokenMasked: string | null;
+  tokenConfigured: boolean;
+  enabledNumber: string;
+  licenseReference: string | null;
+  timeoutMs: number;
+  maxRetries: number;
+  retryDelaySeconds: number;
+  active: boolean;
+  updatedAt: string;
+  updatedBy: Pick<User, 'id' | 'name'>;
+}
+
+export interface NotificationAttempt {
+  id: string;
+  attemptNumber: number;
+  status: 'ENVIADO' | 'FALLIDO_RECUPERABLE' | 'FALLIDO_DEFINITIVO';
+  httpStatus: number | null;
+  sanitizedResponse: Record<string, unknown>;
+  occurredAt: string;
+}
+
+export interface NotificationRecord {
+  id: string;
+  orderId: string;
+  order: Order;
+  customerId: string;
+  customer: Customer;
+  event: NotificationEvent;
+  status: NotificationStatus;
+  recipient: string;
+  renderedBody: string;
+  scheduledAt: string;
+  processedAt: string | null;
+  providerMessageId: string | null;
+  lastError: string | null;
+  resentFromId: string | null;
+  attempts?: NotificationAttempt[];
+  createdAt: string;
 }
 
 export interface ProductionConsolidationSource {

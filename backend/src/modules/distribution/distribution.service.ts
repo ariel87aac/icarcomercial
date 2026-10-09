@@ -16,6 +16,7 @@ import { PreparationHistory } from '../preparation/entities/preparation-history.
 import { PreparationEvent, PreparationStatus } from '../preparation/entities/preparation.enums';
 import { User } from '../users/entities/user.entity';
 import { Zone } from '../zones/entities/zone.entity';
+import { TrackingService } from '../tracking/tracking.service';
 import {
   AddRouteDeliveriesDto,
   CreateDistributionRouteDto,
@@ -49,6 +50,7 @@ export class DistributionService {
     @InjectRepository(RouteSettlement) private readonly settlementRepository: Repository<RouteSettlement>,
     @InjectRepository(User) private readonly userRepository: Repository<User>,
     private readonly dataSource: DataSource,
+    private readonly trackingService: TrackingService,
   ) {}
 
   async findAll(query: DistributionRouteQueryDto) {
@@ -239,6 +241,7 @@ export class DistributionService {
       await this.saveHistory(manager, id, route.status, route.status, RouteHistoryEvent.SEQUENCE, actor.id, 'Secuencia manual actualizada', { sequence: dto.deliveries });
       await this.saveAudit(manager, actor.id, 'ACTUALIZAR_SECUENCIA_RUTA', id, { deliveries: deliveries.length });
     });
+    await this.trackingService.safeCaptureRoute(id, `route.sequence:${id}:${Date.now()}`);
     return this.findOne(id);
   }
 
@@ -264,6 +267,7 @@ export class DistributionService {
       await this.saveHistory(manager, id, DistributionRouteStatus.DRAFT, DistributionRouteStatus.PLANNED, RouteHistoryEvent.PLANNING, actor.id, dto.observation?.trim() || 'Ruta planificada');
       await this.saveAudit(manager, actor.id, 'PLANIFICAR_RUTA', id, { deliveries: deliveries.length });
     });
+    await this.trackingService.safeCaptureRoute(id, `route.planned:${id}`);
     return this.findOne(id);
   }
 
@@ -324,6 +328,7 @@ export class DistributionService {
       await this.saveHistory(manager, id, DistributionRouteStatus.PLANNED, DistributionRouteStatus.IN_DELIVERY, RouteHistoryEvent.DEPARTURE, actor.id, dto.observation?.trim() || 'Salida registrada', { deliveries: deliveries.length });
       await this.saveAudit(manager, actor.id, 'REGISTRAR_SALIDA_RUTA', id, { deliveries: deliveries.length });
     });
+    await this.trackingService.safeCaptureRoute(id, `route.departure:${id}`);
     return this.findOne(id);
   }
 
@@ -379,6 +384,7 @@ export class DistributionService {
       await this.saveAudit(manager, actor.id, 'REGISTRAR_RESULTADO_VISITA', deliveryId, { routeId: delivery.routeId, result: dto.result });
       return delivery.routeId;
     });
+    await this.trackingService.safeCaptureRoute(routeId, `route.visit:${deliveryId}`);
     return this.findOne(routeId);
   }
 

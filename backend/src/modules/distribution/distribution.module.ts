@@ -10,6 +10,7 @@ import { OrderPreparation } from '../preparation/entities/order-preparation.enti
 import { PreparationHistory } from '../preparation/entities/preparation-history.entity';
 import { User } from '../users/entities/user.entity';
 import { Zone } from '../zones/entities/zone.entity';
+import { TrackingModule } from '../tracking/tracking.module';
 import { DistributionRoutesController, RouteDeliveriesController } from './distribution.controller';
 import { DistributionService } from './distribution.service';
 import { DistributionRoute } from './entities/distribution-route.entity';
@@ -21,7 +22,7 @@ import { VisitResultDetail } from './entities/visit-result-detail.entity';
 import { VisitResult } from './entities/visit-result.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([
+  imports: [TrackingModule, TypeOrmModule.forFeature([
     DistributionRoute,
     RouteResponsible,
     RouteDelivery,

@@ -9,6 +9,7 @@ import { Stock } from '../inventory/entities/stock.entity';
 import { OrderDetail } from '../orders/entities/order-detail.entity';
 import { Order } from '../orders/entities/order.entity';
 import { OrderStatus } from '../orders/entities/order.enums';
+import { TrackingService } from '../tracking/tracking.service';
 import { ConfirmPreparationDto, CreatePreparationDto, PreparationQueryDto, RegisterPreparationProgressDto } from './dto/preparation.dto';
 import { OrderPreparationDetail } from './entities/order-preparation-detail.entity';
 import { OrderPreparation } from './entities/order-preparation.entity';
@@ -32,6 +33,7 @@ export class PreparationService {
     @InjectRepository(Stock) private readonly stockRepository: Repository<Stock>,
     @InjectRepository(InventoryReservation) private readonly reservationRepository: Repository<InventoryReservation>,
     private readonly dataSource: DataSource,
+    private readonly trackingService: TrackingService,
   ) {}
 
   async eligible(query: PreparationQueryDto) {
@@ -180,7 +182,9 @@ export class PreparationService {
       await this.saveAudit(manager, actor.id, 'INICIAR_PREPARACION', preparation.id, { orderId: order.id });
       return preparation.id;
     });
-    return this.findOne(id);
+    const result = await this.findOne(id);
+    await this.trackingService.safeCaptureOrder(result.orderId, `preparation.started:${id}`);
+    return result;
   }
 
   async progress(id: string, dto: RegisterPreparationProgressDto, actor: AuthenticatedUser): Promise<OrderPreparation> {
@@ -222,7 +226,9 @@ export class PreparationService {
       await this.saveHistory(manager, id, previous, preparation.status, PreparationEvent.PROGRESS, actor.id, 'Cantidades de preparación actualizadas', { changes });
       await this.saveAudit(manager, actor.id, 'REGISTRAR_AVANCE_PREPARACION', id, { details: changes.length });
     });
-    return this.findOne(id);
+    const result = await this.findOne(id);
+    await this.trackingService.safeCaptureOrder(result.orderId, `preparation.progress:${id}:${result.version}`);
+    return result;
   }
 
   async confirm(id: string, dto: ConfirmPreparationDto, actor: AuthenticatedUser): Promise<OrderPreparation> {
@@ -245,7 +251,9 @@ export class PreparationService {
       await this.saveHistory(manager, id, previous, PreparationStatus.PREPARED, PreparationEvent.CONFIRMATION, actor.id, dto.observation?.trim() || 'Preparación confirmada');
       await this.saveAudit(manager, actor.id, 'CONFIRMAR_PREPARACION', id, { orderId: preparation.orderId });
     });
-    return this.findOne(id);
+    const result = await this.findOne(id);
+    await this.trackingService.safeCaptureOrder(result.orderId, `preparation.confirmed:${id}:${result.version}`);
+    return result;
   }
 
   async history(id: string): Promise<PreparationHistory[]> {

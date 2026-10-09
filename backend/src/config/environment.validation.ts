@@ -32,6 +32,9 @@ export function validateEnvironment(
   const applicationPort = Number(environment['PORT'] ?? 3000);
   const accessTtl = Number(environment['JWT_ACCESS_TTL_SECONDS'] ?? 900);
   const refreshTtl = Number(environment['REFRESH_TOKEN_TTL_SECONDS'] ?? 604800);
+  const workerPollMs = Number(environment['NOTIFICATION_WORKER_POLL_MS'] ?? 5000);
+  const trackingRateLimit = Number(environment['PUBLIC_TRACKING_RATE_LIMIT'] ?? 30);
+  const trackingRateWindowMs = Number(environment['PUBLIC_TRACKING_RATE_WINDOW_MS'] ?? 60000);
   if (!Number.isInteger(applicationPort) || applicationPort < 1 || applicationPort > 65_535) {
     throw new Error('PORT debe ser un puerto TCP válido');
   }
@@ -44,6 +47,21 @@ export function validateEnvironment(
   if (String(environment['JWT_SECRET']).length < 32) {
     throw new Error('JWT_SECRET debe tener al menos 32 caracteres');
   }
+  if (!Number.isInteger(workerPollMs) || workerPollMs < 250) {
+    throw new Error('NOTIFICATION_WORKER_POLL_MS debe ser un entero de al menos 250 milisegundos');
+  }
+  if (!Number.isInteger(trackingRateLimit) || trackingRateLimit < 1) {
+    throw new Error('PUBLIC_TRACKING_RATE_LIMIT debe ser un entero positivo');
+  }
+  if (!Number.isInteger(trackingRateWindowMs) || trackingRateWindowMs < 1000) {
+    throw new Error('PUBLIC_TRACKING_RATE_WINDOW_MS debe ser de al menos 1000 milisegundos');
+  }
+  const limiteApiUrl = String(environment['LIMITE_API_URL'] ?? 'https://apiqr.limiteflix.com/api/v1/messages/send');
+  try {
+    if (new URL(limiteApiUrl).protocol !== 'https:') throw new Error();
+  } catch {
+    throw new Error('LIMITE_API_URL debe ser una URL HTTPS válida');
+  }
 
   return {
     ...environment,
@@ -51,5 +69,9 @@ export function validateEnvironment(
     PORT: applicationPort,
     JWT_ACCESS_TTL_SECONDS: accessTtl,
     REFRESH_TOKEN_TTL_SECONDS: refreshTtl,
+    NOTIFICATION_WORKER_POLL_MS: workerPollMs,
+    PUBLIC_TRACKING_RATE_LIMIT: trackingRateLimit,
+    PUBLIC_TRACKING_RATE_WINDOW_MS: trackingRateWindowMs,
+    LIMITE_API_URL: limiteApiUrl,
   };
 }

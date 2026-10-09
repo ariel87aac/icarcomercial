@@ -31,6 +31,8 @@ import { InventoryComponent } from './iteration-two/inventory.component';
 import { OrdersComponent } from './iteration-two/orders.component';
 import { ProductionComponent } from './iteration-three/production.component';
 import { DistributionComponent } from './iteration-four/distribution.component';
+import { MessagingComponent } from './iteration-five/messaging.component';
+import { PublicTrackingComponent } from './iteration-five/public-tracking.component';
 import {
   AuditEvent,
   Customer,
@@ -52,6 +54,7 @@ type Section =
   | 'inventory'
   | 'production'
   | 'distribution'
+  | 'messaging'
   | 'customers'
   | 'accounts'
   | 'users'
@@ -91,6 +94,8 @@ interface NavigationItem {
     OrdersComponent,
     ProductionComponent,
     DistributionComponent,
+    MessagingComponent,
+    PublicTrackingComponent,
   ],
   providers: [MessageService],
   templateUrl: './app.component.html',
@@ -105,6 +110,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private initializedUserId: string | null = null;
   private map: L.Map | null = null;
   private coordinateMarker: L.CircleMarker | null = null;
+  protected readonly publicTrackingToken = this.readPublicTrackingToken();
 
   protected readonly activeSection = signal<Section>('dashboard');
   protected readonly sidebarOpen = signal(false);
@@ -172,6 +178,12 @@ export class AppComponent implements OnInit, OnDestroy {
       label: 'Preparación y distribución',
       icon: 'pi pi-truck',
       permission: 'distribution.summary.read',
+    },
+    {
+      id: 'messaging',
+      label: 'Seguimiento y mensajería',
+      icon: 'pi pi-whatsapp',
+      permission: 'notifications.read',
     },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
     {
@@ -307,7 +319,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    this.auth.restore();
+    if (!this.publicTrackingToken) this.auth.restore();
   }
 
   ngOnDestroy(): void {
@@ -360,6 +372,11 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected sectionTitle(): string {
     return this.navigation.find((item) => item.id === this.activeSection())?.label ?? 'Sistema comercial';
+  }
+
+  private readPublicTrackingToken(): string | null {
+    const match = globalThis.location?.pathname.match(/^\/seguimiento\/([^/]+)\/?$/);
+    return match ? decodeURIComponent(match[1]) : null;
   }
 
   private loadReferenceData(): void {

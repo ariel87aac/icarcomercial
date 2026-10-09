@@ -7,6 +7,7 @@ import { Customer } from '../customers/entities/customer.entity';
 import { InventoryReservation } from '../inventory/entities/inventory-reservation.entity';
 import { Stock } from '../inventory/entities/stock.entity';
 import { PricingModule } from '../pricing/pricing.module';
+import { TrackingModule } from '../tracking/tracking.module';
 import { OrderDetail } from './entities/order-detail.entity';
 import { OrderHistory } from './entities/order-history.entity';
 import { Order } from './entities/order.entity';
@@ -16,6 +17,7 @@ import { OrdersService } from './orders.service';
 @Module({
   imports: [
     PricingModule,
+    TrackingModule,
     TypeOrmModule.forFeature([
       Order,
       OrderDetail,

@@ -23,6 +23,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PreparationModule } from './modules/preparation/preparation.module';
 import { FleetModule } from './modules/fleet/fleet.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { DistributionModule } from './modules/distribution/distribution.module';
     ProductionModule,
     PreparationModule,
     FleetModule,
+    TrackingModule,
     DistributionModule,
     HealthModule,
   ],

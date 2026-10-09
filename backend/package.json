@@ -17,7 +17,8 @@
     "test:acceptance": "node scripts/iteration-one.acceptance.mjs",
     "test:acceptance:iteration2": "node scripts/iteration-two.acceptance.mjs",
     "test:acceptance:iteration3": "node scripts/iteration-three.acceptance.mjs",
-    "test:acceptance:iteration4": "node scripts/iteration-four.acceptance.mjs"
+    "test:acceptance:iteration4": "node scripts/iteration-four.acceptance.mjs",
+    "test:acceptance:iteration5": "node scripts/iteration-five.acceptance.mjs"
   },
   "dependencies": {
     "@nestjs/common": "12.0.1",
