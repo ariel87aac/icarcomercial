@@ -87,7 +87,9 @@ async function cleanupAcceptanceData() {
     await client.query(`DELETE FROM productos WHERE codigo=$1`, [`ACEPT-${suffix}`.toUpperCase()]);
     await client.query(`DELETE FROM unidades_medida WHERE abreviatura=$1`, [`U${suffix.slice(-5)}`.toUpperCase()]);
     await client.query(`DELETE FROM lineas_productivas WHERE nombre=$1`, [`Línea Aceptación ${suffix}`]);
+    await client.query(`DELETE FROM lineas_productivas WHERE nombre=$1`, [`Línea Alterna Aceptación ${suffix}`]);
     await client.query(`DELETE FROM categorias_producto WHERE nombre=$1`, [`Categoría Aceptación ${suffix}`]);
+    await client.query(`DELETE FROM categorias_producto WHERE nombre=$1`, [`Categoría Alterna Aceptación ${suffix}`]);
     await client.query(`DELETE FROM domicilios_cliente WHERE cliente_id IN (SELECT id FROM clientes WHERE nombre_razon_social LIKE $1)`, [`%${suffix}%`]);
     await client.query(`DELETE FROM clientes WHERE nombre_razon_social LIKE $1`, [`%${suffix}%`]);
     await client.query(`DELETE FROM dias_distribucion WHERE zona_id IN (SELECT id FROM zonas WHERE nombre LIKE $1)`, [`%${suffix}%`]);
@@ -138,22 +140,55 @@ try {
 
   const category = (await expectStatus('/api/categorias', { method: 'POST', jar: adminJar, body: { name: `Categoría Aceptación ${suffix}` } }, 201, 'categoría')).payload;
   const line = (await expectStatus('/api/lineas-productivas', { method: 'POST', jar: adminJar, body: { name: `Línea Aceptación ${suffix}` } }, 201, 'línea')).payload;
+  const alternateCategory = (await expectStatus('/api/categorias', { method: 'POST', jar: adminJar, body: { name: `Categoría Alterna Aceptación ${suffix}` } }, 201, 'categoría alterna')).payload;
+  const alternateLine = (await expectStatus('/api/lineas-productivas', { method: 'POST', jar: adminJar, body: { name: `Línea Alterna Aceptación ${suffix}` } }, 201, 'línea alterna')).payload;
   const unit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad Aceptación ${suffix}`, abbreviation: `U${suffix.slice(-5)}` } }, 201, 'unidad')).payload;
   const product = (await expectStatus('/api/productos', { method: 'POST', jar: adminJar, body: { code: `ACEPT-${suffix}`, name: `Producto Aceptación ${suffix}`, categoryId: category.id, productLineId: line.id, baseUnitId: unit.id } }, 201, 'producto')).payload;
+  const updatedProduct = (await expectStatus(`/api/productos/${product.id}`, { method: 'PATCH', jar: adminJar, body: { categoryId: alternateCategory.id, productLineId: alternateLine.id } }, 200, 'editar categoría y línea del producto')).payload;
+  assert.equal(updatedProduct.categoryId, alternateCategory.id);
+  assert.equal(updatedProduct.category.id, alternateCategory.id);
+  assert.equal(updatedProduct.productLineId, alternateLine.id);
+  assert.equal(updatedProduct.productLine.id, alternateLine.id);
+  const reloadedProduct = (await expectStatus(`/api/productos/${product.id}`, { jar: adminJar }, 200, 'recargar producto editado')).payload;
+  assert.equal(reloadedProduct.categoryId, alternateCategory.id);
+  assert.equal(reloadedProduct.category.id, alternateCategory.id);
+  assert.equal(reloadedProduct.productLineId, alternateLine.id);
+  assert.equal(reloadedProduct.productLine.id, alternateLine.id);
+  await expectStatus(`/api/productos/${product.id}`, { method: 'PATCH', jar: adminJar, body: { categoryId: category.id, productLineId: line.id } }, 200, 'restaurar categoría y línea del producto');
+  passed('CAT-EDIT-01', 'la edición de un producto persiste la nueva categoría y línea al recargarlo');
+  const basePng = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=', 'base64');
+  const imageBytes = Buffer.concat([basePng, Buffer.alloc(1_100_000)]);
+  const imageDataUrl = `data:image/png;base64,${imageBytes.toString('base64')}`;
+  await expectStatus(`/api/productos/${product.id}/imagen`, { method: 'PUT', jar: adminJar, body: { dataUrl: imageDataUrl } }, 200, 'imagen PNG de producto mayor a 1 MB');
   const presentation = (await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar: adminJar, body: { unitId: unit.id, description: 'Presentación principal', conversionFactor: 1 } }, 201, 'presentación')).payload;
   const inactivePresentation = (await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar: adminJar, body: { unitId: unit.id, description: 'Presentación inactiva', conversionFactor: 2 } }, 201, 'presentación inactiva')).payload;
   const auxiliaryPresentation = (await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar: adminJar, body: { unitId: unit.id, description: 'Presentación auxiliar', conversionFactor: 3 } }, 201, 'presentación auxiliar')).payload;
   await expectStatus(`/api/productos/${product.id}/presentaciones/${inactivePresentation.id}`, { method: 'PATCH', jar: adminJar, body: { status: 'INACTIVO' } }, 200, 'desactivar presentación');
 
   const amounts = { MINORISTA: 11, DISTRIBUIDOR: 9, MAYORISTA: 7 };
+  const pricesByType = {};
   for (const [customerType, amount] of Object.entries(amounts)) {
-    await expectStatus(`/api/presentaciones/${presentation.id}/precios`, { method: 'POST', jar: adminJar, body: { customerType, amount, validFrom: isoDate(-1) } }, 201, `precio ${customerType}`);
+    pricesByType[customerType] = (await expectStatus(`/api/presentaciones/${presentation.id}/precios`, { method: 'POST', jar: adminJar, body: { customerType, amount, validFrom: isoDate(-1) } }, 201, `precio ${customerType}`)).payload;
   }
   await expectStatus(`/api/presentaciones/${auxiliaryPresentation.id}/precios`, { method: 'POST', jar: adminJar, body: { customerType: 'DISTRIBUIDOR', amount: 5, validFrom: isoDate(-1) } }, 201, 'precio auxiliar');
+
+  const updatedRetailPrice = (await expectStatus(`/api/precios/${pricesByType.MINORISTA.id}`, { method: 'PATCH', jar: adminJar, body: { amount: 12.34 } }, 200, 'editar precio')).payload;
+  assert.equal(updatedRetailPrice.amount, '12.34');
+  const priceListAfterEdit = await expectStatus(`/api/precios?limit=100&presentationId=${presentation.id}`, { jar: adminJar }, 200, 'recargar precio editado');
+  assert.equal(priceListAfterEdit.payload.data.find((item) => item.id === pricesByType.MINORISTA.id).amount, '12.34');
+  const retailCatalogAfterPriceEdit = await expectStatus('/api/catalogo?limit=100', { jar: retail.jar }, 200, 'recargar catálogo después de editar precio');
+  assert.equal(retailCatalogAfterPriceEdit.payload.data.find((item) => item.id === product.id).presentations.find((item) => item.id === presentation.id).price.amount, '12.34');
+  await expectStatus(`/api/precios/${pricesByType.MINORISTA.id}`, { method: 'PATCH', jar: adminJar, body: { amount: 11 } }, 200, 'restaurar precio');
+  passed('PRICE-EDIT-01', 'la edición de precio persiste y se refleja en la lista y el catálogo al recargarlos');
 
   const retailCatalog = await expectStatus('/api/catalogo?limit=100', { jar: retail.jar }, 200, 'CP-13');
   const catalogProduct = retailCatalog.payload.data.find((item) => item.id === product.id);
   assert(catalogProduct);
+  assert.match(catalogProduct.imageUrl, new RegExp(`/api/catalogo/productos/${product.id}/imagen`));
+  const productImage = await expectStatus(catalogProduct.imageUrl, { jar: retail.jar }, 200, 'imagen visible en catálogo');
+  assert.equal(productImage.response.headers.get('content-type'), 'image/png');
+  assert.equal(Number(productImage.response.headers.get('content-length')), imageBytes.length);
+  passed('IMG-01', 'una imagen PNG mayor a 1 MB se guarda en PostgreSQL y el cliente autenticado puede verla en el catálogo');
   assert.equal(catalogProduct.presentations.find((item) => item.id === presentation.id).price.amount, '11.00');
   passed('CP-13', 'el catálogo del cliente muestra solo información activa con su precio aplicable');
   assert(!catalogProduct.presentations.some((item) => item.id === inactivePresentation.id));

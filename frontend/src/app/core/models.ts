@@ -153,6 +153,8 @@ export interface Product {
   id: string;
   code: string;
   name: string;
+  imageUrl: string | null;
+  imageMime: string | null;
   categoryId: string;
   category: ProductCategory;
   productLineId: string;
@@ -187,10 +189,23 @@ export interface CommercialCatalogProduct {
   id: string;
   code: string;
   name: string;
+  imageUrl: string | null;
   category: ProductCategory;
   productLine: ProductLine;
   baseUnit: UnitMeasure;
   presentations: CommercialCatalogPresentation[];
+}
+
+export interface CartItem {
+  productId: string;
+  productCode: string;
+  productName: string;
+  imageUrl: string | null;
+  presentationId: string;
+  presentationDescription: string;
+  unitAbbreviation: string;
+  unitPrice: number;
+  quantity: number;
 }
 
 export interface Stock {

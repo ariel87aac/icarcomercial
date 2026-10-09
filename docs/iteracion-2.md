@@ -42,6 +42,8 @@ Todas las rutas requieren una sesión válida. Se conservan alias en inglés par
 | `GET / POST / PATCH` | `/api/lineas-productivas` | Administra líneas productivas. |
 | `GET / POST / PATCH` | `/api/unidades` | Administra unidades de medida. |
 | `GET / POST / PATCH` | `/api/productos` | Administra productos. |
+| `PUT` | `/api/productos/:id/imagen` | Guarda o reemplaza la imagen JPG, PNG o WebP del producto. |
+| `GET` | `/api/catalogo/productos/:id/imagen` | Entrega la imagen al usuario autenticado con permiso de catálogo. |
 | `GET / POST / PATCH` | `/api/productos/:id/presentaciones` | Administra presentaciones de un producto. |
 | `GET / POST` | `/api/presentaciones/:id/precios` | Consulta o registra condiciones de precio. |
 | `GET / PATCH` | `/api/precios` | Consulta o modifica precios y vigencias. |
@@ -66,6 +68,12 @@ Se rechazan condiciones de precio superpuestas para una misma presentación y co
 
 Los movimientos son inmutables y no pueden dejar una existencia física negativa ni inferior a su cantidad reservada. El disponible se calcula como `cantidad física - cantidad reservada`.
 
+## Catálogo visual y carrito
+
+La migración `1720000006000-add-product-images.ts` incorpora la imagen y su tipo MIME al producto. El archivo se conserva en PostgreSQL y se restringe a JPG, PNG o WebP de hasta 2 MB. La respuesta del catálogo expone únicamente la ruta autenticada de la imagen; no incluye el contenido binario ni permite direcciones externas.
+
+El carrito se conserva en el navegador y se separa por usuario y cliente seleccionado. Permite elegir la presentación, modificar cantidades, retirar productos, seleccionar el domicilio y la fecha solicitada y crear un pedido en estado `BORRADOR`. Los importes del carrito son referenciales: al guardar, enviar y confirmar, la API vuelve a validar permisos, cliente, productos, vigencias y precios.
+
 ## Confirmación transaccional
 
 La confirmación ejecuta en una sola transacción:
@@ -81,7 +89,7 @@ Ante cualquier error se revierten el estado, las reservas, los saldos, el histor
 
 ## Pruebas de aceptación
 
-El script `backend/scripts/iteration-two.acceptance.mjs` ejecuta CP-13 a CP-32. Cubre catálogo activo, precios diferenciados, superposición de vigencias, aislamiento entre clientes, reglas de fecha y zona, transiciones, inmutabilidad, reserva completa y parcial, concurrencia, reversión transaccional, movimientos, disponibilidad e historial.
+El script `backend/scripts/iteration-two.acceptance.mjs` ejecuta CP-13 a CP-32 y la comprobación IMG-01. Cubre catálogo activo, persistencia y lectura autenticada de imágenes, precios diferenciados, superposición de vigencias, aislamiento entre clientes, reglas de fecha y zona, transiciones, inmutabilidad, reserva completa y parcial, concurrencia, reversión transaccional, movimientos, disponibilidad e historial.
 
 Con el stack en ejecución:
 

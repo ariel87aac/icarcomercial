@@ -48,6 +48,9 @@ No es necesario instalar Node.js ni PostgreSQL en el equipo anfitrión.
    ```bash
    docker compose down
    ```
+7. Usuario Inicial
+   Usuario: admin@icar.local
+Contraseña inicial: Cambiar123!
 
 > `docker compose down -v` elimina también el volumen de PostgreSQL. Debe usarse solamente cuando se quiera reiniciar la base de datos desde cero.
 

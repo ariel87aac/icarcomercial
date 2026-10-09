@@ -1,4 +1,4 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '../../common/dto/pagination-query.dto';
@@ -12,6 +12,7 @@ import {
   CreateUnitMeasureDto,
   ProductQueryDto,
   UpdateNamedCatalogItemDto,
+  UpdateProductImageDto,
   UpdateProductDto,
   UpdateProductPresentationDto,
   UpdateUnitMeasureDto,
@@ -134,6 +135,7 @@ export class CatalogService {
     if (query.productLineId) builder.andWhere('product.productLineId = :productLineId', { productLineId: query.productLineId });
     if (query.status) builder.andWhere('product.status = :status', { status: query.status });
     const [data, total] = await builder.getManyAndCount();
+    for (const product of data) this.attachImageUrl(product);
     return paginate(data, total, query.page, query.limit);
   }
 
@@ -144,6 +146,7 @@ export class CatalogService {
       order: { presentations: { description: 'ASC' } },
     });
     if (!product) throw new NotFoundException('Producto no encontrado');
+    this.attachImageUrl(product);
     return product;
   }
 
@@ -168,15 +171,41 @@ export class CatalogService {
       dto.baseUnitId ?? product.baseUnitId,
       dto.status ?? product.status,
     );
-    if (dto.code !== undefined) product.code = dto.code.trim().toUpperCase();
-    if (dto.name !== undefined) product.name = dto.name.trim();
-    if (dto.categoryId !== undefined) product.categoryId = dto.categoryId;
-    if (dto.productLineId !== undefined) product.productLineId = dto.productLineId;
-    if (dto.baseUnitId !== undefined) product.baseUnitId = dto.baseUnitId;
-    if (dto.status !== undefined) product.status = dto.status;
-    await this.productRepository.save(product);
+    const changes = {
+      ...(dto.code !== undefined ? { code: dto.code.trim().toUpperCase() } : {}),
+      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+      ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
+      ...(dto.productLineId !== undefined ? { productLineId: dto.productLineId } : {}),
+      ...(dto.baseUnitId !== undefined ? { baseUnitId: dto.baseUnitId } : {}),
+      ...(dto.status !== undefined ? { status: dto.status } : {}),
+    };
+    if (Object.keys(changes).length) await this.productRepository.update(id, changes);
     await this.audit(actor, this.statusAction('PRODUCTO', dto.status), 'productos', id, { fields: Object.keys(dto) });
     return this.product(id);
+  }
+
+  async updateProductImage(id: string, dto: UpdateProductImageDto, actor: AuthenticatedUser): Promise<Product> {
+    const product = await this.productRepository.findOne({ where: { id } });
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    const image = this.decodeProductImage(dto.dataUrl);
+    product.imageData = image.data;
+    product.imageMime = image.mime;
+    await this.productRepository.save(product);
+    await this.audit(actor, 'ACTUALIZAR_IMAGEN_PRODUCTO', 'productos', id, {
+      mime: image.mime,
+      bytes: image.data.length,
+    });
+    return this.product(id);
+  }
+
+  async productImage(id: string): Promise<{ data: Buffer; mime: string }> {
+    const product = await this.productRepository.createQueryBuilder('product')
+      .addSelect('product.imageData')
+      .where('product.id = :id', { id })
+      .getOne();
+    if (!product) throw new NotFoundException('Producto no encontrado');
+    if (!product.imageData || !product.imageMime) throw new NotFoundException('El producto no tiene una imagen registrada');
+    return { data: product.imageData, mime: product.imageMime };
   }
 
   async presentations(productId: string): Promise<ProductPresentation[]> {
@@ -234,6 +263,27 @@ export class CatalogService {
     if (intendedStatus === RecordStatus.ACTIVE && [category.status, line.status, unit.status].some((status) => status !== RecordStatus.ACTIVE)) {
       throw new ConflictException('La categoría, línea productiva y unidad base deben estar activas');
     }
+  }
+
+  private attachImageUrl(product: Product): void {
+    product.imageUrl = product.imageMime
+      ? `/api/catalogo/productos/${product.id}/imagen?v=${product.updatedAt.getTime()}`
+      : null;
+  }
+
+  private decodeProductImage(dataUrl: string): { data: Buffer; mime: string } {
+    const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(dataUrl.trim());
+    if (!match) throw new BadRequestException('La imagen debe ser un archivo JPG, PNG o WebP válido');
+    const mime = match[1];
+    const data = Buffer.from(match[2], 'base64');
+    if (!data.length || data.length > 2 * 1024 * 1024) throw new BadRequestException('La imagen debe pesar como máximo 2 MB');
+    const valid = mime === 'image/jpeg'
+      ? data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff
+      : mime === 'image/png'
+        ? data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        : data.length >= 12 && data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP';
+    if (!valid) throw new BadRequestException('El contenido no corresponde al formato declarado de la imagen');
+    return { data, mime };
   }
 
   private async assertProductCode(code: string, excludedId?: string) {

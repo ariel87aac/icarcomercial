@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import {
   ProductCategoriesController,
+  CatalogProductImagesController,
   ProductLinesController,
   ProductsController,
   UnitMeasuresController,
@@ -15,7 +16,7 @@ import { UnitMeasure } from './entities/unit-measure.entity';
 
 @Module({
   imports: [TypeOrmModule.forFeature([ProductCategory, ProductLine, UnitMeasure, Product, ProductPresentation])],
-  controllers: [ProductCategoriesController, ProductLinesController, UnitMeasuresController, ProductsController],
+  controllers: [ProductCategoriesController, ProductLinesController, UnitMeasuresController, ProductsController, CatalogProductImagesController],
   providers: [CatalogService],
   exports: [CatalogService, TypeOrmModule],
 })

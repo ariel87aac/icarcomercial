@@ -24,6 +24,7 @@ export interface CatalogProduct {
   id: string;
   code: string;
   name: string;
+  imageUrl: string | null;
   category: Product['category'];
   productLine: Product['productLine'];
   baseUnit: Product['baseUnit'];
@@ -183,6 +184,9 @@ export class PricingService {
           id: product.id,
           code: product.code,
           name: product.name,
+          imageUrl: product.imageMime
+            ? `/api/catalogo/productos/${product.id}/imagen?v=${product.updatedAt.getTime()}`
+            : null,
           category: product.category,
           productLine: product.productLine,
           baseUnit: product.baseUnit,

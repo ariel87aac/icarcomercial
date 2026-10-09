@@ -38,6 +38,14 @@ export class Product extends AuditableEntity {
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;
 
+  @Column({ name: 'imagen', type: 'bytea', nullable: true, select: false })
+  imageData: Buffer | null;
+
+  @Column({ name: 'imagen_mime', type: 'varchar', length: 20, nullable: true })
+  imageMime: string | null;
+
+  imageUrl: string | null;
+
   @OneToMany(() => ProductPresentation, (presentation) => presentation.product)
   presentations: ProductPresentation[];
 

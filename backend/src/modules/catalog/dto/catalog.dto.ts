@@ -113,6 +113,12 @@ export class UpdateProductDto {
   status?: RecordStatus;
 }
 
+export class UpdateProductImageDto {
+  @IsString()
+  @MaxLength(2800000)
+  dataUrl: string;
+}
+
 export class CreateProductPresentationDto {
   @IsUUID()
   unitId: string;

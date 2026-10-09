@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
@@ -10,6 +11,7 @@ import {
   CreateUnitMeasureDto,
   ProductQueryDto,
   UpdateNamedCatalogItemDto,
+  UpdateProductImageDto,
   UpdateProductDto,
   UpdateProductPresentationDto,
   UpdateUnitMeasureDto,
@@ -102,6 +104,16 @@ export class ProductsController {
     return this.catalog.updateProduct(id, dto, actor);
   }
 
+  @Put([':id/image', ':id/imagen'])
+  @RequirePermissions('catalog.manage')
+  updateImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateProductImageDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.catalog.updateProductImage(id, dto, actor);
+  }
+
   @Get([':id/presentations', ':id/presentaciones'])
   @RequirePermissions('catalog.manage')
   presentations(@Param('id', ParseUUIDPipe) id: string) { return this.catalog.presentations(id); }
@@ -121,5 +133,20 @@ export class ProductsController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.catalog.updatePresentation(productId, id, dto, actor);
+  }
+}
+
+@Controller(['catalog/products', 'catalogo/productos'])
+export class CatalogProductImagesController {
+  constructor(private readonly catalog: CatalogService) {}
+
+  @Get([':id/image', ':id/imagen'])
+  @RequirePermissions('catalog.read')
+  async image(@Param('id', ParseUUIDPipe) id: string, @Res() response: Response): Promise<void> {
+    const image = await this.catalog.productImage(id);
+    response.setHeader('Content-Type', image.mime);
+    response.setHeader('Content-Length', image.data.length.toString());
+    response.setHeader('Cache-Control', 'private, max-age=86400');
+    response.send(image.data);
   }
 }
