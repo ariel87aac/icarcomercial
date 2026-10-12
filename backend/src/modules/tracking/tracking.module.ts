@@ -42,6 +42,6 @@ import { TrackingService } from './tracking.service';
   ])],
   controllers: [TrackingController],
   providers: [TrackingService, NotificationService, LimiteApiAdapter, ChannelTokenCipherService, NotificationWorkerService],
-  exports: [TrackingService],
+  exports: [TrackingService, NotificationService],
 })
 export class TrackingModule {}

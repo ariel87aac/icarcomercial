@@ -24,6 +24,7 @@ import { PreparationModule } from './modules/preparation/preparation.module';
 import { FleetModule } from './modules/fleet/fleet.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
+import { CommercialModule } from './modules/commercial/commercial.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
     PreparationModule,
     FleetModule,
     TrackingModule,
+    CommercialModule,
     DistributionModule,
     HealthModule,
   ],

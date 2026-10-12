@@ -81,3 +81,5 @@ La tercera iteración de consolidación y requerimientos para Producción está 
 La cuarta iteración de preparación, despacho, rutas y distribución está documentada en [`docs/iteracion-4.md`](docs/iteracion-4.md).
 
 La quinta iteración de seguimiento público y mensajería WhatsApp con LimiteAPI está documentada en [`docs/iteracion-5.md`](docs/iteracion-5.md).
+
+La sexta iteración de ventas, comprobantes internos, pagos, estado de cuenta, cartera y reportes está documentada en [`docs/iteracion-6.md`](docs/iteracion-6.md).

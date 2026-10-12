@@ -33,6 +33,7 @@ import { ProductionComponent } from './iteration-three/production.component';
 import { DistributionComponent } from './iteration-four/distribution.component';
 import { MessagingComponent } from './iteration-five/messaging.component';
 import { PublicTrackingComponent } from './iteration-five/public-tracking.component';
+import { CommercialComponent } from './iteration-six/commercial.component';
 import {
   AuditEvent,
   Customer,
@@ -55,6 +56,7 @@ type Section =
   | 'production'
   | 'distribution'
   | 'messaging'
+  | 'commercial'
   | 'customers'
   | 'accounts'
   | 'users'
@@ -96,6 +98,7 @@ interface NavigationItem {
     DistributionComponent,
     MessagingComponent,
     PublicTrackingComponent,
+    CommercialComponent,
   ],
   providers: [MessageService],
   templateUrl: './app.component.html',
@@ -184,6 +187,12 @@ export class AppComponent implements OnInit, OnDestroy {
       label: 'Seguimiento y mensajería',
       icon: 'pi pi-whatsapp',
       permission: 'notifications.read',
+    },
+    {
+      id: 'commercial',
+      label: 'Ventas y cobranza',
+      icon: 'pi pi-credit-card',
+      permission: 'commercial.sales.read',
     },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
     {

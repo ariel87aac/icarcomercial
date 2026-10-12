@@ -26,6 +26,7 @@ import { NotificationAttemptStatus, NotificationEvent, NotificationStatus } from
 import { TrackingLink } from './entities/tracking-link.entity';
 import { ChannelTokenCipherService } from './channel-token-cipher.service';
 import { LimiteApiAdapter } from './limite-api.adapter';
+import { Payment } from '../commercial/entities/payment.entity';
 
 export const AUTHORIZED_TEMPLATE_VARIABLES = [
   'orderReference',
@@ -102,9 +103,6 @@ export class NotificationService {
   }
 
   async saveTemplate(dto: SaveNotificationTemplateDto, actor: AuthenticatedUser): Promise<NotificationTemplate> {
-    if (dto.event === NotificationEvent.PAYMENT_RECEIVED) {
-      throw new BadRequestException('PAGO_RECIBIDO queda reservado para la sexta iteración y no puede activarse');
-    }
     const catalog = new Set<string>(AUTHORIZED_TEMPLATE_VARIABLES);
     const allowed = [...new Set(dto.allowedVariables)];
     if (allowed.some((variable) => !catalog.has(variable))) throw new BadRequestException('La plantilla contiene variables no autorizadas');
@@ -165,7 +163,6 @@ export class NotificationService {
   }
 
   async enqueue(order: Order, link: TrackingLink, event: NotificationEvent, version: number, variables: TemplateVariables): Promise<Notification | null> {
-    if (event === NotificationEvent.PAYMENT_RECEIVED) return null;
     const template = await this.templates.findOne({ where: { event, active: true }, order: { version: 'DESC' } });
     if (!template) return null;
     const recipient = this.normalizeRecipient(order.customer.whatsapp || order.customer.phone);
@@ -179,12 +176,68 @@ export class NotificationService {
     try {
       return await this.notifications.save(this.notifications.create({
         orderId: order.id,
+        paymentId: null,
         customerId: order.customerId,
         linkId: link.id,
         templateId: template.id,
         resentFromId: null,
         recipient,
         event,
+        renderedBody,
+        idempotencyKey: key,
+        eventVersion: version,
+        status: NotificationStatus.PENDING,
+        scheduledAt: new Date(),
+        nextAttemptAt: new Date(),
+        processedAt: null,
+        providerMessageId: null,
+        lastError: null,
+      }));
+    } catch (error) {
+      const duplicate = await this.notifications.findOne({ where: { idempotencyKey: key } });
+      if (duplicate) return duplicate;
+      throw error;
+    }
+  }
+
+  async enqueuePayment(payment: Payment, version: number): Promise<Notification | null> {
+    const order = payment.applications.find((application) => application.sale?.order)?.sale.order;
+    if (!order) throw new BadRequestException('El pago confirmado no tiene un pedido relacionado');
+    let template = await this.templates.findOne({ where: { event: NotificationEvent.PAYMENT_RECEIVED, active: true }, order: { version: 'DESC' } });
+    if (!template) {
+      template = await this.templates.save(this.templates.create({
+        event: NotificationEvent.PAYMENT_RECEIVED,
+        reference: 'PAGO_RECIBIDO_SISTEMA',
+        version: 1,
+        body: 'Hola {{customerName}}, registramos tu pago.',
+        allowedVariables: ['customerName'],
+        active: true,
+        createdById: payment.confirmedById ?? payment.registeredById,
+      }));
+    }
+    const recipient = this.normalizeRecipient(payment.customer.whatsapp || payment.customer.phone);
+    if (!recipient) return null;
+    const key = `${payment.id}:${NotificationEvent.PAYMENT_RECEIVED}:${version}`;
+    const existing = await this.notifications.findOne({ where: { idempotencyKey: key } });
+    if (existing) return existing;
+    const renderedBody = this.render(template, {
+      orderReference: '',
+      publicStatus: '',
+      pendingStops: '',
+      estimatedFrom: '',
+      estimatedUntil: '',
+      customerName: payment.customer.businessName,
+    });
+    try {
+      return await this.notifications.save(this.notifications.create({
+        orderId: order.id,
+        paymentId: payment.id,
+        customerId: payment.customerId,
+        linkId: null,
+        templateId: template.id,
+        resentFromId: null,
+        recipient,
+        event: NotificationEvent.PAYMENT_RECEIVED,
         renderedBody,
         idempotencyKey: key,
         eventVersion: version,
@@ -232,6 +285,7 @@ export class NotificationService {
     const original = await this.findOne(id);
     const item = await this.notifications.save(this.notifications.create({
       orderId: original.orderId,
+      paymentId: original.paymentId,
       customerId: original.customerId,
       linkId: original.linkId,
       templateId: original.templateId,
