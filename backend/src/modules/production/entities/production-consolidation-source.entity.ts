@@ -32,11 +32,23 @@ export class ProductionConsolidationSource {
   @Column({ name: 'cantidad_original', type: 'numeric', precision: 18, scale: 6 })
   originalQuantity: string;
 
+  @Column({ name: 'cantidad_reservada_original', type: 'numeric', precision: 18, scale: 6, default: 0 })
+  reservedQuantity: string;
+
+  @Column({ name: 'cantidad_pendiente_original', type: 'numeric', precision: 18, scale: 6, default: 0 })
+  pendingQuantity: string;
+
   @Column({ name: 'factor_aplicado', type: 'numeric', precision: 18, scale: 6 })
   appliedFactor: string;
 
   @Column({ name: 'aporte_unidad_base', type: 'numeric', precision: 18, scale: 6 })
   baseContribution: string;
+
+  @Column({ name: 'aporte_almacen_base', type: 'numeric', precision: 18, scale: 6, default: 0 })
+  warehouseContribution: string;
+
+  @Column({ name: 'aporte_produccion_base', type: 'numeric', precision: 18, scale: 6, default: 0 })
+  productionContribution: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

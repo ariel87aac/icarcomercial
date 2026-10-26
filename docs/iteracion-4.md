@@ -26,6 +26,11 @@ BORRADOR → PLANIFICADA → EN_REPARTO → FINALIZADA → LIQUIDADA
 ```
 
 - La ruta se crea para una fecha, zona, vehículo activo y uno o más responsables; exactamente uno es principal.
+- Todo vehículo nuevo requiere una **capacidad máxima en kg** mayor que cero.
+- La carga de una ruta es la suma de `cantidad preparada × peso en kg de la presentación` para todos sus productos.
+- Si falta el peso de alguna presentación, la ruta identifica cuáles deben configurarse y no permite planificar.
+- Si la carga supera la capacidad, la interfaz muestra carga, capacidad y excedente; la planificación y la salida quedan bloqueadas.
+- Mientras la ruta está en `BORRADOR`, Distribución puede asignar otro vehículo activo con capacidad suficiente. El cambio queda en historial y auditoría.
 - La secuencia de entregas se define manualmente con posiciones únicas y consecutivas.
 - La planificación requiere domicilios con coordenadas válidas.
 - La salida consume reservas y registra `SALIDA_DESPACHO` dentro de la misma transacción.
@@ -69,6 +74,7 @@ Los permisos incorporados son:
 | `POST` | `/api/distribution-routes` | Crea una ruta y asigna recursos. |
 | `GET` | `/api/distribution-routes/:id` | Consulta entregas, secuencia, responsables e historial. |
 | `POST` | `/api/distribution-routes/:id/deliveries` | Agrega preparaciones confirmadas a una ruta. |
+| `PUT` | `/api/distribution-routes/:id/vehicle` | Cambia el vehículo de una ruta en Borrador, validando disponibilidad y capacidad. |
 | `PUT` | `/api/distribution-routes/:id/sequence` | Guarda la secuencia manual. |
 | `POST` | `/api/distribution-routes/:id/plan` | Planifica una ruta. |
 | `POST` | `/api/distribution-routes/:id/departure` | Registra la salida y el despacho de inventario. |
@@ -91,15 +97,27 @@ La migración `1720000005000-create-iteration-four.ts` crea:
 
 También extiende inventario con los movimientos `SALIDA_DESPACHO` y `ENTRADA_DEVOLUCION`, el estado de reserva `CONSUMIDA` y las referencias al pedido, detalle y entrega de ruta.
 
+La migración `1720000017000-add-route-weight-capacity.ts` incorpora `peso_kg` en cada presentación y el evento de ruta `CAMBIO_VEHICULO`. Para productos cuya unidad base es kilogramo, el dato histórico se inicializa desde el factor de conversión; las demás presentaciones deben completarse desde Productos antes de planificar una ruta.
+
 Las operaciones críticas bloquean los registros involucrados y se ejecutan en transacciones. Esto impide preparar dos veces el mismo pedido, asignar una preparación a dos rutas, repetir la salida, consumir una reserva dos veces o aceptar una devolución sin su movimiento de entrada. Los cambios de estado, responsables y fechas quedan en historial y auditoría.
+
+## Relación con el ajuste de Producción
+
+La tercera iteración separa la demanda cubierta por reservas, el faltante, la **Solicitud para stock** de Comercial y el **Ajuste por batch/capacidad** de Producción. Tanto la orden como la entrega de Producción y la recepción de Almacén operan sobre la misma presentación. Preparación sólo utiliza el saldo después de que Almacén acepta la entrega y registra `INGRESO_PRODUCCION`.
+
+Si la cantidad recibida no alcanza para completar un pedido, el preparador puede reducir **Cantidad a entregar** respecto de la cantidad solicitada. Nunca puede superarla. Toda diferencia requiere una observación que explique el faltante de producción y queda visible en el detalle de preparación, historial y auditoría antes de confirmar.
+
+Esta modificación no asigna automáticamente un producto recibido a un pedido particular: el ingreso aumenta el saldo de su presentación y la preparación lo consume respetando las reservas y las reglas transaccionales existentes.
 
 ## Interfaz
 
-La pantalla **Preparación y distribución** contiene las vistas Preparación, Vehículos, Rutas, Mi reparto y Resumen según permisos. Los mapas muestran los puntos de entrega y permiten alternar entre OpenStreetMap y vista satélite. El orden visible corresponde a la secuencia manual guardada; no se calcula una ruta óptima.
+La pantalla **Preparación y distribución** contiene las vistas Preparación, Vehículos, Rutas, Mi reparto y Resumen según permisos. En Vehículos, el alta y la edición exigen la capacidad máxima en kg. En Rutas se muestra `carga / capacidad`, el excedente o margen disponible y, en Borrador, un selector para cambiar de vehículo. Los mapas muestran los puntos de entrega y permiten alternar entre OpenStreetMap y vista satélite. El orden visible corresponde a la secuencia manual guardada; no se calcula una ruta óptima.
+
+En Preparación, la columna editable se denomina **Cantidad a entregar**. La interfaz muestra la cantidad solicitada, el saldo disponible y la diferencia; cuando la cantidad se reduce solicita el motivo antes de permitir la confirmación.
 
 ## Pruebas
 
-La suite `backend/scripts/iteration-four.acceptance.mjs` valida 16 reglas de aceptación: elegibilidad y unicidad de preparación, cantidades y diferencias, observaciones, confirmación, asignación única, secuencia, coordenadas, salida transaccional, concurrencia, alcance del repartidor, resultado de visita, liquidación sin datos financieros e historial cronológico.
+La suite `backend/scripts/iteration-four.acceptance.mjs` valida 20 reglas de aceptación: elegibilidad y unicidad de preparación, cantidades y diferencias, observaciones obligatorias ante faltantes, confirmación, capacidad obligatoria del vehículo, cálculo y exceso de carga, bloqueo de planificación, cambio de vehículo con historial, asignación única, secuencia, coordenadas, salida transaccional, concurrencia, alcance del repartidor, resultado de visita, liquidación sin datos financieros e historial cronológico.
 
 Con el stack en ejecución:
 

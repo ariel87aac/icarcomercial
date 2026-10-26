@@ -51,11 +51,6 @@ export class CreateCustomerDto {
   @IsEnum(PaymentCondition)
   paymentCondition: PaymentCondition;
 
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  commercialList?: string;
-
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
@@ -109,11 +104,6 @@ export class UpdateCustomerDto {
   @IsOptional()
   @IsEnum(PaymentCondition)
   paymentCondition?: PaymentCondition;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  commercialList?: string;
 
   @IsOptional()
   @Type(() => Number)

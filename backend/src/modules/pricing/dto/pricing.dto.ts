@@ -1,7 +1,10 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMinSize,
+  IsArray,
   IsDateString,
   IsEnum,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -9,20 +12,15 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import { RecordStatus } from '../../../common/enums/record-status.enum';
 import { CustomerType } from '../../customers/entities/customer.enums';
 
 export class CreateProductPriceDto {
-  @IsOptional()
   @IsEnum(CustomerType)
-  customerType?: CustomerType;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  commercialList?: string;
+  customerType: CustomerType;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -42,11 +40,6 @@ export class UpdateProductPriceDto {
   @IsOptional()
   @IsEnum(CustomerType)
   customerType?: CustomerType;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  commercialList?: string;
 
   @IsOptional()
   @Type(() => Number)
@@ -78,13 +71,50 @@ export class PriceQueryDto extends PaginationQueryDto {
   customerType?: CustomerType;
 
   @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  commercialList?: string;
-
-  @IsOptional()
   @IsEnum(RecordStatus)
   status?: RecordStatus;
+}
+
+export class PriceMatrixQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page = 1;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000)
+  limit = 500;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  q?: string;
+}
+
+export class BulkPriceItemDto {
+  @IsUUID()
+  presentationId: string;
+
+  @IsEnum(CustomerType)
+  customerType: CustomerType;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(9999999999.99)
+  amount: number;
+}
+
+export class BulkUpdatePricesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BulkPriceItemDto)
+  items: BulkPriceItemDto[];
 }
 
 export class CatalogQueryDto extends PaginationQueryDto {

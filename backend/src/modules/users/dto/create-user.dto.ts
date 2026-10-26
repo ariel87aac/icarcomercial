@@ -48,5 +48,5 @@ export class CreateUserDto {
   @IsArray()
   @ArrayUnique()
   @IsUUID('4', { each: true })
-  productLineIds?: string[];
+  productionAreaIds?: string[];
 }

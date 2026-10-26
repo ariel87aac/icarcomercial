@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
-import { AddRouteDeliveriesDto, CreateDistributionRouteDto, DistributionRouteQueryDto, RegisterVisitResultDto, RouteTransitionDto, SettleRouteDto, UpdateRouteSequenceDto } from './dto/distribution.dto';
+import { AddRouteDeliveriesDto, CreateDistributionRouteDto, DistributionRouteQueryDto, RegisterVisitResultDto, RouteTransitionDto, SettleRouteDto, UpdateRouteSequenceDto, UpdateRouteVehicleDto } from './dto/distribution.dto';
 import { DistributionService } from './distribution.service';
 
 @Controller('distribution-routes')
@@ -37,6 +37,12 @@ export class DistributionRoutesController {
   @RequirePermissions('distribution.routes.create')
   addDeliveries(@Param('id', ParseUUIDPipe) id: string, @Body() dto: AddRouteDeliveriesDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.distribution.addDeliveries(id, dto, actor);
+  }
+
+  @Put(':id/vehicle')
+  @RequirePermissions('distribution.routes.create')
+  vehicle(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateRouteVehicleDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.distribution.updateVehicle(id, dto, actor);
   }
 
   @Put(':id/sequence')

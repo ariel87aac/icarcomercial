@@ -12,6 +12,20 @@ La quinta iteración implementa el seguimiento público protegido de pedidos y l
 6. El trabajador asincrónico envía a LimiteAPI sin bloquear la operación comercial o de distribución.
 7. Los webhooks actualizan el estado a enviado, entregado o fallido y se deduplican por identificador externo y hash de contenido.
 
+## Plantillas base por estado
+
+La pestaña **Plantillas** permite crear de forma idempotente el catálogo base sin reemplazar una plantilla activa configurada manualmente. El catálogo incluye:
+
+- `PEDIDO_BORRADOR`: detalle, total, fecha de entrega y enlace de confirmación;
+- `PEDIDO_RECIBIDO`: constancia de recepción y detalle en revisión;
+- `PEDIDO_CONFIRMADO`: lista final de productos confirmados;
+- `PEDIDO_CANCELADO`: referencia y motivo de cancelación;
+- `CAMBIO_RELEVANTE`, `SALIDA_RUTA` y `PROXIMA_ENTREGA`;
+- `ENTREGADO` y `ENTREGA_NO_COMPLETADA`;
+- `PAGO_RECIBIDO`.
+
+El botón **Crear plantillas base** sólo agrega los eventos que no tienen una plantilla activa. La acción queda auditada con la cantidad creada y la cantidad preservada. El cambio `BORRADOR → RECIBIDO` ahora encola también su mensaje específico mediante la misma política idempotente de los demás estados.
+
 Los estados públicos son `PEDIDO_CONFIRMADO`, `EN_PREPARACION`, `PREPARADO`, `EN_RUTA`, `ENTREGADO` y `ENTREGA_NO_COMPLETADA`.
 
 ## LimiteAPI
@@ -32,6 +46,8 @@ Content-Type: application/json
 ```
 
 La URL, el token, el número habilitado, la referencia de licencia, el tiempo de espera y la política de reintentos se administran en **Seguimiento y mensajería → Canal**. El token se almacena cifrado con AES-256-GCM, nunca se devuelve completo al navegador y la pantalla muestra únicamente una máscara con sus últimos tres caracteres. El secreto del webhook permanece fuera de la interfaz.
+
+La misma pantalla incorpora un diagnóstico manual. Un usuario con `notifications.channel.manage` puede indicar un número y un texto, y enviar un único mensaje usando la configuración activa guardada. Esta prueba no ingresa a la cola de pedidos ni ejecuta reintentos. El resultado conserva código HTTP, duración, identificador del proveedor, error y respuesta sanitizada. El número se almacena enmascarado y nunca se registra el token ni el cuerpo enviado.
 
 Variables de entorno:
 
@@ -66,13 +82,16 @@ Puede existir una configuración global y otra vigente por zona; la configuraci�
 - `POST /api/tracking-events`
 - `GET|POST /api/tracking-settings`
 - `GET|POST /api/notification-templates`
+- `POST /api/notification-templates/defaults`
 - `GET|POST /api/notification-channel`
+- `POST /api/notification-channel/test`
+- `GET /api/notification-channel/test-logs`
 - `GET /api/notifications`
 - `GET /api/notifications/{id}`
 - `POST /api/notifications/{id}/resend`
 - `POST /api/webhooks/whatsapp`
 
-`PAGO_RECIBIDO` está definido como contrato reservado, pero se rechaza su activación y no se emite en esta iteración.
+`PAGO_RECIBIDO` se integra con la sexta iteración y utiliza la misma administración de plantillas y cola.
 
 ## Perfiles y permisos
 
@@ -91,4 +110,4 @@ La migración crea los perfiles `ATENCION_CLIENTE` y `GERENCIA_FINANCIERA`, adem
 docker compose exec backend node scripts/iteration-five.acceptance.mjs
 ```
 
-La prueba valida permisos, respuesta uniforme para tokens inválidos, almacenamiento exclusivo del hash, privacidad pública, renovación, unicidad del enlace activo, consulta autenticada, revocación y protección de secretos. Las pruebas unitarias comprueban además el cifrado y descifrado del token del canal.
+La prueba valida permisos, respuesta uniforme para tokens inválidos, almacenamiento exclusivo del hash, privacidad pública, renovación, unicidad del enlace activo, consulta autenticada, revocación y protección de secretos. Las pruebas unitarias comprueban además el cifrado y descifrado del token del canal, el formato enviado a LimiteAPI, la sanitización de respuestas y el diagnóstico de fallos de conexión. Las pruebas automatizadas no envían mensajes reales.

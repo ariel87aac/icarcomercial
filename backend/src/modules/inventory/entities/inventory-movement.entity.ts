@@ -18,13 +18,13 @@ export class InventoryMovement {
   @Column({ name: 'tipo', type: 'enum', enum: InventoryMovementType })
   type: InventoryMovementType;
 
-  @Column({ name: 'cantidad', type: 'numeric', precision: 14, scale: 3 })
+  @Column({ name: 'cantidad', type: 'numeric', precision: 18, scale: 6 })
   quantity: string;
 
-  @Column({ name: 'saldo_anterior', type: 'numeric', precision: 14, scale: 3 })
+  @Column({ name: 'saldo_anterior', type: 'numeric', precision: 18, scale: 6 })
   previousBalance: string;
 
-  @Column({ name: 'saldo_nuevo', type: 'numeric', precision: 14, scale: 3 })
+  @Column({ name: 'saldo_nuevo', type: 'numeric', precision: 18, scale: 6 })
   newBalance: string;
 
   @Column({ name: 'motivo', type: 'varchar', length: 255 })
@@ -45,6 +45,9 @@ export class InventoryMovement {
 
   @Column({ name: 'ruta_entrega_id', type: 'uuid', nullable: true })
   routeDeliveryId: string | null;
+
+  @Column({ name: 'entrega_produccion_id', type: 'uuid', nullable: true })
+  productionDeliveryId: string | null;
 
   @CreateDateColumn({ name: 'fecha_hora', type: 'timestamptz' })
   occurredAt: Date;

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
@@ -17,6 +17,12 @@ export class UsersController {
   @RequirePermissions('users.read')
   findAll(@Query() query: UserQueryDto) {
     return this.usersService.findAll(query);
+  }
+
+  @Get('production-areas/available')
+  @RequirePermissions('users.read')
+  productionAreas() {
+    return this.usersService.productionAreas();
   }
 
   @Get(':id')
@@ -49,6 +55,15 @@ export class UsersController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.usersService.adminResetPassword(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('users.delete')
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.usersService.remove(id, actor);
   }
 }
 

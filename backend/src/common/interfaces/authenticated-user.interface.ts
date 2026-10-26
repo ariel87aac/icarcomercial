@@ -10,5 +10,5 @@ export interface AuthenticatedUser {
   customerId: string | null;
   roles: string[];
   permissions: string[];
-  productLineIds: string[];
+  productionAreaIds: string[];
 }

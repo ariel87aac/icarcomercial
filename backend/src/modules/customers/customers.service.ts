@@ -1,7 +1,12 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hash } from 'bcryptjs';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '../../common/dto/pagination-query.dto';
 import { RecordStatus } from '../../common/enums/record-status.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
@@ -54,7 +59,7 @@ export class CustomersService {
       .leftJoinAndSelect('address.distributionDay', 'day')
       .leftJoinAndSelect('customer.userLinks', 'accountLink')
       .leftJoinAndSelect('accountLink.user', 'accountUser')
-      .orderBy('customer.businessName', 'ASC')
+      .orderBy('customer.code', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
 
@@ -62,10 +67,13 @@ export class CustomersService {
       builder.andWhere(
         new Brackets((where) => {
           where
-            .where('unaccent(customer.businessName) ILIKE unaccent(:q)', { q: `%${query.q}%` })
+            .where('CAST(customer.code AS text) ILIKE :q', { q: `%${query.q}%` })
+            .orWhere('unaccent(customer.businessName) ILIKE unaccent(:q)', { q: `%${query.q}%` })
             .orWhere('customer.taxId ILIKE :q', { q: `%${query.q}%` })
+            .orWhere('unaccent(customer.contactName) ILIKE unaccent(:q)', { q: `%${query.q}%` })
             .orWhere('customer.phone ILIKE :q', { q: `%${query.q}%` })
-            .orWhere('customer.whatsapp ILIKE :q', { q: `%${query.q}%` });
+            .orWhere('customer.whatsapp ILIKE :q', { q: `%${query.q}%` })
+            .orWhere('customer.email ILIKE :q', { q: `%${query.q}%` });
         }),
       );
     }
@@ -119,13 +127,15 @@ export class CustomersService {
       entity: 'clientes',
       entityId: customer.id,
       result: 'EXITOSO',
-      metadata: { type: customer.type, businessName: customer.businessName, taxId: customer.taxId },
+      metadata: { code: customer.code, type: customer.type, businessName: customer.businessName, taxId: customer.taxId },
     });
     return this.findOne(customer.id, actor);
   }
 
   async update(id: string, dto: UpdateCustomerDto, actor: AuthenticatedUser): Promise<Customer> {
     const customer = await this.findOne(id, actor);
+    const accountLink =
+      customer.userLinks.find((link) => link.isPrimary) ?? customer.userLinks[0];
     const previousStatus = customer.status;
     const condition = dto.paymentCondition ?? customer.paymentCondition;
     const creditLimit = dto.creditLimit ?? Number(customer.creditLimit);
@@ -151,7 +161,56 @@ export class CustomersService {
     if (dto.creditLimit !== undefined) changes.creditLimit = dto.creditLimit.toFixed(2);
     if (dto.creditDays !== undefined) changes.creditDays = dto.creditDays;
     if (dto.status !== undefined) changes.status = dto.status;
-    await this.customerRepository.update(id, changes);
+
+    const identityChanged =
+      accountLink &&
+      (dto.businessName !== undefined ||
+        dto.contactName !== undefined ||
+        dto.taxId !== undefined ||
+        dto.email !== undefined ||
+        dto.phone !== undefined);
+    if (identityChanged) {
+      const username = (changes.taxId ?? customer.taxId)?.trim();
+      const email = (changes.email ?? customer.email)?.trim().toLowerCase();
+      if (!username) {
+        throw new BadRequestException(
+          'Una cuenta habilitada requiere el NIT o carnet del cliente',
+        );
+      }
+      if (!email) {
+        throw new BadRequestException(
+          'Una cuenta habilitada requiere el correo del cliente',
+        );
+      }
+      const duplicatedIdentity = await this.userRepository
+        .createQueryBuilder('user')
+        .where('user.id <> :userId', { userId: accountLink.userId })
+        .andWhere(
+          '(lower(user.email) = lower(:email) OR lower(user.username) = lower(:username))',
+          { email, username },
+        )
+        .getOne();
+      if (duplicatedIdentity) {
+        throw new ConflictException(
+          'El correo o NIT/CI ya está registrado como acceso de otro usuario',
+        );
+      }
+      const name =
+        (changes.contactName ?? customer.contactName)?.trim() ||
+        (changes.businessName ?? customer.businessName).trim();
+      const phone = (changes.phone ?? customer.phone).trim();
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(Customer).update(id, changes);
+        await manager.getRepository(User).update(accountLink.userId, {
+          name,
+          username: username.toLowerCase(),
+          email,
+          phone,
+        });
+      });
+    } else {
+      await this.customerRepository.update(id, changes);
+    }
     const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
     await this.auditService.record({
       userId: actor.id,
@@ -171,6 +230,49 @@ export class CustomersService {
       },
     });
     return this.findOne(id, actor);
+  }
+
+  async remove(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ id: string; code: number; deleted: true }> {
+    const customer = await this.findOne(id, actor);
+    if (customer.userLinks.length || customer.addresses.length) {
+      throw new ConflictException(
+        'No se puede eliminar el cliente porque tiene una cuenta o domicilios asociados',
+      );
+    }
+
+    const snapshot = {
+      code: customer.code,
+      businessName: customer.businessName,
+      taxId: customer.taxId,
+      type: customer.type,
+    };
+    try {
+      await this.customerRepository.remove(customer);
+    } catch (error) {
+      const databaseCode =
+        error instanceof QueryFailedError
+          ? (error.driverError as { code?: string }).code
+          : undefined;
+      if (databaseCode === '23503') {
+        throw new ConflictException(
+          'No se puede eliminar el cliente porque tiene pedidos, ventas u operaciones asociadas',
+        );
+      }
+      throw error;
+    }
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'customers',
+      action: 'ELIMINAR_CLIENTE',
+      entity: 'clientes',
+      entityId: id,
+      result: 'EXITOSO',
+      metadata: snapshot,
+    });
+    return { id, code: snapshot.code, deleted: true };
   }
 
   async addresses(
@@ -231,12 +333,27 @@ export class CustomersService {
     dto: CreateCustomerAccountDto,
     actor: AuthenticatedUser,
   ): Promise<CustomerUser> {
-    await this.findOne(customerId, actor);
+    const customer = await this.findOne(customerId, actor);
+    if (customer.userLinks.length) {
+      throw new ConflictException('El cliente ya tiene una cuenta de acceso habilitada');
+    }
+    const username = customer.taxId?.trim();
+    if (!username) {
+      throw new BadRequestException(
+        'Registre el NIT o carnet del cliente antes de habilitar su cuenta',
+      );
+    }
+    const email = customer.email?.trim().toLowerCase();
+    if (!email) {
+      throw new BadRequestException(
+        'Registre el correo del cliente antes de habilitar su cuenta',
+      );
+    }
     const identity = await this.userRepository
       .createQueryBuilder('user')
       .where(
         '(lower(user.email) = lower(:email) OR lower(user.username) = lower(:username))',
-        { email: dto.email, username: dto.username },
+        { email, username },
       )
       .getOne();
     if (identity) {
@@ -252,18 +369,12 @@ export class CustomersService {
     const link = await this.dataSource.transaction(async (manager) => {
       const userRepository = manager.getRepository(User);
       const linkRepository = manager.getRepository(CustomerUser);
-      if (dto.isPrimary) {
-        await linkRepository.update(
-          { customerId, isPrimary: true },
-          { isPrimary: false },
-        );
-      }
       const user = await userRepository.save(
         userRepository.create({
-          name: dto.name,
-          username: dto.username,
-          email: dto.email,
-          phone: dto.phone?.trim() || null,
+          name: customer.contactName || customer.businessName,
+          username,
+          email,
+          phone: customer.phone,
           passwordHash: await hash(dto.password, 12),
           type: UserType.CUSTOMER,
           roles: [customerRole],
@@ -273,7 +384,7 @@ export class CustomersService {
         linkRepository.create({
           customerId,
           userId: user.id,
-          isPrimary: dto.isPrimary,
+          isPrimary: true,
         }),
       );
     });
@@ -285,7 +396,7 @@ export class CustomersService {
       entity: 'clientes_usuarios',
       entityId: link.userId,
       result: 'EXITOSO',
-      metadata: { customerId, email: dto.email, isPrimary: dto.isPrimary },
+      metadata: { customerId, email, username, isPrimary: true },
     });
     return this.accountRepository.findOneOrFail({
       where: { customerId, userId: link.userId },

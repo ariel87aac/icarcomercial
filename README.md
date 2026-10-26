@@ -70,6 +70,31 @@ docker compose exec backend npm run migration:revert
 docker compose up --build -d backend
 ```
 
+# ACTUALIZAR REPOSITORIO
+
+```bash
+
+#1. Agrega los cambios y revisa qué se incluirá:
+git add .
+git diff --cached --stat
+
+#2. Guarda los cambios en un commit:
+git commit -m "Actualiza pedidos, producción, inventario y mensajería"
+
+#3. Integra cualquier cambio que exista en el repositorio remoto:
+git pull --rebase origin main
+
+#4. Si el paso anterior termina correctamente, sube tus cambios:
+git push origin main
+
+#5. Verifica el resultado:
+git status
+git log -1 --oneline
+
+
+
+```
+
 La decisión tecnológica y los límites de cada capa están documentados en [`docs/stack-tecnologico.md`](docs/stack-tecnologico.md).
 
 El alcance implementado, las rutas, la matriz de permisos, el modelo de datos y las pruebas de la primera iteración están documentados en [`docs/iteracion-1.md`](docs/iteracion-1.md).
@@ -83,3 +108,9 @@ La cuarta iteración de preparación, despacho, rutas y distribución está docu
 La quinta iteración de seguimiento público y mensajería WhatsApp con LimiteAPI está documentada en [`docs/iteracion-5.md`](docs/iteracion-5.md).
 
 La sexta iteración de ventas, comprobantes internos, pagos, estado de cuenta, cartera y reportes está documentada en [`docs/iteracion-6.md`](docs/iteracion-6.md).
+
+La matriz general, el resultado de las siete suites automatizadas y los controles manuales pendientes de evidencia están consolidados en [`docs/pruebas-aceptacion-consolidadas.md`](docs/pruebas-aceptacion-consolidadas.md).
+
+La eliminación de las líneas productivas autorizadas por usuario y su validación están documentadas en [`docs/pruebas-aceptacion-usuarios.md`](docs/pruebas-aceptacion-usuarios.md).
+
+La simplificación de la tabla de clientes, el código automático y el detalle mediante el botón de información están documentados en [`docs/pruebas-aceptacion-clientes.md`](docs/pruebas-aceptacion-clientes.md).

@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   baseContribution,
+  batchAdjustment,
   decimalForScale,
   pendingQuantity,
   productionDifference,
+  productionRequirement,
   roundForScale,
 } from './production-calculations';
 
@@ -26,5 +28,12 @@ describe('cálculos de consolidación para Producción', () => {
     expect(productionDifference(12.5, 10, 3)).toBe(2.5);
     expect(pendingQuantity(12.5, 10, 3)).toBe(0);
     expect(pendingQuantity(7, 10, 3)).toBe(3);
+  });
+
+  it('calcula el requerimiento neto y mantiene separado el ajuste por batch', () => {
+    expect(productionRequirement(8, 3, 3)).toBe(5);
+    expect(productionRequirement(8, 10, 3)).toBe(0);
+    expect(batchAdjustment(10, 8, 3)).toBe(2);
+    expect(batchAdjustment(8, 8, 3)).toBe(0);
   });
 });

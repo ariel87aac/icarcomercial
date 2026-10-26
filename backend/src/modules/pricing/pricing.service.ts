@@ -8,8 +8,16 @@ import { AuditService } from '../audit/audit.service';
 import { ProductPresentation } from '../catalog/entities/product-presentation.entity';
 import { Product } from '../catalog/entities/product.entity';
 import { Customer } from '../customers/entities/customer.entity';
+import { CustomerType } from '../customers/entities/customer.enums';
 import { UserType } from '../users/entities/user-type.enum';
-import { CatalogQueryDto, CreateProductPriceDto, PriceQueryDto, UpdateProductPriceDto } from './dto/pricing.dto';
+import {
+  BulkUpdatePricesDto,
+  CatalogQueryDto,
+  CreateProductPriceDto,
+  PriceMatrixQueryDto,
+  PriceQueryDto,
+  UpdateProductPriceDto,
+} from './dto/pricing.dto';
 import { ProductPrice } from './entities/product-price.entity';
 
 export interface CatalogPresentation {
@@ -22,13 +30,24 @@ export interface CatalogPresentation {
 
 export interface CatalogProduct {
   id: string;
-  code: string;
+  code: number;
   name: string;
   imageUrl: string | null;
   category: Product['category'];
   productLine: Product['productLine'];
   baseUnit: Product['baseUnit'];
   presentations: CatalogPresentation[];
+}
+
+export interface PriceMatrixRow {
+  presentationId: string;
+  productCode: number;
+  productName: string;
+  categoryId: string;
+  categoryName: string;
+  presentationDescription: string;
+  prices: Record<CustomerType, string | null>;
+  lastModifiedAt: Date | null;
 }
 
 @Injectable()
@@ -55,7 +74,6 @@ export class PricingService {
       .take(query.limit);
     if (query.presentationId) builder.andWhere('price.presentationId = :presentationId', { presentationId: query.presentationId });
     if (query.customerType) builder.andWhere('price.customerType = :customerType', { customerType: query.customerType });
-    if (query.commercialList) builder.andWhere('lower(price.commercialList) = lower(:commercialList)', { commercialList: query.commercialList.trim() });
     if (query.status) builder.andWhere('price.status = :status', { status: query.status });
     const [data, total] = await builder.getManyAndCount();
     return paginate(data, total, query.page, query.limit);
@@ -71,12 +89,11 @@ export class PricingService {
 
   async create(presentationId: string, dto: CreateProductPriceDto, actor: AuthenticatedUser) {
     await this.requirePresentation(presentationId);
-    const condition = this.normalizeCondition(dto.customerType, dto.commercialList);
     this.validatePeriod(dto.validFrom, dto.validUntil);
-    await this.assertNoOverlap(presentationId, condition.customerType, condition.commercialList, dto.validFrom, dto.validUntil ?? null);
+    await this.assertNoOverlap(presentationId, dto.customerType, dto.validFrom, dto.validUntil ?? null);
     const price = await this.priceRepository.save(this.priceRepository.create({
       presentationId,
-      ...condition,
+      customerType: dto.customerType,
       amount: dto.amount.toFixed(2),
       validFrom: dto.validFrom,
       validUntil: dto.validUntil ?? null,
@@ -88,33 +105,23 @@ export class PricingService {
       entity: 'precios_producto',
       entityId: price.id,
       result: 'EXITOSO',
-      metadata: { presentationId, customerType: condition.customerType, commercialList: condition.commercialList, validFrom: dto.validFrom, validUntil: dto.validUntil ?? null },
+      metadata: { presentationId, customerType: dto.customerType, validFrom: dto.validFrom, validUntil: dto.validUntil ?? null },
     });
     return this.findOne(price.id);
   }
 
   async update(id: string, dto: UpdateProductPriceDto, actor: AuthenticatedUser) {
     const price = await this.findOne(id);
-    let nextCustomerType = price.customerType ?? undefined;
-    let nextCommercialList = price.commercialList ?? undefined;
-    if (dto.customerType !== undefined) {
-      nextCustomerType = dto.customerType;
-      nextCommercialList = undefined;
-    }
-    if (dto.commercialList !== undefined) {
-      nextCommercialList = dto.commercialList;
-      if (dto.commercialList.trim()) nextCustomerType = undefined;
-    }
-    const condition = this.normalizeCondition(nextCustomerType, nextCommercialList);
+    const customerType = dto.customerType ?? price.customerType;
     const validFrom = dto.validFrom ?? price.validFrom;
     const validUntil = dto.validUntil !== undefined ? dto.validUntil || null : price.validUntil;
     this.validatePeriod(validFrom, validUntil ?? undefined);
     const intendedStatus = dto.status ?? price.status;
     if (intendedStatus === RecordStatus.ACTIVE) {
-      await this.assertNoOverlap(price.presentationId, condition.customerType, condition.commercialList, validFrom, validUntil, id);
+      await this.assertNoOverlap(price.presentationId, customerType, validFrom, validUntil, id);
     }
     Object.assign(price, {
-      ...condition,
+      customerType,
       validFrom,
       validUntil,
       ...(dto.amount !== undefined ? { amount: dto.amount.toFixed(2) } : {}),
@@ -138,6 +145,134 @@ export class PricingService {
     return this.findOne(id);
   }
 
+  async priceMatrix(query: PriceMatrixQueryDto): Promise<PaginatedResponse<PriceMatrixRow>> {
+    const builder = this.presentationRepository.createQueryBuilder('presentation')
+      .innerJoinAndSelect('presentation.product', 'product')
+      .innerJoinAndSelect('product.category', 'category')
+      .where('presentation.status = :active', { active: RecordStatus.ACTIVE })
+      .andWhere('product.status = :active', { active: RecordStatus.ACTIVE })
+      .orderBy('product.code', 'ASC')
+      .addOrderBy('product.name', 'ASC')
+      .addOrderBy('presentation.description', 'ASC')
+      .skip((query.page - 1) * query.limit)
+      .take(query.limit);
+    if (query.q) {
+      builder.andWhere(new Brackets((where) => where
+        .where('CAST(product.code AS text) ILIKE :q', { q: `%${query.q}%` })
+        .orWhere('unaccent(product.name) ILIKE unaccent(:q)', { q: `%${query.q}%` })
+        .orWhere('unaccent(presentation.description) ILIKE unaccent(:q)', { q: `%${query.q}%` })));
+    }
+    const [presentations, total] = await builder.getManyAndCount();
+    if (!presentations.length) return paginate([], total, query.page, query.limit);
+
+    const today = this.currentDate();
+    const prices = await this.priceRepository.createQueryBuilder('price')
+      .where('price.presentationId IN (:...presentationIds)', { presentationIds: presentations.map((item) => item.id) })
+      .andWhere('price.status = :active', { active: RecordStatus.ACTIVE })
+      .andWhere('price.validFrom <= :today', { today })
+      .andWhere('(price.validUntil IS NULL OR price.validUntil >= :today)', { today })
+      .orderBy('price.presentationId', 'ASC')
+      .addOrderBy('price.customerType', 'ASC')
+      .addOrderBy('price.validFrom', 'DESC')
+      .addOrderBy('price.updatedAt', 'DESC')
+      .getMany();
+    const applicable = new Map<string, ProductPrice>();
+    for (const price of prices) {
+      const key = this.priceKey(price.presentationId, price.customerType);
+      if (!applicable.has(key)) applicable.set(key, price);
+    }
+    const types = Object.values(CustomerType);
+    const rows = presentations.map((presentation): PriceMatrixRow => {
+      const rowPrices = {} as Record<CustomerType, string | null>;
+      let lastModifiedAt: Date | null = null;
+      for (const type of types) {
+        const price = applicable.get(this.priceKey(presentation.id, type));
+        rowPrices[type] = price?.amount ?? null;
+        if (price && (!lastModifiedAt || price.updatedAt > lastModifiedAt)) lastModifiedAt = price.updatedAt;
+      }
+      return {
+        presentationId: presentation.id,
+        productCode: presentation.product.code,
+        productName: presentation.product.name,
+        categoryId: presentation.product.categoryId,
+        categoryName: presentation.product.category.name,
+        presentationDescription: presentation.description,
+        prices: rowPrices,
+        lastModifiedAt,
+      };
+    });
+    return paginate(rows, total, query.page, query.limit);
+  }
+
+  async bulkUpdate(dto: BulkUpdatePricesDto, actor: AuthenticatedUser) {
+    const unique = new Map<string, (typeof dto.items)[number]>();
+    for (const item of dto.items) {
+      const key = this.priceKey(item.presentationId, item.customerType);
+      if (unique.has(key)) throw new BadRequestException('No se puede enviar dos veces el mismo precio');
+      unique.set(key, item);
+    }
+    const items = [...unique.values()];
+    const today = this.currentDate();
+    const updated = await this.priceRepository.manager.transaction(async (manager) => {
+      const presentationIds = [...new Set(items.map((item) => item.presentationId))];
+      const presentations = await manager.getRepository(ProductPresentation).createQueryBuilder('presentation')
+        .where('presentation.id IN (:...presentationIds)', { presentationIds })
+        .andWhere('presentation.status = :active', { active: RecordStatus.ACTIVE })
+        .orderBy('presentation.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
+      if (presentations.length !== presentationIds.length) {
+        throw new BadRequestException('Una o más presentaciones no existen o están inactivas');
+      }
+
+      const repository = manager.getRepository(ProductPrice);
+      const existing = await repository.createQueryBuilder('price')
+        .where('price.presentationId IN (:...presentationIds)', { presentationIds })
+        .andWhere('price.status = :active', { active: RecordStatus.ACTIVE })
+        .setLock('pessimistic_write')
+        .orderBy('price.validFrom', 'DESC')
+        .getMany();
+      const byCondition = new Map<string, ProductPrice[]>();
+      for (const price of existing) {
+        const key = this.priceKey(price.presentationId, price.customerType);
+        byCondition.set(key, [...(byCondition.get(key) ?? []), price]);
+      }
+
+      const entities: ProductPrice[] = [];
+      for (const item of items) {
+        const conditionPrices = byCondition.get(this.priceKey(item.presentationId, item.customerType)) ?? [];
+        const current = conditionPrices.find((price) => price.validFrom <= today && (!price.validUntil || price.validUntil >= today));
+        if (current) {
+          current.amount = item.amount.toFixed(2);
+          entities.push(current);
+          continue;
+        }
+        const next = conditionPrices
+          .filter((price) => price.validFrom > today)
+          .sort((left, right) => left.validFrom.localeCompare(right.validFrom))[0];
+        entities.push(repository.create({
+          presentationId: item.presentationId,
+          customerType: item.customerType,
+          amount: item.amount.toFixed(2),
+          validFrom: today,
+          validUntil: next ? this.previousDate(next.validFrom) : null,
+          status: RecordStatus.ACTIVE,
+        }));
+      }
+      await repository.save(entities);
+      return entities.length;
+    });
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'pricing',
+      action: 'ACTUALIZAR_PRECIOS_MASIVO',
+      entity: 'precios_producto',
+      result: 'EXITOSO',
+      metadata: { updated, presentationCount: new Set(items.map((item) => item.presentationId)).size },
+    });
+    return { updated };
+  }
+
   async catalog(query: CatalogQueryDto, actor: AuthenticatedUser) {
     const customer = await this.resolveCatalogCustomer(query.customerId, actor);
     const builder = this.productRepository.createQueryBuilder('product')
@@ -155,7 +290,7 @@ export class PricingService {
       .take(query.limit);
     if (query.q) {
       builder.andWhere(new Brackets((where) => where
-        .where('product.code ILIKE :q', { q: `%${query.q}%` })
+        .where('CAST(product.code AS text) ILIKE :q', { q: `%${query.q}%` })
         .orWhere('unaccent(product.name) ILIKE unaccent(:q)', { q: `%${query.q}%` })
         .orWhere('unaccent(presentation.description) ILIKE unaccent(:q)', { q: `%${query.q}%` })));
     }
@@ -199,7 +334,7 @@ export class PricingService {
 
   async resolveApplicablePrice(
     presentationId: string,
-    customer: Pick<Customer, 'type' | 'commercialList'>,
+    customer: Pick<Customer, 'type'>,
     date: string,
     manager?: EntityManager,
   ): Promise<ProductPrice | null> {
@@ -209,15 +344,10 @@ export class PricingService {
       .andWhere('price.status = :active', { active: RecordStatus.ACTIVE })
       .andWhere('price.validFrom <= :date', { date })
       .andWhere('(price.validUntil IS NULL OR price.validUntil >= :date)', { date });
-    if (customer.commercialList) {
-      builder.andWhere(new Brackets((where) => where
-        .where('lower(price.commercialList) = lower(:commercialList)', { commercialList: customer.commercialList })
-        .orWhere('(price.commercialList IS NULL AND price.customerType = :customerType)', { customerType: customer.type })));
-      builder.orderBy('CASE WHEN price.commercialList IS NOT NULL THEN 0 ELSE 1 END', 'ASC');
-    } else {
-      builder.andWhere('price.commercialList IS NULL AND price.customerType = :customerType', { customerType: customer.type });
-    }
-    return builder.addOrderBy('price.validFrom', 'DESC').getOne();
+    return builder
+      .andWhere('price.customerType = :customerType', { customerType: customer.type })
+      .orderBy('price.validFrom', 'DESC')
+      .getOne();
   }
 
   private async findOne(id: string): Promise<ProductPrice> {
@@ -235,15 +365,6 @@ export class PricingService {
     return presentation;
   }
 
-  private normalizeCondition(customerType?: ProductPrice['customerType'], commercialList?: string) {
-    const list = commercialList?.trim().toUpperCase() || null;
-    const type = customerType ?? null;
-    if ((type === null) === (list === null)) {
-      throw new BadRequestException('Debe definir únicamente un tipo de cliente o una lista comercial');
-    }
-    return { customerType: type, commercialList: list };
-  }
-
   private validatePeriod(validFrom: string, validUntil?: string): void {
     if (validUntil && validUntil < validFrom) {
       throw new BadRequestException('La fecha final debe ser igual o posterior a la fecha inicial');
@@ -253,7 +374,6 @@ export class PricingService {
   private async assertNoOverlap(
     presentationId: string,
     customerType: ProductPrice['customerType'],
-    commercialList: string | null,
     validFrom: string,
     validUntil: string | null,
     excludedId?: string,
@@ -263,13 +383,27 @@ export class PricingService {
       .andWhere('price.status = :active', { active: RecordStatus.ACTIVE })
       .andWhere('price.validFrom <= COALESCE(CAST(:validUntil AS date), DATE \'9999-12-31\')', { validUntil })
       .andWhere('COALESCE(price.validUntil, DATE \'9999-12-31\') >= CAST(:validFrom AS date)', { validFrom });
-    if (commercialList) {
-      builder.andWhere('lower(price.commercialList) = lower(:commercialList)', { commercialList });
-    } else {
-      builder.andWhere('price.commercialList IS NULL AND price.customerType = :customerType', { customerType });
-    }
+    builder.andWhere('price.customerType = :customerType', { customerType });
     if (excludedId) builder.andWhere('price.id <> :excludedId', { excludedId });
     if (await builder.getOne()) throw new ConflictException('La vigencia se superpone con otro precio aplicable');
+  }
+
+  private priceKey(presentationId: string, customerType: CustomerType): string {
+    return `${presentationId}:${customerType}`;
+  }
+
+  private currentDate(): string {
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'America/La_Paz', year: 'numeric', month: '2-digit', day: '2-digit',
+    }).formatToParts(new Date());
+    const part = (type: Intl.DateTimeFormatPartTypes) => parts.find((item) => item.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }
+
+  private previousDate(value: string): string {
+    const date = new Date(`${value}T12:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - 1);
+    return date.toISOString().slice(0, 10);
   }
 
   private async resolveCatalogCustomer(requestedCustomerId: string | undefined, actor: AuthenticatedUser): Promise<Customer | null> {

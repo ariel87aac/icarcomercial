@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
@@ -35,7 +45,10 @@ export class CustomersController {
 
   @Post()
   @RequirePermissions('customers.create')
-  create(@Body() dto: CreateCustomerDto, @CurrentUser() actor: AuthenticatedUser) {
+  create(
+    @Body() dto: CreateCustomerDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
     return this.customersService.create(dto, actor);
   }
 
@@ -47,6 +60,15 @@ export class CustomersController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.customersService.update(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('customers.delete')
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.customersService.remove(id, actor);
   }
 
   @Get([':id/addresses', ':id/domicilios'])

@@ -4,7 +4,8 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
-import { CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
+import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
 import { NotificationService } from './notification.service';
 import { TrackingService } from './tracking.service';
 
@@ -65,6 +66,12 @@ export class TrackingController {
     return this.notifications.saveTemplate(dto, actor);
   }
 
+  @Post('notification-templates/defaults')
+  @RequirePermissions('notifications.templates.manage')
+  defaultTemplates(@CurrentUser() actor: AuthenticatedUser) {
+    return this.notifications.ensureDefaultTemplates(actor);
+  }
+
   @Get('notification-channel')
   @RequirePermissions('notifications.channel.read')
   channel() { return this.notifications.getChannel(); }
@@ -73,6 +80,18 @@ export class TrackingController {
   @RequirePermissions('notifications.channel.manage')
   saveChannel(@Body() dto: SaveChannelSettingDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.notifications.saveChannel(dto, actor);
+  }
+
+  @Post('notification-channel/test')
+  @RequirePermissions('notifications.channel.manage')
+  testChannel(@Body() dto: TestNotificationChannelDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.notifications.testChannel(dto, actor);
+  }
+
+  @Get('notification-channel/test-logs')
+  @RequirePermissions('notifications.channel.read')
+  channelTestLogs(@Query() query: PaginationQueryDto) {
+    return this.notifications.listChannelTestLogs(query);
   }
 
   @Get('notifications')

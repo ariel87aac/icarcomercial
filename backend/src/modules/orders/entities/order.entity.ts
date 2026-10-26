@@ -1,4 +1,4 @@
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Column, DeleteDateColumn, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { AuditableEntity } from '../../../common/entities/auditable.entity';
 import { CustomerAddress } from '../../customers/entities/customer-address.entity';
 import { Customer } from '../../customers/entities/customer.entity';
@@ -29,6 +29,12 @@ export class Order extends AuditableEntity {
 
   @Column({ name: 'fecha_solicitada', type: 'date' })
   requestedDate: string;
+
+  @Column({ name: 'fecha_cierre_pedido', type: 'timestamptz' })
+  orderCutoffAt: Date;
+
+  @Column({ name: 'fecha_preparacion', type: 'timestamptz' })
+  preparationAt: Date;
 
   @Column({ name: 'estado', type: 'enum', enum: OrderStatus, default: OrderStatus.DRAFT })
   status: OrderStatus;
@@ -62,14 +68,37 @@ export class Order extends AuditableEntity {
   @Column({ name: 'confirmado_at', type: 'timestamptz', nullable: true })
   confirmedAt: Date | null;
 
+  @Column({ name: 'cancelado_por', type: 'uuid', nullable: true })
+  canceledById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'cancelado_por' })
+  canceledBy: User | null;
+
+  @Column({ name: 'cancelado_at', type: 'timestamptz', nullable: true })
+  canceledAt: Date | null;
+
+  @Column({ name: 'motivo_cancelacion', type: 'varchar', length: 500, nullable: true })
+  cancellationReason: string | null;
+
+  @DeleteDateColumn({ name: 'eliminado_at', type: 'timestamptz', nullable: true })
+  deletedAt: Date | null;
+
+  @Column({ name: 'eliminado_por', type: 'uuid', nullable: true })
+  deletedById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'eliminado_por' })
+  deletedBy: User | null;
+
+  @Column({ name: 'motivo_eliminacion', type: 'varchar', length: 500, nullable: true })
+  deletionReason: string | null;
+
   @Column({ name: 'cliente_nombre_copia', type: 'varchar', length: 160, nullable: true })
   customerNameSnapshot: string | null;
 
   @Column({ name: 'cliente_tipo_copia', type: 'enum', enum: CustomerType, nullable: true })
   customerTypeSnapshot: CustomerType | null;
-
-  @Column({ name: 'lista_comercial_copia', type: 'varchar', length: 80, nullable: true })
-  commercialListSnapshot: string | null;
 
   @Column({ name: 'domicilio_copia', type: 'varchar', length: 255, nullable: true })
   addressSnapshot: string | null;

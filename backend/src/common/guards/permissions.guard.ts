@@ -28,10 +28,10 @@ export class PermissionsGuard implements CanActivate {
       module: 'access-control',
       action: 'ACCESO_DENEGADO',
       entity: 'endpoint',
-      entityId: request.originalUrl,
+      entityId: request.originalUrl.slice(0, 100),
       result: 'RECHAZADO',
       ipAddress: request.ip,
-      metadata: { method: request.method, requiredPermissions: required },
+      metadata: { method: request.method, endpoint: request.originalUrl, requiredPermissions: required },
     });
     throw new ForbiddenException('No cuenta con permisos para realizar esta operación');
   }

@@ -24,10 +24,10 @@ function passed(code, text) { process.stdout.write(`✓ ${code} ${text}\n`); }
 
 try {
   await db.connect();
-  const source = await db.query(`SELECT p.cliente_id, p.domicilio_id, p.creado_por FROM pedidos p WHERE p.estado='CONFIRMADO' ORDER BY p.created_at LIMIT 1`);
+  const source = await db.query(`SELECT p.cliente_id, p.domicilio_id, p.creado_por, p.fecha_solicitada, p.fecha_cierre_pedido, p.fecha_preparacion FROM pedidos p WHERE p.estado='CONFIRMADO' ORDER BY p.created_at LIMIT 1`);
   assert(source.rowCount, 'Se requiere al menos un pedido confirmado de referencia');
   orderId = randomUUID();
-  await db.query(`INSERT INTO pedidos (id,codigo,cliente_id,domicilio_id,fecha_solicitada,estado,origen,total,creado_por,confirmado_por,confirmado_at) VALUES ($1,$2,$3,$4,current_date,'CONFIRMADO','INTERNO',0,$5,$5,now())`, [orderId, marker, source.rows[0].cliente_id, source.rows[0].domicilio_id, source.rows[0].creado_por]);
+  await db.query(`INSERT INTO pedidos (id,codigo,cliente_id,domicilio_id,fecha_solicitada,fecha_cierre_pedido,fecha_preparacion,estado,origen,total,creado_por,confirmado_por,confirmado_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'CONFIRMADO','INTERNO',0,$8,$8,now())`, [orderId, marker, source.rows[0].cliente_id, source.rows[0].domicilio_id, source.rows[0].fecha_solicitada, source.rows[0].fecha_cierre_pedido, source.rows[0].fecha_preparacion, source.rows[0].creado_por]);
 
   await expect('/api/auth/login', { method:'POST', body:{ identifier:adminIdentifier, password:adminPassword } }, 200);
   const permissions = await expect('/api/permissions', {}, 200);
@@ -87,7 +87,16 @@ try {
   assert([403,503].includes(webhook.status));
   passed('CP-88', 'el token del canal se cifra y la API solo expone una máscara segura');
 
-  process.stdout.write('\n8 comprobaciones de aceptación de la quinta iteración superadas.\n');
+  const testLogs = await expect('/api/notification-channel/test-logs?limit=100', {}, 200);
+  assert(Array.isArray(testLogs.data));
+  for (const log of testLogs.data) {
+    assert.match(log.maskedRecipient, /^•+\d{4}$/);
+    const serialized = JSON.stringify(log);
+    assert(!serialized.includes('encryptedToken') && !serialized.includes('tokenLast3'));
+  }
+  passed('CP-89', 'el registro de pruebas enmascara destinatarios y no expone credenciales');
+
+  process.stdout.write('\n9 comprobaciones de aceptación de la quinta iteración superadas.\n');
 } catch (error) {
   process.stderr.write(`\nFallo de aceptación: ${error.stack ?? error}\n`);
   process.exitCode = 1;

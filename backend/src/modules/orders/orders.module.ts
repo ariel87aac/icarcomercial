@@ -9,9 +9,13 @@ import { Stock } from '../inventory/entities/stock.entity';
 import { PricingModule } from '../pricing/pricing.module';
 import { TrackingModule } from '../tracking/tracking.module';
 import { OrderDetail } from './entities/order-detail.entity';
+import { OrderConfirmationLink } from './entities/order-confirmation-link.entity';
 import { OrderHistory } from './entities/order-history.entity';
 import { Order } from './entities/order.entity';
-import { OrdersController } from './orders.controller';
+import { OrderSchedulingSetting } from './entities/order-scheduling-setting.entity';
+import { OrderSchedulingController } from './order-scheduling.controller';
+import { OrderSchedulingService } from './order-scheduling.service';
+import { OrdersController, PublicOrderConfirmationsController } from './orders.controller';
 import { OrdersService } from './orders.service';
 
 @Module({
@@ -20,6 +24,7 @@ import { OrdersService } from './orders.service';
     TrackingModule,
     TypeOrmModule.forFeature([
       Order,
+      OrderConfirmationLink,
       OrderDetail,
       OrderHistory,
       Customer,
@@ -28,9 +33,11 @@ import { OrdersService } from './orders.service';
       Stock,
       InventoryReservation,
       AuditEvent,
+      OrderSchedulingSetting,
     ]),
   ],
-  controllers: [OrdersController],
-  providers: [OrdersService],
+  controllers: [OrdersController, PublicOrderConfirmationsController, OrderSchedulingController],
+  providers: [OrdersService, OrderSchedulingService],
+  exports: [OrderSchedulingService],
 })
 export class OrdersModule {}

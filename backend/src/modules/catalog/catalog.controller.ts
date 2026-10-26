@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
@@ -36,6 +36,12 @@ export class ProductCategoriesController {
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateNamedCatalogItemDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.catalog.updateCategory(id, dto, actor);
   }
+
+  @Delete(':id')
+  @RequirePermissions('catalog.manage')
+  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.catalog.removeCategory(id, actor);
+  }
 }
 
 @Controller(['product-lines', 'lineas-productivas'])
@@ -57,6 +63,12 @@ export class ProductLinesController {
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateNamedCatalogItemDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.catalog.updateLine(id, dto, actor);
   }
+
+  @Delete(':id')
+  @RequirePermissions('catalog.manage')
+  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.catalog.removeLine(id, actor);
+  }
 }
 
 @Controller(['units', 'unidades'])
@@ -77,6 +89,12 @@ export class UnitMeasuresController {
   @RequirePermissions('catalog.manage')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUnitMeasureDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.catalog.updateUnit(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('catalog.manage')
+  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.catalog.removeUnit(id, actor);
   }
 }
 
@@ -102,6 +120,12 @@ export class ProductsController {
   @RequirePermissions('catalog.manage')
   update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateProductDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.catalog.updateProduct(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('catalog.manage')
+  remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.catalog.removeProduct(id, actor);
   }
 
   @Put([':id/image', ':id/imagen'])

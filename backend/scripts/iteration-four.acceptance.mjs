@@ -65,7 +65,7 @@ async function cleanup() {
       UNION SELECT id::text FROM preparaciones_pedido WHERE id IN ${preparationIds}
       UNION SELECT id::text FROM pedidos WHERE observaciones = $1
       UNION SELECT id::text FROM vehiculos WHERE placa LIKE $2
-      UNION SELECT id::text FROM productos WHERE codigo LIKE $2
+      UNION SELECT id::text FROM productos WHERE nombre LIKE $4
       UNION SELECT id::text FROM usuarios WHERE email LIKE $3
     ) OR metadatos::text LIKE $4`, [marker, `${marker}%`, `%${suffix}@icar.local`, `%${suffix}%`]);
     await db.query(`DELETE FROM liquidaciones_ruta WHERE ruta_id IN ${routeIds}`);
@@ -83,11 +83,11 @@ async function cleanup() {
     await db.query(`DELETE FROM pedidos_estados_historial WHERE pedido_id IN (SELECT id FROM pedidos WHERE observaciones = $1)`, [marker]);
     await db.query(`DELETE FROM pedidos_detalle WHERE pedido_id IN (SELECT id FROM pedidos WHERE observaciones = $1)`, [marker]);
     await db.query(`DELETE FROM pedidos WHERE observaciones = $1`, [marker]);
-    await db.query(`DELETE FROM movimientos_inventario WHERE existencia_id IN (SELECT stock.id FROM existencias stock JOIN presentaciones_producto presentation ON presentation.id=stock.presentacion_id JOIN productos product ON product.id=presentation.producto_id WHERE product.codigo LIKE $1)`, [`${marker}%`]);
-    await db.query(`DELETE FROM existencias WHERE presentacion_id IN (SELECT presentation.id FROM presentaciones_producto presentation JOIN productos product ON product.id=presentation.producto_id WHERE product.codigo LIKE $1)`, [`${marker}%`]);
-    await db.query(`DELETE FROM precios_producto WHERE presentacion_id IN (SELECT presentation.id FROM presentaciones_producto presentation JOIN productos product ON product.id=presentation.producto_id WHERE product.codigo LIKE $1)`, [`${marker}%`]);
-    await db.query(`DELETE FROM presentaciones_producto WHERE producto_id IN (SELECT id FROM productos WHERE codigo LIKE $1)`, [`${marker}%`]);
-    await db.query(`DELETE FROM productos WHERE codigo LIKE $1`, [`${marker}%`]);
+    await db.query(`DELETE FROM movimientos_inventario WHERE existencia_id IN (SELECT stock.id FROM existencias stock JOIN presentaciones_producto presentation ON presentation.id=stock.presentacion_id JOIN productos product ON product.id=presentation.producto_id WHERE product.nombre LIKE $1)`, [`%${suffix}%`]);
+    await db.query(`DELETE FROM existencias WHERE presentacion_id IN (SELECT presentation.id FROM presentaciones_producto presentation JOIN productos product ON product.id=presentation.producto_id WHERE product.nombre LIKE $1)`, [`%${suffix}%`]);
+    await db.query(`DELETE FROM precios_producto WHERE presentacion_id IN (SELECT presentation.id FROM presentaciones_producto presentation JOIN productos product ON product.id=presentation.producto_id WHERE product.nombre LIKE $1)`, [`%${suffix}%`]);
+    await db.query(`DELETE FROM presentaciones_producto WHERE producto_id IN (SELECT id FROM productos WHERE nombre LIKE $1)`, [`%${suffix}%`]);
+    await db.query(`DELETE FROM productos WHERE nombre LIKE $1`, [`%${suffix}%`]);
     await db.query(`DELETE FROM unidades_medida WHERE abreviatura LIKE $1`, [`${marker.slice(0, 12)}%`]);
     await db.query(`DELETE FROM lineas_productivas WHERE nombre LIKE $1`, [`%${suffix}%`]);
     await db.query(`DELETE FROM categorias_producto WHERE nombre LIKE $1`, [`%${suffix}%`]);
@@ -123,8 +123,8 @@ try {
   const line = (await expectStatus('/api/lineas-productivas', { method: 'POST', jar: adminJar, body: { name: `Línea I4 ${suffix}` } }, 201, 'línea')).payload;
   const abbreviation = marker.slice(0, 12);
   const unit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad I4 ${suffix}`, abbreviation, decimalScale: 3 } }, 201, 'unidad')).payload;
-  const product = (await expectStatus('/api/productos', { method: 'POST', jar: adminJar, body: { code: `${marker}-P01`, name: `Producto I4 ${suffix}`, categoryId: category.id, productLineId: line.id, baseUnitId: unit.id } }, 201, 'producto')).payload;
-  const presentation = (await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar: adminJar, body: { unitId: unit.id, description: 'Paquete I4', conversionFactor: 1 } }, 201, 'presentación')).payload;
+  const product = (await expectStatus('/api/productos', { method: 'POST', jar: adminJar, body: { name: `Producto I4 ${suffix}`, categoryId: category.id, productLineId: line.id, baseUnitId: unit.id } }, 201, 'producto')).payload;
+  const presentation = (await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar: adminJar, body: { unitId: unit.id, description: 'Paquete I4', conversionFactor: 1, weightKg: 2 } }, 201, 'presentación')).payload;
   await expectStatus(`/api/presentaciones/${presentation.id}/precios`, { method: 'POST', jar: adminJar, body: { customerType: 'MINORISTA', amount: 25, validFrom: isoDate(-1) } }, 201, 'precio');
   await expectStatus('/api/inventario/movimientos', { method: 'POST', jar: adminJar, body: { presentationId: presentation.id, type: 'INGRESO', quantity: 50, reason: marker } }, 201, 'existencia');
   let order = (await expectStatus('/api/pedidos', { method: 'POST', jar: adminJar, body: { customerId: customer.id, addressId: address.id, requestedDate: deliveryDate, details: [{ presentationId: presentation.id, quantity: 10 }], observations: marker } }, 201, 'pedido')).payload;
@@ -152,10 +152,25 @@ try {
   assert.equal(preparation.status, 'PREPARADA');
   passed('CP-61', 'confirma todos los detalles verificados y registra el historial');
 
-  const vehicle = (await expectStatus('/api/vehicles', { method: 'POST', jar: adminJar, body: { plate: `${marker}-V`, description: 'Camión de aceptación', referenceCapacity: 1000 } }, 201, 'vehículo')).payload;
-  await expectStatus('/api/vehicles', { method: 'POST', jar: adminJar, body: { plate: `${marker}-V`, description: 'Duplicado' } }, 409, 'placa duplicada');
+  await expectStatus('/api/vehicles', { method: 'POST', jar: adminJar, body: { plate: `${marker}-SIN`, description: 'Sin capacidad' } }, 400, 'CP-62');
+  passed('CP-62', 'la capacidad máxima en kg es obligatoria al registrar el vehículo');
+  const vehicle = (await expectStatus('/api/vehicles', { method: 'POST', jar: adminJar, body: { plate: `${marker}-V`, description: 'Camión de aceptación', capacityKg: 15 } }, 201, 'vehículo')).payload;
+  assert.equal(Number(vehicle.capacityKg), 15);
+  const replacementVehicle = (await expectStatus('/api/vehicles', { method: 'POST', jar: adminJar, body: { plate: `${marker}-V2`, description: 'Camión de reemplazo', capacityKg: 30 } }, 201, 'vehículo de reemplazo')).payload;
+  await expectStatus('/api/vehicles', { method: 'POST', jar: adminJar, body: { plate: `${marker}-V`, description: 'Duplicado', capacityKg: 50 } }, 409, 'placa duplicada');
   const route = (await expectStatus('/api/distribution-routes', { method: 'POST', jar: adminJar, body: { date: deliveryDate, zoneId: zone.id, vehicleId: vehicle.id, responsibleIds: [driver.id], principalResponsibleId: driver.id, observation: marker } }, 201, 'ruta')).payload;
   let managedRoute = (await expectStatus(`/api/distribution-routes/${route.id}/deliveries`, { method: 'POST', jar: adminJar, body: { preparationIds: [preparation.id] } }, 201, 'asignar entrega')).payload;
+  assert.equal(Number(managedRoute.loadWeightKg), 20);
+  assert.equal(managedRoute.capacityExceeded, true);
+  assert.equal(Number(managedRoute.excessWeightKg), 5);
+  passed('CP-63', 'calcula la carga total y notifica cuánto excede la capacidad del vehículo');
+  await expectStatus(`/api/distribution-routes/${route.id}/plan`, { method: 'POST', jar: adminJar, body: {} }, 422, 'CP-65');
+  passed('CP-65', 'impide planificar una ruta cuya carga supera la capacidad');
+  managedRoute = (await expectStatus(`/api/distribution-routes/${route.id}/vehicle`, { method: 'PUT', jar: adminJar, body: { vehicleId: replacementVehicle.id } }, 200, 'CP-68')).payload;
+  assert.equal(managedRoute.vehicleId, replacementVehicle.id);
+  assert.equal(managedRoute.capacityExceeded, false);
+  assert(managedRoute.history.some((event) => event.event === 'CAMBIO_VEHICULO'));
+  passed('CP-68', 'permite cambiar el vehículo en Borrador y conserva el cambio en historial');
   await expectStatus(`/api/distribution-routes/${route.id}/deliveries`, { method: 'POST', jar: adminJar, body: { preparationIds: [preparation.id] } }, 409, 'CP-64');
   passed('CP-64', 'una preparación no puede asignarse a dos rutas activas');
   managedRoute = (await expectStatus(`/api/distribution-routes/${route.id}/sequence`, { method: 'PUT', jar: adminJar, body: { deliveries: [{ routeDeliveryId: managedRoute.deliveries[0].id, position: 1 }] } }, 200, 'secuencia')).payload;

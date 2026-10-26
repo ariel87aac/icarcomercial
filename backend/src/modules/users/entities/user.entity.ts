@@ -10,12 +10,15 @@ import {
 import { AuditableEntity } from '../../../common/entities/auditable.entity';
 import { RecordStatus } from '../../../common/enums/record-status.enum';
 import { Role } from '../../access-control/entities/role.entity';
-import { ProductLine } from '../../catalog/entities/product-line.entity';
 import { CustomerUser } from '../../customers/entities/customer-user.entity';
+import { ProductionArea } from '../../production/entities/production-area.entity';
 import { UserType } from './user-type.enum';
 
 @Entity({ name: 'usuarios' })
 export class User extends AuditableEntity {
+  @Column({ name: 'codigo', type: 'integer', unique: true, generated: 'increment' })
+  code: number;
+
   @Column({ name: 'nombre', type: 'varchar', length: 120 })
   name: string;
 
@@ -53,13 +56,13 @@ export class User extends AuditableEntity {
   })
   roles: Role[];
 
-  @ManyToMany(() => ProductLine, { eager: true })
+  @ManyToMany(() => ProductionArea, (area) => area.users, { eager: true })
   @JoinTable({
-    name: 'usuarios_lineas_productivas',
+    name: 'usuarios_areas_produccion',
     joinColumn: { name: 'usuario_id', referencedColumnName: 'id' },
-    inverseJoinColumn: { name: 'linea_productiva_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'area_id', referencedColumnName: 'id' },
   })
-  productLines: ProductLine[];
+  productionAreas: ProductionArea[];
 
   @OneToMany(() => CustomerUser, (link) => link.user)
   customerLinks: CustomerUser[];

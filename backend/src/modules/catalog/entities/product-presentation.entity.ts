@@ -27,6 +27,9 @@ export class ProductPresentation extends AuditableEntity {
   @Column({ name: 'factor_conversion', type: 'numeric', precision: 12, scale: 4 })
   conversionFactor: string;
 
+  @Column({ name: 'peso_kg', type: 'numeric', precision: 14, scale: 6, nullable: true })
+  weightKg: string | null;
+
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;
 

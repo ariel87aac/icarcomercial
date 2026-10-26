@@ -64,11 +64,6 @@ export class UpdateUnitMeasureDto extends UpdateNamedCatalogItemDto {
 
 export class CreateProductDto {
   @IsString()
-  @MinLength(1)
-  @MaxLength(50)
-  code: string;
-
-  @IsString()
   @MinLength(2)
   @MaxLength(160)
   name: string;
@@ -84,12 +79,6 @@ export class CreateProductDto {
 }
 
 export class UpdateProductDto {
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(50)
-  code?: string;
-
   @IsOptional()
   @IsString()
   @MinLength(2)
@@ -133,6 +122,12 @@ export class CreateProductPresentationDto {
   @Min(0.0001)
   @Max(99999999)
   conversionFactor: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(99999999)
+  weightKg: number;
 }
 
 export class UpdateProductPresentationDto {
@@ -152,6 +147,13 @@ export class UpdateProductPresentationDto {
   @Min(0.0001)
   @Max(99999999)
   conversionFactor?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(99999999)
+  weightKg?: number;
 
   @IsOptional()
   @IsEnum(RecordStatus)

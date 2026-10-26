@@ -25,6 +25,7 @@ export enum VisitResultType {
 export enum RouteHistoryEvent {
   CREATION = 'CREACION',
   ASSIGNMENT = 'ASIGNACION',
+  VEHICLE_CHANGE = 'CAMBIO_VEHICULO',
   SEQUENCE = 'SECUENCIA',
   PLANNING = 'PLANIFICACION',
   DEPARTURE = 'SALIDA',

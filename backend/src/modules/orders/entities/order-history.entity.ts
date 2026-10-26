@@ -21,12 +21,12 @@ export class OrderHistory {
   @Column({ name: 'estado_nuevo', type: 'enum', enum: OrderStatus })
   newStatus: OrderStatus;
 
-  @Column({ name: 'usuario_id', type: 'uuid' })
-  userId: string;
+  @Column({ name: 'usuario_id', type: 'uuid', nullable: true })
+  userId: string | null;
 
-  @ManyToOne(() => User, { eager: true, onDelete: 'RESTRICT' })
+  @ManyToOne(() => User, { eager: true, nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'usuario_id' })
-  user: User;
+  user: User | null;
 
   @Column({ name: 'origen', type: 'enum', enum: OrderOrigin })
   origin: OrderOrigin;

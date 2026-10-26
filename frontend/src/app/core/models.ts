@@ -1,17 +1,19 @@
 export type RecordStatus = 'ACTIVO' | 'INACTIVO';
-export type CustomerType = 'MINORISTA' | 'DISTRIBUIDOR' | 'MAYORISTA';
+export type CustomerType = 'PUBLICO' | 'MINORISTA' | 'DISTRIBUIDOR' | 'MAYORISTA';
 export type PaymentCondition = 'CONTADO' | 'CREDITO';
 export type UserType = 'INTERNO' | 'CLIENTE';
-export type OrderStatus = 'BORRADOR' | 'RECIBIDO' | 'CONFIRMADO';
+export type OrderStatus = 'BORRADOR' | 'RECIBIDO' | 'CONFIRMADO' | 'CANCELADO';
 export type OrderOrigin = 'PORTAL' | 'INTERNO';
-export type InventoryMovementType = 'INGRESO' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO' | 'SALIDA_DESPACHO' | 'ENTRADA_DEVOLUCION';
-export type ProductionConsolidationStatus = 'BORRADOR' | 'EMITIDA' | 'EN_PROCESO' | 'CERRADA';
+export type InventoryMovementType = 'INGRESO' | 'AJUSTE_POSITIVO' | 'AJUSTE_NEGATIVO' | 'SALIDA_DESPACHO' | 'ENTRADA_DEVOLUCION' | 'INGRESO_PRODUCCION';
+export type StockReplenishmentRequestStatus = 'BORRADOR' | 'ENVIADA' | 'PROGRAMADA' | 'CERRADA' | 'CERRADA_INCOMPLETA';
+export type ProductionConsolidationStatus = 'BORRADOR' | 'EMITIDA' | 'EN_PROCESO' | 'CERRADA' | 'CANCELADA' | 'CERRADA_INCOMPLETA';
 export type ProductionConsolidationType = 'PRINCIPAL' | 'COMPLEMENTARIA';
+export type ProductionDetailStage = 'PENDIENTE' | 'EN_PROCESO' | 'PENDIENTE_RECEPCION' | 'RECIBIDO_PARCIAL' | 'COMPLETADO' | 'CERRADO_CON_INCIDENCIA' | 'CANCELADO';
 export type PreparationStatus = 'PENDIENTE' | 'EN_PREPARACION' | 'OBSERVADA' | 'PREPARADA' | 'ASIGNADA' | 'DESPACHADA';
 export type DistributionRouteStatus = 'BORRADOR' | 'PLANIFICADA' | 'EN_REPARTO' | 'FINALIZADA' | 'LIQUIDADA';
 export type VisitResultType = 'ENTREGADA' | 'ENTREGA_PARCIAL' | 'NO_ENTREGADA';
 export type PublicTrackingStatus = 'PEDIDO_CONFIRMADO' | 'EN_PREPARACION' | 'PREPARADO' | 'EN_RUTA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA';
-export type NotificationEvent = 'PEDIDO_CONFIRMADO' | 'CAMBIO_RELEVANTE' | 'SALIDA_RUTA' | 'PROXIMA_ENTREGA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA' | 'PAGO_RECIBIDO';
+export type NotificationEvent = 'PEDIDO_BORRADOR' | 'PEDIDO_RECIBIDO' | 'PEDIDO_CONFIRMADO' | 'PEDIDO_CANCELADO' | 'CAMBIO_RELEVANTE' | 'SALIDA_RUTA' | 'PROXIMA_ENTREGA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA' | 'PAGO_RECIBIDO';
 export type NotificationStatus = 'PENDIENTE' | 'PROCESANDO' | 'ENVIADO' | 'ENTREGADO' | 'REINTENTO' | 'FALLIDO';
 
 export interface SessionUser {
@@ -23,7 +25,7 @@ export interface SessionUser {
   customerId: string | null;
   roles: string[];
   permissions: string[];
-  productLineIds: string[];
+  productionAreaIds: string[];
 }
 
 export interface Permission {
@@ -45,6 +47,7 @@ export interface Role {
 
 export interface User {
   id: string;
+  code: number;
   name: string;
   username: string;
   email: string;
@@ -53,7 +56,7 @@ export interface User {
   status: RecordStatus;
   lastLoginAt: string | null;
   roles: Role[];
-  productLines: ProductLine[];
+  productionAreas: ProductionArea[];
 }
 
 export interface CustomerAccount {
@@ -103,6 +106,7 @@ export interface CustomerAddress {
 
 export interface Customer {
   id: string;
+  code: number;
   type: CustomerType;
   businessName: string;
   taxId: string | null;
@@ -111,7 +115,6 @@ export interface Customer {
   whatsapp: string | null;
   email: string | null;
   paymentCondition: PaymentCondition;
-  commercialList: string | null;
   creditLimit: string;
   creditDays: number;
   status: RecordStatus;
@@ -123,18 +126,21 @@ export interface Customer {
 
 export interface ProductCategory {
   id: string;
+  code: number;
   name: string;
   status: RecordStatus;
 }
 
 export interface ProductLine {
   id: string;
+  code: number;
   name: string;
   status: RecordStatus;
 }
 
 export interface UnitMeasure {
   id: string;
+  code: number;
   name: string;
   abbreviation: string;
   decimalScale: number;
@@ -148,13 +154,14 @@ export interface ProductPresentation {
   unit: UnitMeasure;
   description: string;
   conversionFactor: string;
+  weightKg: string | null;
   status: RecordStatus;
   product?: Product;
 }
 
 export interface Product {
   id: string;
-  code: string;
+  code: number;
   name: string;
   imageUrl: string | null;
   imageMime: string | null;
@@ -172,12 +179,24 @@ export interface ProductPrice {
   id: string;
   presentationId: string;
   presentation?: ProductPresentation;
-  customerType: CustomerType | null;
-  commercialList: string | null;
+  customerType: CustomerType;
   amount: string;
   validFrom: string;
   validUntil: string | null;
   status: RecordStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PriceMatrixRow {
+  presentationId: string;
+  productCode: number;
+  productName: string;
+  categoryId: string;
+  categoryName: string;
+  presentationDescription: string;
+  prices: Record<CustomerType, string | null>;
+  lastModifiedAt: string | null;
 }
 
 export interface CommercialCatalogPresentation {
@@ -190,7 +209,7 @@ export interface CommercialCatalogPresentation {
 
 export interface CommercialCatalogProduct {
   id: string;
-  code: string;
+  code: number;
   name: string;
   imageUrl: string | null;
   category: ProductCategory;
@@ -201,7 +220,7 @@ export interface CommercialCatalogProduct {
 
 export interface CartItem {
   productId: string;
-  productCode: string;
+  productCode: number;
   productName: string;
   imageUrl: string | null;
   presentationId: string;
@@ -211,6 +230,25 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface OrderScheduleSettings {
+  id: number;
+  orderCutoffTime: string;
+  orderCutoffLeadDays: number;
+  consolidationDeadlineTime: string;
+  preparationLeadDays: number;
+  updatedAt: string;
+  updatedBy?: Pick<User, 'id' | 'name'> | null;
+}
+
+export interface DeliveryOption {
+  deliveryDate: string;
+  weekday: number;
+  orderCutoffAt: string;
+  preparationAt: string;
+  zoneId: string;
+  zoneName: string;
+}
+
 export interface Stock {
   id: string;
   presentationId: string;
@@ -218,6 +256,7 @@ export interface Stock {
   physicalQuantity: string;
   reservedQuantity: string;
   availableQuantity: string;
+  shortageQuantity: string;
   version: number;
 }
 
@@ -242,9 +281,66 @@ export interface InventoryReservation {
   stock: Stock;
   orderDetail: OrderDetail;
   quantity: string;
-  status: 'ACTIVA' | 'CONSUMIDA';
+  status: 'ACTIVA' | 'CONSUMIDA' | 'LIBERADA';
   user: Pick<User, 'id' | 'name'>;
   createdAt: string;
+}
+
+export interface StockReplenishmentRequestDetail {
+  id: string;
+  requestId: string;
+  presentationId: string;
+  presentation: ProductPresentation;
+  categoryId: string;
+  category: ProductCategory;
+  productionAreaId: string | null;
+  productionArea: ProductionArea | null;
+  physicalQuantitySnapshot: string;
+  reservedQuantitySnapshot: string;
+  demandQuantitySnapshot: string;
+  shortageQuantitySnapshot: string;
+  additionalStockQuantity: string;
+  observation: string | null;
+}
+
+export interface StockReplenishmentRequest {
+  id: string;
+  code: number;
+  requiredDate: string;
+  status: StockReplenishmentRequestStatus;
+  requestedBy: Pick<User, 'id' | 'name' | 'email'>;
+  sentBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  sentAt: string | null;
+  productionConsolidationId: string | null;
+  productionConsolidation: Pick<ProductionConsolidation, 'id' | 'version' | 'status' | 'deliveryDate'> | null;
+  scheduledAt: string | null;
+  closedAt: string | null;
+  closeObservation: string | null;
+  closedById: string | null;
+  closedBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  details: StockReplenishmentRequestDetail[];
+  detailCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StockReplenishmentPlanItem {
+  presentation: ProductPresentation & { product: Product };
+  category: ProductCategory;
+  productionArea: ProductionArea | null;
+  physicalQuantity: string;
+  reservedQuantity: string;
+  availableQuantity: string;
+  demandQuantity: string;
+  shortageQuantity: string;
+  additionalStockQuantity: string;
+  totalProductionQuantity: string;
+  observation: string | null;
+}
+
+export interface StockReplenishmentPlan {
+  request: StockReplenishmentRequest;
+  items: StockReplenishmentPlanItem[];
 }
 
 export interface OrderDetail {
@@ -268,7 +364,7 @@ export interface OrderHistory {
   orderId: string;
   previousStatus: OrderStatus | null;
   newStatus: OrderStatus;
-  user: Pick<User, 'id' | 'name' | 'email'>;
+  user: Pick<User, 'id' | 'name' | 'email'> | null;
   origin: OrderOrigin;
   observation: string | null;
   occurredAt: string;
@@ -282,17 +378,21 @@ export interface Order {
   addressId: string;
   address: CustomerAddress;
   requestedDate: string;
+  orderCutoffAt: string;
+  preparationAt: string;
   status: OrderStatus;
   origin: OrderOrigin;
   observations: string | null;
   total: string;
   createdBy: Pick<User, 'id' | 'name'>;
   confirmedBy: Pick<User, 'id' | 'name'> | null;
+  canceledBy: Pick<User, 'id' | 'name'> | null;
   receivedAt: string | null;
   confirmedAt: string | null;
+  canceledAt: string | null;
+  cancellationReason: string | null;
   customerNameSnapshot: string | null;
   customerTypeSnapshot: CustomerType | null;
-  commercialListSnapshot: string | null;
   addressSnapshot: string | null;
   zoneSnapshot: string | null;
   distributionWeekdaySnapshot: number | null;
@@ -335,6 +435,23 @@ export interface OrderTrackingResponse {
   tracking: TrackingSnapshot;
 }
 
+export interface PublicOrderConfirmation {
+  orderReference: string;
+  customerName: string;
+  requestedDate: string;
+  orderCutoffAt: string;
+  status: OrderStatus;
+  total: string;
+  canConfirm: boolean;
+  details: Array<{
+    product: string;
+    presentation: string;
+    unit: string;
+    quantity: string;
+    subtotal: string;
+  }>;
+}
+
 export interface EstimationSetting {
   id: string;
   zoneId: string | null;
@@ -375,6 +492,20 @@ export interface ChannelSetting {
   updatedBy: Pick<User, 'id' | 'name'>;
 }
 
+export interface ChannelTestLog {
+  id: string;
+  channelId: string | null;
+  testedBy: Pick<User, 'id' | 'name'>;
+  maskedRecipient: string;
+  result: 'EXITOSO' | 'ERROR';
+  httpStatus: number | null;
+  durationMs: number;
+  providerMessageId: string | null;
+  sanitizedResponse: Record<string, unknown>;
+  error: string | null;
+  occurredAt: string;
+}
+
 export interface NotificationAttempt {
   id: string;
   attemptNumber: number;
@@ -410,8 +541,12 @@ export interface ProductionConsolidationSource {
   presentationId: string;
   presentation: ProductPresentation;
   originalQuantity: string;
+  reservedQuantity: string;
+  pendingQuantity: string;
   appliedFactor: string;
   baseContribution: string;
+  warehouseContribution: string;
+  productionContribution: string;
   orderDetail: OrderDetail & { order: Order };
   createdAt: string;
 }
@@ -431,20 +566,74 @@ export interface ProductionConsolidationDetail {
   consolidationId: string;
   productId: string;
   product: Product;
+  categoryId: string | null;
+  category: ProductCategory | null;
+  presentationId: string | null;
+  presentation: ProductPresentation | null;
+  productionAreaId: string | null;
+  productionArea: ProductionArea | null;
   productLineId: string;
   productLine: ProductLine;
   baseUnitId: string;
   baseUnit: UnitMeasure;
   requestedQuantity: string;
+  warehouseCoveredQuantity: string;
+  productionRequiredQuantity: string;
+  stockRequestedQuantity: string;
+  stockRequestDetailId: string | null;
+  stockRequestDetail: (StockReplenishmentRequestDetail & {
+    request: Pick<StockReplenishmentRequest, 'id' | 'code' | 'requiredDate' | 'status'>;
+  }) | null;
+  additionalProductionQuantity: string;
+  plannedQuantity: string;
+  additionalProductionReason: string | null;
   preparedQuantity: string;
+  receivedQuantity: string;
+  stage: ProductionDetailStage;
+  scheduledDate: string;
+  sequence: number;
+  startedAt: string | null;
+  completedAt: string | null;
+  canceledById: string | null;
+  canceledBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  canceledAt: string | null;
+  cancellationReason: string | null;
   difference: string;
   sources: ProductionConsolidationSource[];
   progress: ProductionProgress[];
+  deliveries: ProductionDelivery[];
+}
+
+export interface ProductionArea {
+  id: string;
+  name: string;
+  status: RecordStatus;
+  categories: ProductCategory[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductionDelivery {
+  id: string;
+  consolidatedDetailId: string;
+  consolidatedDetail: ProductionConsolidationDetail;
+  deliveredQuantity: string;
+  finalDelivery: boolean;
+  productionIncident: string | null;
+  status: 'PENDIENTE' | 'ACEPTADA';
+  deliveredBy: Pick<User, 'id' | 'name'>;
+  deliveredAt: string;
+  receivedQuantity: string | null;
+  receivedBy: Pick<User, 'id' | 'name'> | null;
+  receivedAt: string | null;
+  warehouseObservation: string | null;
 }
 
 export interface ProductionConsolidation {
   id: string;
+  code: number;
   deliveryDate: string;
+  preparationDeadlineAt: string | null;
   version: number;
   type: ProductionConsolidationType;
   status: ProductionConsolidationStatus;
@@ -453,6 +642,10 @@ export interface ProductionConsolidation {
   emittedAt: string | null;
   closedBy: Pick<User, 'id' | 'name' | 'email'> | null;
   closedAt: string | null;
+  incompleteCloseObservation: string | null;
+  cancellationReason: string | null;
+  canceledBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  canceledAt: string | null;
   details: ProductionConsolidationDetail[];
   detailCount?: number;
   createdAt: string;
@@ -463,7 +656,7 @@ export interface ProductionHistory {
   consolidationId: string;
   previousStatus: ProductionConsolidationStatus | null;
   newStatus: ProductionConsolidationStatus;
-  event: 'GENERACION' | 'RECALCULO' | 'EMISION' | 'INICIO' | 'AVANCE' | 'CIERRE';
+  event: 'GENERACION' | 'RECALCULO' | 'AJUSTE_LOTE' | 'PRODUCCION_ADICIONAL' | 'PRODUCTO_AGREGADO' | 'PRODUCTO_RETIRADO' | 'EMISION' | 'PROGRAMACION' | 'INICIO' | 'AVANCE' | 'ENTREGA_PRODUCCION' | 'RECEPCION_ALMACEN' | 'CANCELACION_PRODUCTO' | 'CANCELACION_ORDEN' | 'CIERRE_INCOMPLETO' | 'CIERRE';
   user: Pick<User, 'id' | 'name' | 'email'>;
   observation: string | null;
   occurredAt: string;
@@ -478,10 +671,20 @@ export interface ProductionSummaryRow {
   productLineName: string;
   productId: string;
   productName: string;
+  categoryName: string | null;
+  productionAreaName: string | null;
+  presentationId: string | null;
+  presentationDescription: string | null;
   baseUnitId: string;
   baseUnitAbbreviation: string;
   requestedQuantity: string;
+  warehouseCoveredQuantity: string;
+  productionRequiredQuantity: string;
+  stockRequestedQuantity: string;
+  additionalProductionQuantity: string;
+  plannedQuantity: string;
   preparedQuantity: string;
+  receivedQuantity: string;
   pendingQuantity: string;
   difference: string;
 }
@@ -490,7 +693,7 @@ export interface Vehicle {
   id: string;
   plate: string;
   description: string;
-  referenceCapacity: string | null;
+  capacityKg: string | null;
   status: RecordStatus;
   createdAt: string;
   updatedAt: string;
@@ -598,7 +801,7 @@ export interface RouteHistory {
   routeId: string;
   previousStatus: DistributionRouteStatus | null;
   newStatus: DistributionRouteStatus;
-  event: 'CREACION' | 'ASIGNACION' | 'SECUENCIA' | 'PLANIFICACION' | 'SALIDA' | 'VISITA' | 'FINALIZACION' | 'LIQUIDACION';
+  event: 'CREACION' | 'ASIGNACION' | 'CAMBIO_VEHICULO' | 'SECUENCIA' | 'PLANIFICACION' | 'SALIDA' | 'VISITA' | 'FINALIZACION' | 'LIQUIDACION';
   user: Pick<User, 'id' | 'name' | 'email'>;
   observation: string | null;
   metadata: Record<string, unknown>;
@@ -635,6 +838,10 @@ export interface DistributionRoute {
   deliveries: RouteDelivery[];
   history: RouteHistory[];
   deliveryCount?: number;
+  loadWeightKg: string;
+  capacityExceeded: boolean;
+  excessWeightKg: string;
+  missingWeightPresentations: string[];
   metrics?: {
     total: number;
     complete: number;

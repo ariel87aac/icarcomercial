@@ -32,7 +32,7 @@ export class FleetService {
     const vehicle = await this.vehicleRepository.save(this.vehicleRepository.create({
       plate: dto.plate,
       description: dto.description,
-      referenceCapacity: dto.referenceCapacity?.toFixed(3) ?? null,
+      capacityKg: dto.capacityKg.toFixed(3),
     }));
     await this.audit.record({ userId: actor.id, module: 'vehicles', action: 'CREAR_VEHICULO', entity: 'vehiculos', entityId: vehicle.id, result: 'EXITOSO' });
     return vehicle;
@@ -47,7 +47,7 @@ export class FleetService {
       vehicle.plate = dto.plate;
     }
     if (dto.description !== undefined) vehicle.description = dto.description;
-    if (dto.referenceCapacity !== undefined) vehicle.referenceCapacity = dto.referenceCapacity.toFixed(3);
+    if (dto.capacityKg !== undefined) vehicle.capacityKg = dto.capacityKg.toFixed(3);
     if (dto.status !== undefined) vehicle.status = dto.status;
     const saved = await this.vehicleRepository.save(vehicle);
     await this.audit.record({ userId: actor.id, module: 'vehicles', action: 'ACTUALIZAR_VEHICULO', entity: 'vehiculos', entityId: id, result: 'EXITOSO', metadata: { status: saved.status } });

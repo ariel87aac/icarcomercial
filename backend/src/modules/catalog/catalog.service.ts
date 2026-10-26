@@ -40,14 +40,14 @@ export class CatalogService {
   ) {}
 
   categories(): Promise<ProductCategory[]> {
-    return this.categoryRepository.find({ order: { name: 'ASC' } });
+    return this.categoryRepository.find({ order: { code: 'ASC' } });
   }
 
   async createCategory(dto: CreateNamedCatalogItemDto, actor: AuthenticatedUser) {
     const name = dto.name.trim();
     await this.assertUniqueName(this.categoryRepository, name, 'categoría');
     const category = await this.categoryRepository.save(this.categoryRepository.create({ name }));
-    await this.audit(actor, 'CREAR_CATEGORIA', 'categorias_producto', category.id, { name });
+    await this.audit(actor, 'CREAR_CATEGORIA', 'categorias_producto', category.id, { code: category.code, name });
     return category;
   }
 
@@ -63,15 +63,43 @@ export class CatalogService {
     return saved;
   }
 
+  async removeCategory(id: string, actor: AuthenticatedUser) {
+    const category = await this.requireEntity(this.categoryRepository, id, 'Categoría');
+    const [productCount, areaAssignmentCount, productionDetailCount] = await Promise.all([
+      this.productRepository.count({ where: { categoryId: id } }),
+      this.categoryRepository.manager
+        .createQueryBuilder()
+        .from('areas_produccion_categorias', 'assignment')
+        .where('assignment.categoria_id = :id', { id })
+        .getCount(),
+      this.categoryRepository.manager
+        .createQueryBuilder()
+        .from('consolidaciones_detalle', 'detail')
+        .where('detail.categoria_id = :id', { id })
+        .getCount(),
+    ]);
+    if (productCount || areaAssignmentCount || productionDetailCount) {
+      throw new ConflictException(
+        'No se puede eliminar la categoría porque está asignada a productos, áreas o registros de producción',
+      );
+    }
+    await this.categoryRepository.remove(category);
+    await this.audit(actor, 'ELIMINAR_CATEGORIA', 'categorias_producto', id, {
+      code: category.code,
+      name: category.name,
+    });
+    return { id, deleted: true };
+  }
+
   lines(): Promise<ProductLine[]> {
-    return this.lineRepository.find({ order: { name: 'ASC' } });
+    return this.lineRepository.find({ order: { code: 'ASC' } });
   }
 
   async createLine(dto: CreateNamedCatalogItemDto, actor: AuthenticatedUser) {
     const name = dto.name.trim();
     await this.assertUniqueName(this.lineRepository, name, 'línea productiva');
     const line = await this.lineRepository.save(this.lineRepository.create({ name }));
-    await this.audit(actor, 'CREAR_LINEA_PRODUCTIVA', 'lineas_productivas', line.id, { name });
+    await this.audit(actor, 'CREAR_LINEA_PRODUCTIVA', 'lineas_productivas', line.id, { code: line.code, name });
     return line;
   }
 
@@ -87,8 +115,24 @@ export class CatalogService {
     return saved;
   }
 
+  async removeLine(id: string, actor: AuthenticatedUser) {
+    const line = await this.requireEntity(this.lineRepository, id, 'Línea productiva');
+    const productCount = await this.productRepository.count({ where: { productLineId: id } });
+    if (productCount) {
+      throw new ConflictException(
+        'No se puede eliminar la línea porque está asignada a uno o más productos',
+      );
+    }
+    await this.lineRepository.remove(line);
+    await this.audit(actor, 'ELIMINAR_LINEA_PRODUCTIVA', 'lineas_productivas', id, {
+      code: line.code,
+      name: line.name,
+    });
+    return { id, deleted: true };
+  }
+
   units(): Promise<UnitMeasure[]> {
-    return this.unitRepository.find({ order: { name: 'ASC' } });
+    return this.unitRepository.find({ order: { code: 'ASC' } });
   }
 
   async createUnit(dto: CreateUnitMeasureDto, actor: AuthenticatedUser) {
@@ -98,7 +142,7 @@ export class CatalogService {
       abbreviation: dto.abbreviation.trim(),
       decimalScale: dto.decimalScale,
     }));
-    await this.audit(actor, 'CREAR_UNIDAD', 'unidades_medida', unit.id, { name: unit.name, abbreviation: unit.abbreviation });
+    await this.audit(actor, 'CREAR_UNIDAD', 'unidades_medida', unit.id, { code: unit.code, name: unit.name, abbreviation: unit.abbreviation });
     return unit;
   }
 
@@ -114,6 +158,25 @@ export class CatalogService {
     return saved;
   }
 
+  async removeUnit(id: string, actor: AuthenticatedUser) {
+    const unit = await this.requireEntity(this.unitRepository, id, 'Unidad de medida');
+    const [baseProductCount, presentationCount] = await Promise.all([
+      this.productRepository.count({ where: { baseUnitId: id } }),
+      this.presentationRepository.count({ where: { unitId: id } }),
+    ]);
+    if (baseProductCount || presentationCount) {
+      throw new ConflictException(
+        'No se puede eliminar la unidad porque está asignada a uno o más productos o presentaciones',
+      );
+    }
+    await this.unitRepository.remove(unit);
+    await this.audit(actor, 'ELIMINAR_UNIDAD', 'unidades_medida', id, {
+      name: unit.name,
+      abbreviation: unit.abbreviation,
+    });
+    return { id, deleted: true };
+  }
+
   async products(query: ProductQueryDto): Promise<PaginatedResponse<Product>> {
     const builder = this.productRepository
       .createQueryBuilder('product')
@@ -122,13 +185,13 @@ export class CatalogService {
       .leftJoinAndSelect('product.baseUnit', 'baseUnit')
       .leftJoinAndSelect('product.presentations', 'presentation')
       .leftJoinAndSelect('presentation.unit', 'presentationUnit')
-      .orderBy('product.name', 'ASC')
+      .orderBy('product.code', 'ASC')
       .addOrderBy('presentation.description', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
     if (query.q) {
       builder.andWhere(new Brackets((where) => where
-        .where('product.code ILIKE :q', { q: `%${query.q}%` })
+        .where('CAST(product.code AS text) ILIKE :q', { q: `%${query.q}%` })
         .orWhere('unaccent(product.name) ILIKE unaccent(:q)', { q: `%${query.q}%` })));
     }
     if (query.categoryId) builder.andWhere('product.categoryId = :categoryId', { categoryId: query.categoryId });
@@ -151,11 +214,9 @@ export class CatalogService {
   }
 
   async createProduct(dto: CreateProductDto, actor: AuthenticatedUser) {
-    await this.assertProductCode(dto.code);
     await this.validateProductReferences(dto.categoryId, dto.productLineId, dto.baseUnitId);
     const product = await this.productRepository.save(this.productRepository.create({
       ...dto,
-      code: dto.code.trim().toUpperCase(),
       name: dto.name.trim(),
     }));
     await this.audit(actor, 'CREAR_PRODUCTO', 'productos', product.id, { code: product.code });
@@ -164,7 +225,6 @@ export class CatalogService {
 
   async updateProduct(id: string, dto: UpdateProductDto, actor: AuthenticatedUser) {
     const product = await this.product(id);
-    if (dto.code !== undefined) await this.assertProductCode(dto.code, id);
     await this.validateProductReferences(
       dto.categoryId ?? product.categoryId,
       dto.productLineId ?? product.productLineId,
@@ -172,7 +232,6 @@ export class CatalogService {
       dto.status ?? product.status,
     );
     const changes = {
-      ...(dto.code !== undefined ? { code: dto.code.trim().toUpperCase() } : {}),
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
       ...(dto.categoryId !== undefined ? { categoryId: dto.categoryId } : {}),
       ...(dto.productLineId !== undefined ? { productLineId: dto.productLineId } : {}),
@@ -182,6 +241,29 @@ export class CatalogService {
     if (Object.keys(changes).length) await this.productRepository.update(id, changes);
     await this.audit(actor, this.statusAction('PRODUCTO', dto.status), 'productos', id, { fields: Object.keys(dto) });
     return this.product(id);
+  }
+
+  async removeProduct(id: string, actor: AuthenticatedUser) {
+    const product = await this.requireEntity(this.productRepository, id, 'Producto');
+    const [presentationCount, productionDetailCount] = await Promise.all([
+      this.presentationRepository.count({ where: { productId: id } }),
+      this.productRepository.manager
+        .createQueryBuilder()
+        .from('consolidaciones_detalle', 'detail')
+        .where('detail.producto_id = :id', { id })
+        .getCount(),
+    ]);
+    if (presentationCount || productionDetailCount) {
+      throw new ConflictException(
+        'No se puede eliminar el producto porque tiene presentaciones o registros de producción asociados',
+      );
+    }
+    await this.productRepository.remove(product);
+    await this.audit(actor, 'ELIMINAR_PRODUCTO', 'productos', id, {
+      code: product.code,
+      name: product.name,
+    });
+    return { id, deleted: true };
   }
 
   async updateProductImage(id: string, dto: UpdateProductImageDto, actor: AuthenticatedUser): Promise<Product> {
@@ -229,6 +311,7 @@ export class CatalogService {
       unitId: dto.unitId,
       description: dto.description.trim(),
       conversionFactor: dto.conversionFactor.toFixed(4),
+      weightKg: dto.weightKg.toFixed(6),
     }));
     await this.audit(actor, 'CREAR_PRESENTACION', 'presentaciones_producto', presentation.id, { productId });
     return this.presentationRepository.findOneOrFail({ where: { id: presentation.id }, relations: { unit: true, product: true } });
@@ -248,6 +331,7 @@ export class CatalogService {
     if (dto.unitId !== undefined) presentation.unitId = dto.unitId;
     if (dto.description !== undefined) presentation.description = dto.description.trim();
     if (dto.conversionFactor !== undefined) presentation.conversionFactor = dto.conversionFactor.toFixed(4);
+    if (dto.weightKg !== undefined) presentation.weightKg = dto.weightKg.toFixed(6);
     if (dto.status !== undefined) presentation.status = dto.status;
     await this.presentationRepository.save(presentation);
     await this.audit(actor, this.statusAction('PRESENTACION', dto.status), 'presentaciones_producto', id, { productId, fields: Object.keys(dto) });
@@ -284,12 +368,6 @@ export class CatalogService {
         : data.length >= 12 && data.subarray(0, 4).toString('ascii') === 'RIFF' && data.subarray(8, 12).toString('ascii') === 'WEBP';
     if (!valid) throw new BadRequestException('El contenido no corresponde al formato declarado de la imagen');
     return { data, mime };
-  }
-
-  private async assertProductCode(code: string, excludedId?: string) {
-    const builder = this.productRepository.createQueryBuilder('product').where('lower(product.code) = lower(:code)', { code: code.trim() });
-    if (excludedId) builder.andWhere('product.id <> :excludedId', { excludedId });
-    if (await builder.getOne()) throw new ConflictException('Ya existe un producto con ese código');
   }
 
   private async assertPresentationUnique(productId: string, description: string, excludedId?: string) {

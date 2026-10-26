@@ -39,7 +39,7 @@ export class JwtAuthGuard implements CanActivate {
         .leftJoinAndSelect('session.user', 'user')
         .leftJoinAndSelect('user.roles', 'role')
         .leftJoinAndSelect('role.permissions', 'permission')
-        .leftJoinAndSelect('user.productLines', 'productLine')
+        .leftJoinAndSelect('user.productionAreas', 'productionArea')
         .leftJoinAndSelect('user.customerLinks', 'customerLink')
         .leftJoinAndSelect('customerLink.customer', 'customer')
         .where('session.id = :sid', { sid: payload.sid })
@@ -73,7 +73,7 @@ export class JwtAuthGuard implements CanActivate {
         permissions: [
           ...new Set(roles.flatMap((role) => role.permissions?.map((permission) => permission.key) ?? [])),
         ],
-        productLineIds: session.user.productLines?.map((line) => line.id) ?? [],
+        productionAreaIds: session.user.productionAreas?.map((area) => area.id) ?? [],
       };
       return true;
     } catch (error) {

@@ -77,7 +77,7 @@ export class SaveNotificationTemplateDto {
   body: string;
 
   @IsArray()
-  @ArrayMaxSize(10)
+  @ArrayMaxSize(16)
   @IsString({ each: true })
   allowedVariables: string[];
 
@@ -127,6 +127,17 @@ export class SaveChannelSettingDto {
   @IsOptional()
   @IsBoolean()
   active = true;
+}
+
+export class TestNotificationChannelDto {
+  @IsString()
+  @Matches(/^\d{8,15}$/)
+  number: string;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(4000)
+  body: string;
 }
 
 export class NotificationQueryDto extends PaginationQueryDto {

@@ -4,9 +4,19 @@ export enum InventoryMovementType {
   NEGATIVE_ADJUSTMENT = 'AJUSTE_NEGATIVO',
   DISPATCH_OUT = 'SALIDA_DESPACHO',
   RETURN_IN = 'ENTRADA_DEVOLUCION',
+  PRODUCTION_IN = 'INGRESO_PRODUCCION',
 }
 
 export enum InventoryReservationStatus {
   ACTIVE = 'ACTIVA',
   CONSUMED = 'CONSUMIDA',
+  RELEASED = 'LIBERADA',
+}
+
+export enum StockReplenishmentRequestStatus {
+  DRAFT = 'BORRADOR',
+  SENT = 'ENVIADA',
+  SCHEDULED = 'PROGRAMADA',
+  CLOSED = 'CERRADA',
+  CLOSED_INCOMPLETE = 'CERRADA_INCOMPLETA',
 }

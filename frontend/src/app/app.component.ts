@@ -29,6 +29,7 @@ import { CatalogAdminComponent } from './iteration-two/catalog-admin.component';
 import { CommercialCatalogComponent } from './iteration-two/commercial-catalog.component';
 import { InventoryComponent } from './iteration-two/inventory.component';
 import { OrdersComponent } from './iteration-two/orders.component';
+import { PublicOrderConfirmationComponent } from './iteration-two/public-order-confirmation.component';
 import { ProductionComponent } from './iteration-three/production.component';
 import { DistributionComponent } from './iteration-four/distribution.component';
 import { MessagingComponent } from './iteration-five/messaging.component';
@@ -41,7 +42,7 @@ import {
   CustomerAddress,
   Paginated,
   Permission,
-  ProductLine,
+  ProductionArea,
   Role,
   User,
   Zone,
@@ -58,7 +59,6 @@ type Section =
   | 'messaging'
   | 'commercial'
   | 'customers'
-  | 'accounts'
   | 'users'
   | 'roles'
   | 'zones'
@@ -94,6 +94,7 @@ interface NavigationItem {
     CommercialCatalogComponent,
     InventoryComponent,
     OrdersComponent,
+    PublicOrderConfirmationComponent,
     ProductionComponent,
     DistributionComponent,
     MessagingComponent,
@@ -111,9 +112,11 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly messages = inject(MessageService);
   protected readonly auth = inject(AuthService);
   private initializedUserId: string | null = null;
+  private customerSearchTimer: number | null = null;
   private map: L.Map | null = null;
   private coordinateMarker: L.CircleMarker | null = null;
   protected readonly publicTrackingToken = this.readPublicTrackingToken();
+  protected readonly publicOrderConfirmationToken = this.readPublicOrderConfirmationToken();
 
   protected readonly activeSection = signal<Section>('dashboard');
   protected readonly sidebarOpen = signal(false);
@@ -127,14 +130,17 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly users = signal<User[]>([]);
   protected readonly userMeta = signal({ page: 1, total: 0, totalPages: 1 });
   protected readonly roles = signal<Role[]>([]);
+  protected readonly productionAreas = signal<ProductionArea[]>([]);
   protected readonly permissions = signal<Permission[]>([]);
-  protected readonly productLines = signal<ProductLine[]>([]);
   protected readonly zones = signal<Zone[]>([]);
   protected readonly auditEvents = signal<AuditEvent[]>([]);
   protected readonly auditMeta = signal({ page: 1, total: 0, totalPages: 1 });
 
   protected readonly customerDialog = signal(false);
+  protected readonly customerInfoDialog = signal(false);
+  protected readonly customerDeleteDialog = signal(false);
   protected readonly userDialog = signal(false);
+  protected readonly userDeleteDialog = signal(false);
   protected readonly roleDialog = signal(false);
   protected readonly zoneDialog = signal(false);
   protected readonly dayDialog = signal(false);
@@ -146,6 +152,8 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly editingRoleId = signal<string | null>(null);
   protected readonly editingZoneId = signal<string | null>(null);
   protected readonly selectedCustomer = signal<Customer | null>(null);
+  protected readonly customerToDelete = signal<Customer | null>(null);
+  protected readonly userToDelete = signal<User | null>(null);
   protected readonly selectedZone = signal<Zone | null>(null);
   protected readonly editingAddressId = signal<string | null>(null);
 
@@ -153,7 +161,6 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly customerTypeFilter = signal<string | null>(null);
   protected readonly customerStatusFilter = signal<string | null>(null);
   protected readonly customerZoneFilter = signal<string | null>(null);
-  protected readonly customerDayFilter = signal<number | null>(null);
   protected readonly userSearch = signal('');
   protected readonly userStatusFilter = signal<string | null>(null);
   protected readonly auditModuleFilter = signal('');
@@ -168,8 +175,8 @@ export class AppComponent implements OnInit, OnDestroy {
     { id: 'dashboard', label: 'Resumen', icon: 'pi pi-home' },
     { id: 'catalog', label: 'Catálogo', icon: 'pi pi-shopping-bag', permission: 'catalog.read' },
     { id: 'orders', label: 'Pedidos', icon: 'pi pi-shopping-cart', permission: 'orders.read' },
-    { id: 'catalog-admin', label: 'Catálogo y precios', icon: 'pi pi-box', permission: 'catalog.manage' },
-    { id: 'inventory', label: 'Inventario', icon: 'pi pi-warehouse', permission: 'inventory.read' },
+    { id: 'catalog-admin', label: 'Productos', icon: 'pi pi-box', permission: 'catalog.manage' },
+    { id: 'inventory', label: 'Almacén', icon: 'pi pi-warehouse', permission: 'inventory.read' },
     {
       id: 'production',
       label: 'Producción',
@@ -195,12 +202,6 @@ export class AppComponent implements OnInit, OnDestroy {
       permission: 'commercial.sales.read',
     },
     { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
-    {
-      id: 'accounts',
-      label: 'Cuentas de clientes',
-      icon: 'pi pi-address-book',
-      permission: 'customer_accounts.create',
-    },
     { id: 'zones', label: 'Zonas y reparto', icon: 'pi pi-map', permission: 'zones.read' },
     { id: 'users', label: 'Usuarios', icon: 'pi pi-user-edit', permission: 'users.read' },
     { id: 'roles', label: 'Roles y permisos', icon: 'pi pi-shield', permission: 'roles.read' },
@@ -212,6 +213,7 @@ export class AppComponent implements OnInit, OnDestroy {
     { label: 'Inactivo', value: 'INACTIVO' },
   ];
   protected readonly customerTypeOptions = [
+    { label: 'Público', value: 'PUBLICO' },
     { label: 'Minorista', value: 'MINORISTA' },
     { label: 'Distribuidor', value: 'DISTRIBUIDOR' },
     { label: 'Mayorista', value: 'MAYORISTA' },
@@ -248,7 +250,6 @@ export class AppComponent implements OnInit, OnDestroy {
     whatsapp: [''],
     email: ['', Validators.email],
     paymentCondition: ['CONTADO', Validators.required],
-    commercialList: [''],
     creditLimit: [0, [Validators.required, Validators.min(0)]],
     creditDays: [0, [Validators.required, Validators.min(0), Validators.max(365)]],
     status: ['ACTIVO'],
@@ -260,7 +261,7 @@ export class AppComponent implements OnInit, OnDestroy {
     phone: [''],
     password: [''],
     roleIds: [[] as string[], Validators.required],
-    productLineIds: [[] as string[]],
+    productionAreaIds: [[] as string[]],
     status: ['ACTIVO'],
   });
   protected readonly roleForm = this.fb.nonNullable.group({
@@ -294,23 +295,10 @@ export class AppComponent implements OnInit, OnDestroy {
     newPassword: ['', [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/)]],
   });
   protected readonly accountForm = this.fb.nonNullable.group({
-    name: ['', [Validators.required, Validators.minLength(3)]],
-    username: [
-      '',
-      [Validators.required, Validators.pattern(/^[a-zA-Z0-9._-]{3,80}$/)],
-    ],
-    email: ['', [Validators.required, Validators.email]],
-    phone: [''],
     password: [
       '',
-      [
-        Validators.required,
-        Validators.pattern(
-          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/,
-        ),
-      ],
+      [Validators.required, Validators.minLength(8), Validators.maxLength(8)],
     ],
-    isPrimary: [false],
   });
 
   constructor() {
@@ -332,6 +320,7 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.customerSearchTimer !== null) window.clearTimeout(this.customerSearchTimer);
     this.destroyMap();
   }
 
@@ -372,8 +361,7 @@ export class AppComponent implements OnInit, OnDestroy {
     this.activeSection.set(section);
     this.sidebarOpen.set(false);
     if (section === 'customers') this.loadCustomers(1);
-    if (section === 'accounts') this.loadCustomers(1);
-    if (section === 'users') this.loadUsers(1);
+    if (section === 'users') { this.loadUsers(1); this.loadUserProductionAreas(); }
     if (section === 'roles') this.loadRoles();
     if (section === 'zones') this.loadZones();
     if (section === 'audit') this.loadAudit(1);
@@ -388,22 +376,22 @@ export class AppComponent implements OnInit, OnDestroy {
     return match ? decodeURIComponent(match[1]) : null;
   }
 
+  private readPublicOrderConfirmationToken(): string | null {
+    const match = globalThis.location?.pathname.match(/^\/confirmar-pedido\/([^/]+)\/?$/);
+    return match ? decodeURIComponent(match[1]) : null;
+  }
+
   private loadReferenceData(): void {
     if (this.can('roles.read')) {
       this.loadRoles();
       this.http.get<Permission[]>('/api/permissions').subscribe({ next: (items) => this.permissions.set(items) });
     }
     if (this.can('zones.read')) this.loadZones();
-    if (this.can('catalog.manage')) {
-      this.http.get<ProductLine[]>('/api/lineas-productivas').subscribe({
-        next: (items) => this.productLines.set(items.filter((item) => item.status === 'ACTIVO')),
-      });
-    }
   }
 
   private loadDashboard(): void {
     if (this.can('customers.read')) this.loadCustomers(1);
-    if (this.can('users.read')) this.loadUsers(1);
+    if (this.can('users.read')) { this.loadUsers(1); this.loadUserProductionAreas(); }
     if (this.can('audit.read')) this.loadAudit(1);
   }
 
@@ -414,7 +402,6 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.customerTypeFilter()) params = params.set('type', this.customerTypeFilter()!);
     if (this.customerStatusFilter()) params = params.set('status', this.customerStatusFilter()!);
     if (this.customerZoneFilter()) params = params.set('zoneId', this.customerZoneFilter()!);
-    if (this.customerDayFilter()) params = params.set('weekday', this.customerDayFilter()!);
     this.http.get<Paginated<Customer>>('/api/customers', { params }).subscribe({
       next: (response) => {
         this.customers.set(response.data);
@@ -425,12 +412,27 @@ export class AppComponent implements OnInit, OnDestroy {
     });
   }
 
+  protected onCustomerSearch(value: string): void {
+    this.customerSearch.set(value);
+    if (this.customerSearchTimer !== null) window.clearTimeout(this.customerSearchTimer);
+    this.customerSearchTimer = window.setTimeout(() => {
+      this.customerSearchTimer = null;
+      this.loadCustomers(1);
+    }, 300);
+  }
+
+  protected applyCustomerFilter(filter: 'type' | 'status' | 'zone', value: string | null): void {
+    if (filter === 'type') this.customerTypeFilter.set(value);
+    if (filter === 'status') this.customerStatusFilter.set(value);
+    if (filter === 'zone') this.customerZoneFilter.set(value);
+    this.loadCustomers(1);
+  }
+
   protected clearCustomerFilters(): void {
     this.customerSearch.set('');
     this.customerTypeFilter.set(null);
     this.customerStatusFilter.set(null);
     this.customerZoneFilter.set(null);
-    this.customerDayFilter.set(null);
     this.loadCustomers(1);
   }
 
@@ -445,12 +447,45 @@ export class AppComponent implements OnInit, OnDestroy {
       whatsapp: customer?.whatsapp ?? '',
       email: customer?.email ?? '',
       paymentCondition: customer?.paymentCondition ?? 'CONTADO',
-      commercialList: customer?.commercialList ?? '',
       creditLimit: Number(customer?.creditLimit ?? 0),
       creditDays: customer?.creditDays ?? 0,
       status: customer?.status ?? 'ACTIVO',
     });
     this.customerDialog.set(true);
+  }
+
+  protected openCustomerInfo(customer: Customer): void {
+    this.selectedCustomer.set(customer);
+    this.customerInfoDialog.set(true);
+  }
+
+  protected requestCustomerDeletion(customer: Customer): void {
+    this.customerToDelete.set(customer);
+    this.customerDeleteDialog.set(true);
+  }
+
+  protected closeCustomerDeletion(visible = false): void {
+    if (this.saving()) return;
+    this.customerDeleteDialog.set(visible);
+    if (!visible) this.customerToDelete.set(null);
+  }
+
+  protected confirmCustomerDeletion(): void {
+    const customer = this.customerToDelete();
+    if (!customer) return;
+    this.saving.set(true);
+    this.http
+      .delete<{ id: string; code: number; deleted: true }>(`/api/customers/${customer.id}`)
+      .subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.customerDeleteDialog.set(false);
+          this.customerToDelete.set(null);
+          this.toast('success', 'Cliente eliminado', `${customer.code} · ${customer.businessName}`);
+          this.loadCustomers(this.customerMeta().page);
+        },
+        error: (error) => this.handleSaveError(error),
+      });
   }
 
   protected saveCustomer(): void {
@@ -464,7 +499,6 @@ export class AppComponent implements OnInit, OnDestroy {
       contactName: raw.contactName || undefined,
       whatsapp: raw.whatsapp || undefined,
       email: raw.email || undefined,
-      commercialList: raw.commercialList || undefined,
     };
     if (!id) delete payload['status'];
     const request = id
@@ -505,7 +539,7 @@ export class AppComponent implements OnInit, OnDestroy {
       phone: user?.phone ?? '',
       password: '',
       roleIds: user?.roles.map((role) => role.id) ?? [],
-      productLineIds: user?.productLines.map((line) => line.id) ?? [],
+      productionAreaIds: user?.productionAreas.map((area) => area.id) ?? [],
       status: user?.status ?? 'ACTIVO',
     });
     this.userDialog.set(true);
@@ -515,6 +549,9 @@ export class AppComponent implements OnInit, OnDestroy {
     const id = this.editingUserId();
     if (!id && !this.userForm.value.password?.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/)) {
       this.userForm.controls.password.setErrors({ strongPassword: true });
+    }
+    if (this.isProductionUserForm() && !this.userForm.value.productionAreaIds?.length) {
+      this.userForm.controls.productionAreaIds.setErrors({ required: true });
     }
     if (this.userForm.invalid || !this.userForm.value.roleIds?.length) return this.userForm.markAllAsTouched();
     this.saving.set(true);
@@ -531,6 +568,53 @@ export class AppComponent implements OnInit, OnDestroy {
         this.userDialog.set(false);
         this.toast('success', id ? 'Usuario actualizado' : 'Usuario creado', user.name);
         this.loadUsers(id ? this.userMeta().page : 1);
+      },
+      error: (error) => this.handleSaveError(error),
+    });
+  }
+
+  protected isProductionUserForm(): boolean {
+    const productionRole = this.roles().find((role) => role.name === 'PRODUCCION');
+    return !!productionRole && this.userForm.controls.roleIds.value.includes(productionRole.id);
+  }
+
+  protected onUserRoleSelection(): void {
+    if (!this.isProductionUserForm()) {
+      this.userForm.controls.productionAreaIds.setValue([]);
+      this.userForm.controls.productionAreaIds.setErrors(null);
+    }
+  }
+
+  private loadUserProductionAreas(): void {
+    if (!this.can('users.read')) return;
+    this.http.get<ProductionArea[]>('/api/users/production-areas/available').subscribe({
+      next: (areas) => this.productionAreas.set(areas),
+      error: (error) => this.handleLoadError(error),
+    });
+  }
+
+  protected requestUserDeletion(user: User): void {
+    this.userToDelete.set(user);
+    this.userDeleteDialog.set(true);
+  }
+
+  protected closeUserDeletion(visible = false): void {
+    if (this.saving()) return;
+    this.userDeleteDialog.set(visible);
+    if (!visible) this.userToDelete.set(null);
+  }
+
+  protected confirmUserDeletion(): void {
+    const user = this.userToDelete();
+    if (!user) return;
+    this.saving.set(true);
+    this.http.delete<{ id: string; code: number; deleted: true }>(`/api/users/${user.id}`).subscribe({
+      next: () => {
+        this.saving.set(false);
+        this.userDeleteDialog.set(false);
+        this.userToDelete.set(null);
+        this.toast('success', 'Usuario eliminado', `${user.code} · ${user.name}`);
+        this.loadUsers(this.userMeta().page);
       },
       error: (error) => this.handleSaveError(error),
     });
@@ -713,15 +797,32 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   protected openAccount(customer: Customer): void {
+    if (customer.userLinks.length) {
+      this.toast(
+        'info',
+        'Cuenta ya habilitada',
+        'Este cliente ya tiene una cuenta de acceso. Puede habilitarla o deshabilitarla desde la misma fila.',
+      );
+      return;
+    }
+    if (!customer.taxId?.trim()) {
+      this.toast(
+        'info',
+        'Falta NIT / CI',
+        'Registre el NIT o carnet del cliente antes de habilitar su cuenta.',
+      );
+      return;
+    }
+    if (!customer.email?.trim()) {
+      this.toast(
+        'info',
+        'Falta correo',
+        'Registre el correo del cliente antes de habilitar su cuenta.',
+      );
+      return;
+    }
     this.selectedCustomer.set(customer);
-    this.accountForm.reset({
-      name: customer.contactName ?? customer.businessName,
-      username: '',
-      email: customer.email ?? '',
-      phone: customer.phone,
-      password: '',
-      isPrimary: customer.userLinks.length === 0,
-    });
+    this.accountForm.reset({ password: '' });
     this.accountDialog.set(true);
   }
 
@@ -730,12 +831,10 @@ export class AppComponent implements OnInit, OnDestroy {
       return this.accountForm.markAllAsTouched();
     }
     this.saving.set(true);
-    const raw = this.accountForm.getRawValue();
-    const payload = { ...raw, phone: raw.phone || undefined };
     this.http
       .post<CustomerAccount>(
         `/api/customers/${this.selectedCustomer()!.id}/users`,
-        payload,
+        this.accountForm.getRawValue(),
       )
       .subscribe({
         next: () => {

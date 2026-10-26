@@ -11,7 +11,7 @@ export class Vehicle extends AuditableEntity {
   description: string;
 
   @Column({ name: 'capacidad_referencial', type: 'numeric', precision: 14, scale: 3, nullable: true })
-  referenceCapacity: string | null;
+  capacityKg: string | null;
 
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;

@@ -15,6 +15,14 @@ export function productionDifference(prepared: number, requested: number, scale:
   return roundForScale(prepared - requested, scale);
 }
 
+export function productionRequirement(demand: number, warehouseCovered: number, scale: number): number {
+  return roundForScale(Math.max(demand - warehouseCovered, 0), scale);
+}
+
+export function batchAdjustment(planned: number, required: number, scale: number): number {
+  return roundForScale(Math.max(planned - required, 0), scale);
+}
+
 export function pendingQuantity(prepared: number, requested: number, scale: number): number {
   return roundForScale(Math.max(requested - prepared, 0), scale);
 }

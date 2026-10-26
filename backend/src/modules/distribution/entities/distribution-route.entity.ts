@@ -76,4 +76,12 @@ export class DistributionRoute extends AuditableEntity {
 
   @OneToMany(() => RouteHistory, (history) => history.route)
   history: RouteHistory[];
+
+  loadWeightKg: string;
+
+  capacityExceeded: boolean;
+
+  excessWeightKg: string;
+
+  missingWeightPresentations: string[];
 }

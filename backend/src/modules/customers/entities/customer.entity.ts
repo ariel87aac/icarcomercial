@@ -7,6 +7,14 @@ import { CustomerType, PaymentCondition } from './customer.enums';
 
 @Entity({ name: 'clientes' })
 export class Customer extends AuditableEntity {
+  @Column({
+    name: 'codigo',
+    type: 'integer',
+    unique: true,
+    generated: 'increment',
+  })
+  code: number;
+
   @Column({ name: 'tipo_cliente', type: 'enum', enum: CustomerType })
   type: CustomerType;
 
@@ -16,7 +24,12 @@ export class Customer extends AuditableEntity {
   @Column({ name: 'nit_ci', type: 'varchar', length: 30, nullable: true })
   taxId: string | null;
 
-  @Column({ name: 'nombre_contacto', type: 'varchar', length: 120, nullable: true })
+  @Column({
+    name: 'nombre_contacto',
+    type: 'varchar',
+    length: 120,
+    nullable: true,
+  })
   contactName: string | null;
 
   @Column({ name: 'telefono', type: 'varchar', length: 30 })
@@ -30,9 +43,6 @@ export class Customer extends AuditableEntity {
 
   @Column({ name: 'condicion_pago', type: 'enum', enum: PaymentCondition })
   paymentCondition: PaymentCondition;
-
-  @Column({ name: 'lista_comercial', type: 'varchar', length: 80, nullable: true })
-  commercialList: string | null;
 
   @Column({
     name: 'limite_credito',
@@ -49,7 +59,9 @@ export class Customer extends AuditableEntity {
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;
 
-  @OneToMany(() => CustomerAddress, (address) => address.customer, { eager: true })
+  @OneToMany(() => CustomerAddress, (address) => address.customer, {
+    eager: true,
+  })
   addresses: CustomerAddress[];
 
   @OneToMany(() => CustomerUser, (link) => link.customer, { eager: true })
@@ -64,6 +76,5 @@ export class Customer extends AuditableEntity {
     this.phone = this.phone.trim();
     this.whatsapp = this.whatsapp?.trim() || null;
     this.contactName = this.contactName?.trim() || null;
-    this.commercialList = this.commercialList?.trim().toUpperCase() || null;
   }
 }

@@ -37,21 +37,52 @@ export class InventoryService {
       .leftJoinAndSelect('presentation.unit', 'unit')
       .leftJoinAndSelect('product.category', 'category')
       .leftJoinAndSelect('product.productLine', 'productLine')
-      .orderBy('product.name', 'ASC')
+      .orderBy('product.code', 'ASC')
       .addOrderBy('presentation.description', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
     if (query.q) {
       builder.andWhere(new Brackets((where) => where
-        .where('product.code ILIKE :q', { q: `%${query.q}%` })
+        .where('CAST(product.code AS text) ILIKE :q', { q: `%${query.q}%` })
         .orWhere('unaccent(product.name) ILIKE unaccent(:q)', { q: `%${query.q}%` })
         .orWhere('unaccent(presentation.description) ILIKE unaccent(:q)', { q: `%${query.q}%` })));
     }
     if (query.productId) builder.andWhere('presentation.productId = :productId', { productId: query.productId });
     if (query.categoryId) builder.andWhere('product.categoryId = :categoryId', { categoryId: query.categoryId });
+    if (query.productLineId) builder.andWhere('product.productLineId = :productLineId', { productLineId: query.productLineId });
     if (query.status) builder.andWhere('presentation.status = :status', { status: query.status });
+    if (query.onlyWithStock) builder.andWhere('(stock.physicalQuantity > 0 OR stock.reservedQuantity > 0)');
     const [stocks, total] = await builder.getManyAndCount();
     return paginate(stocks.map((stock) => this.toView(stock)), total, query.page, query.limit);
+  }
+
+  async stockFilters() {
+    const [categories, productLines, negativeRows] = await Promise.all([
+      this.dataSource.query<Array<{ id: string; code: number; name: string; status: string }>>(
+        `SELECT DISTINCT category.id, category.codigo AS code, category.nombre AS name, category.status
+           FROM existencias stock
+           JOIN presentaciones_producto presentation ON presentation.id = stock.presentacion_id
+           JOIN productos product ON product.id = presentation.producto_id
+           JOIN categorias_producto category ON category.id = product.categoria_id
+          WHERE stock.cantidad_fisica > 0 OR stock.cantidad_reservada > 0
+          ORDER BY category.nombre ASC`,
+      ),
+      this.dataSource.query<Array<{ id: string; code: number; name: string; status: string }>>(
+        `SELECT DISTINCT product_line.id, product_line.codigo AS code, product_line.nombre AS name, product_line.status
+           FROM existencias stock
+           JOIN presentaciones_producto presentation ON presentation.id = stock.presentacion_id
+           JOIN productos product ON product.id = presentation.producto_id
+           JOIN lineas_productivas product_line ON product_line.id = product.linea_productiva_id
+          WHERE stock.cantidad_fisica > 0 OR stock.cantidad_reservada > 0
+          ORDER BY product_line.nombre ASC`,
+      ),
+      this.dataSource.query<Array<{ count: string }>>(
+        `SELECT COUNT(*)::text AS count
+           FROM existencias
+          WHERE cantidad_fisica - cantidad_reservada < 0`,
+      ),
+    ]);
+    return { categories, productLines, negativeCount: Number(negativeRows[0]?.count ?? 0) };
   }
 
   async movements(query: InventoryMovementQueryDto) {
@@ -110,7 +141,7 @@ export class InventoryService {
       const delta = dto.type === InventoryMovementType.NEGATIVE_ADJUSTMENT ? -dto.quantity : dto.quantity;
       const next = previous + delta;
       if (next < 0) throw new UnprocessableEntityException('El movimiento dejaría una existencia física negativa');
-      if (next < Number(stock.reservedQuantity)) {
+      if (delta < 0 && next < Number(stock.reservedQuantity)) {
         throw new UnprocessableEntityException('El ajuste no puede dejar la existencia física por debajo de la cantidad reservada');
       }
       stock.physicalQuantity = next.toFixed(3);
@@ -144,9 +175,17 @@ export class InventoryService {
   }
 
   private toView(stock: Stock) {
+    const product = stock.presentation.product;
+    const physicalQuantity = Number(stock.physicalQuantity);
+    const reservedQuantity = Number(stock.reservedQuantity);
+    const availableQuantity = physicalQuantity - reservedQuantity;
+    product.imageUrl = product.imageMime
+      ? `/api/catalogo/productos/${product.id}/imagen?v=${product.updatedAt.getTime()}`
+      : null;
     return {
       ...stock,
-      availableQuantity: (Number(stock.physicalQuantity) - Number(stock.reservedQuantity)).toFixed(3),
+      availableQuantity: availableQuantity.toFixed(3),
+      shortageQuantity: Math.max(0, -availableQuantity).toFixed(3),
     };
   }
 }

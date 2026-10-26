@@ -4,6 +4,9 @@ import { RecordStatus } from '../../../common/enums/record-status.enum';
 
 @Entity({ name: 'categorias_producto' })
 export class ProductCategory extends AuditableEntity {
+  @Column({ name: 'codigo', type: 'integer', unique: true, generated: 'increment' })
+  code: number;
+
   @Column({ name: 'nombre', type: 'varchar', length: 100, unique: true })
   name: string;
 

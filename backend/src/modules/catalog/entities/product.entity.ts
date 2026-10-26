@@ -8,8 +8,8 @@ import { UnitMeasure } from './unit-measure.entity';
 
 @Entity({ name: 'productos' })
 export class Product extends AuditableEntity {
-  @Column({ name: 'codigo', type: 'varchar', length: 50, unique: true })
-  code: string;
+  @Column({ name: 'codigo', type: 'integer', unique: true, default: () => "nextval('productos_codigo_seq')" })
+  code: number;
 
   @Column({ name: 'nombre', type: 'varchar', length: 160 })
   name: string;
@@ -52,7 +52,6 @@ export class Product extends AuditableEntity {
   @BeforeInsert()
   @BeforeUpdate()
   normalize(): void {
-    if (this.code !== undefined) this.code = this.code.trim().toUpperCase();
     if (this.name !== undefined) this.name = this.name.trim();
   }
 }

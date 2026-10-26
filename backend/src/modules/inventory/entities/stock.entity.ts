@@ -13,10 +13,10 @@ export class Stock extends AuditableEntity {
   @JoinColumn({ name: 'presentacion_id' })
   presentation: ProductPresentation;
 
-  @Column({ name: 'cantidad_fisica', type: 'numeric', precision: 14, scale: 3, default: 0 })
+  @Column({ name: 'cantidad_fisica', type: 'numeric', precision: 18, scale: 6, default: 0 })
   physicalQuantity: string;
 
-  @Column({ name: 'cantidad_reservada', type: 'numeric', precision: 14, scale: 3, default: 0 })
+  @Column({ name: 'cantidad_reservada', type: 'numeric', precision: 18, scale: 6, default: 0 })
   reservedQuantity: string;
 
   @VersionColumn({ name: 'version' })

@@ -8,6 +8,7 @@ import { Order } from '../orders/entities/order.entity';
 import { OrderPreparation } from '../preparation/entities/order-preparation.entity';
 import { Zone } from '../zones/entities/zone.entity';
 import { ChannelSetting } from './entities/channel-setting.entity';
+import { ChannelTestLog } from './entities/channel-test-log.entity';
 import { EstimationSetting } from './entities/estimation-setting.entity';
 import { NotificationAttempt } from './entities/notification-attempt.entity';
 import { NotificationTemplate } from './entities/notification-template.entity';
@@ -29,6 +30,7 @@ import { TrackingService } from './tracking.service';
     EstimationSetting,
     NotificationTemplate,
     ChannelSetting,
+    ChannelTestLog,
     Notification,
     NotificationAttempt,
     NotificationWebhook,

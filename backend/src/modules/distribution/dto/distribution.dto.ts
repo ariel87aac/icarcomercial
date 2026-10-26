@@ -52,6 +52,11 @@ export class AddRouteDeliveriesDto {
   preparationIds: string[];
 }
 
+export class UpdateRouteVehicleDto {
+  @IsUUID()
+  vehicleId: string;
+}
+
 export class RouteSequenceItemDto {
   @IsUUID()
   routeDeliveryId: string;

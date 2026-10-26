@@ -25,6 +25,7 @@ import {
   RouteTransitionDto,
   SettleRouteDto,
   UpdateRouteSequenceDto,
+  UpdateRouteVehicleDto,
 } from './dto/distribution.dto';
 import { DistributionRoute } from './entities/distribution-route.entity';
 import { DistributionRouteStatus, RouteDeliveryStatus, RouteHistoryEvent, RouteResponsibleFunction, VisitResultType } from './entities/distribution.enums';
@@ -67,6 +68,7 @@ export class DistributionService {
       .take(query.limit);
     this.applyFilters(builder, query);
     const [items, total] = await builder.getManyAndCount();
+    await Promise.all(items.map((route) => this.attachLoadMetrics(route)));
     return paginate(items, total, query.page, query.limit);
   }
 
@@ -114,6 +116,7 @@ export class DistributionService {
         order: { occurredAt: 'ASC' },
       }),
     ]);
+    await this.attachLoadMetrics(route);
     return route;
   }
 
@@ -141,6 +144,7 @@ export class DistributionService {
       if (!zone) throw new NotFoundException('Zona no encontrada o inactiva');
       const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: dto.vehicleId, status: RecordStatus.ACTIVE } });
       if (!vehicle) throw new UnprocessableEntityException('El vehículo debe estar activo');
+      if (!vehicle.capacityKg || Number(vehicle.capacityKg) <= 0) throw new UnprocessableEntityException('El vehículo debe tener una capacidad válida en kg');
       const responsibleIds = [...new Set(dto.responsibleIds)];
       if (responsibleIds.length !== dto.responsibleIds.length || !responsibleIds.includes(dto.principalResponsibleId)) {
         throw new BadRequestException('Debe identificar un responsable principal dentro de la asignación');
@@ -182,6 +186,29 @@ export class DistributionService {
       await this.saveHistory(manager, route.id, null, DistributionRouteStatus.DRAFT, RouteHistoryEvent.CREATION, actor.id, 'Ruta creada y recursos asignados', { responsibleIds });
       await this.saveAudit(manager, actor.id, 'CREAR_RUTA', route.id, { date: route.date, zoneId: route.zoneId, vehicleId: route.vehicleId });
       return route.id;
+    });
+    return this.findOne(id);
+  }
+
+  async updateVehicle(id: string, dto: UpdateRouteVehicleDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
+    await this.dataSource.transaction(async (manager) => {
+      const route = await this.lockRoute(manager, id);
+      this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'El vehículo sólo puede cambiarse mientras la ruta está en Borrador');
+      const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: dto.vehicleId, status: RecordStatus.ACTIVE } });
+      if (!vehicle) throw new UnprocessableEntityException('El vehículo debe estar activo');
+      if (!vehicle.capacityKg || Number(vehicle.capacityKg) <= 0) throw new UnprocessableEntityException('El vehículo debe tener una capacidad válida en kg');
+      const responsibles = await manager.getRepository(RouteResponsible).find({ where: { routeId: id } });
+      await this.assertResourceAvailability(manager, route.date, vehicle.id, responsibles.map((item) => item.userId), route.id);
+      const load = await this.routeLoad(manager, id);
+      if (!load.missingWeightPresentations.length && load.loadWeightKg > Number(vehicle.capacityKg) + 0.0005) {
+        const excess = load.loadWeightKg - Number(vehicle.capacityKg);
+        throw new UnprocessableEntityException(`La carga de ${load.loadWeightKg.toFixed(3)} kg supera la capacidad de ${Number(vehicle.capacityKg).toFixed(3)} kg por ${excess.toFixed(3)} kg`);
+      }
+      const previousVehicleId = route.vehicleId;
+      route.vehicleId = vehicle.id;
+      await manager.getRepository(DistributionRoute).save(route);
+      await this.saveHistory(manager, id, route.status, route.status, RouteHistoryEvent.VEHICLE_CHANGE, actor.id, `Vehículo cambiado a ${vehicle.plate}`, { previousVehicleId, vehicleId: vehicle.id, capacityKg: vehicle.capacityKg, loadWeightKg: load.loadWeightKg });
+      await this.saveAudit(manager, actor.id, 'CAMBIAR_VEHICULO_RUTA', id, { previousVehicleId, vehicleId: vehicle.id, capacityKg: vehicle.capacityKg, loadWeightKg: load.loadWeightKg });
     });
     return this.findOne(id);
   }
@@ -262,6 +289,7 @@ export class DistributionService {
       if (invalidAddress) throw new UnprocessableEntityException(`El domicilio del pedido ${invalidAddress.orderId} no tiene coordenadas válidas`);
       const invalidPreparation = deliveries.find((delivery) => delivery.preparation.status !== PreparationStatus.ASSIGNED);
       if (invalidPreparation) throw new ConflictException('Una preparación asignada cambió de estado');
+      await this.assertVehicleCapacity(manager, route.id, vehicle);
       route.status = DistributionRouteStatus.PLANNED;
       await manager.getRepository(DistributionRoute).save(route);
       await this.saveHistory(manager, id, DistributionRouteStatus.DRAFT, DistributionRouteStatus.PLANNED, RouteHistoryEvent.PLANNING, actor.id, dto.observation?.trim() || 'Ruta planificada');
@@ -275,6 +303,9 @@ export class DistributionService {
     await this.dataSource.transaction(async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.PLANNED, 'La salida solo puede registrarse desde una ruta Planificada');
+      const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: route.vehicleId, status: RecordStatus.ACTIVE } });
+      if (!vehicle) throw new UnprocessableEntityException('El vehículo asignado ya no está activo');
+      await this.assertVehicleCapacity(manager, route.id, vehicle);
       const deliveries = await manager.getRepository(RouteDelivery).find({
         where: { routeId: id },
         relations: { preparation: { details: true } },
@@ -546,6 +577,49 @@ export class DistributionService {
        LIMIT 1
     `, parameters);
     if (conflicts.length) throw new ConflictException(`El vehículo o un responsable ya está asignado a ${conflicts[0].code} en la misma jornada`);
+  }
+
+  private async routeLoad(manager: EntityManager, routeId: string): Promise<{ loadWeightKg: number; missingWeightPresentations: string[] }> {
+    const rows = await manager.query<Array<{ load_weight_kg: string; missing_weights: string[] | null }>>(`
+      SELECT COALESCE(SUM(detail.cantidad_preparada * presentation.peso_kg)
+               FILTER (WHERE presentation.peso_kg IS NOT NULL), 0)::text AS load_weight_kg,
+             array_agg(DISTINCT product.nombre || ' · ' || presentation.descripcion)
+               FILTER (WHERE detail.cantidad_preparada > 0 AND presentation.peso_kg IS NULL) AS missing_weights
+        FROM rutas_entregas delivery
+        JOIN preparaciones_detalle detail ON detail.preparacion_id = delivery.preparacion_id
+        JOIN pedidos_detalle order_detail ON order_detail.id = detail.detalle_pedido_id
+        JOIN presentaciones_producto presentation ON presentation.id = order_detail.presentacion_id
+        JOIN productos product ON product.id = presentation.producto_id
+       WHERE delivery.ruta_id = $1
+    `, [routeId]);
+    return {
+      loadWeightKg: Number(rows[0]?.load_weight_kg ?? 0),
+      missingWeightPresentations: rows[0]?.missing_weights ?? [],
+    };
+  }
+
+  private async attachLoadMetrics(route: DistributionRoute): Promise<void> {
+    const load = await this.routeLoad(this.dataSource.manager, route.id);
+    const capacity = Number(route.vehicle?.capacityKg ?? 0);
+    route.loadWeightKg = load.loadWeightKg.toFixed(3);
+    route.capacityExceeded = capacity > 0 && load.loadWeightKg > capacity + 0.0005;
+    route.excessWeightKg = Math.max(0, load.loadWeightKg - capacity).toFixed(3);
+    route.missingWeightPresentations = load.missingWeightPresentations;
+  }
+
+  private async assertVehicleCapacity(manager: EntityManager, routeId: string, vehicle: Vehicle): Promise<void> {
+    if (!vehicle.capacityKg || Number(vehicle.capacityKg) <= 0) {
+      throw new UnprocessableEntityException('El vehículo no tiene una capacidad válida en kg; edítelo antes de continuar');
+    }
+    const load = await this.routeLoad(manager, routeId);
+    if (load.missingWeightPresentations.length) {
+      throw new UnprocessableEntityException(`No se puede calcular la carga: configure el peso en kg de ${load.missingWeightPresentations.join(', ')}`);
+    }
+    const capacity = Number(vehicle.capacityKg);
+    if (load.loadWeightKg > capacity + 0.0005) {
+      const excess = load.loadWeightKg - capacity;
+      throw new UnprocessableEntityException(`La carga de ${load.loadWeightKg.toFixed(3)} kg supera la capacidad de ${capacity.toFixed(3)} kg por ${excess.toFixed(3)} kg; cambie el vehículo antes de continuar`);
+    }
   }
 
   private async assertAssigned(manager: EntityManager, routeId: string, actor: AuthenticatedUser): Promise<void> {

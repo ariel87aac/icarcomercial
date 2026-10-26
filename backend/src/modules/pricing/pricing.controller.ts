@@ -1,8 +1,15 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Put, Query } from '@nestjs/common';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
-import { CatalogQueryDto, CreateProductPriceDto, PriceQueryDto, UpdateProductPriceDto } from './dto/pricing.dto';
+import {
+  BulkUpdatePricesDto,
+  CatalogQueryDto,
+  CreateProductPriceDto,
+  PriceMatrixQueryDto,
+  PriceQueryDto,
+  UpdateProductPriceDto,
+} from './dto/pricing.dto';
 import { PricingService } from './pricing.service';
 
 @Controller(['catalog', 'catalogo'])
@@ -44,6 +51,16 @@ export class PricesController {
   @Get()
   @RequirePermissions('pricing.manage')
   findAll(@Query() query: PriceQueryDto) { return this.pricing.prices(query); }
+
+  @Get(['matrix', 'matriz'])
+  @RequirePermissions('pricing.manage')
+  matrix(@Query() query: PriceMatrixQueryDto) { return this.pricing.priceMatrix(query); }
+
+  @Put(['bulk', 'actualizacion-masiva'])
+  @RequirePermissions('pricing.manage')
+  bulkUpdate(@Body() dto: BulkUpdatePricesDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.pricing.bulkUpdate(dto, actor);
+  }
 
   @Patch(':id')
   @RequirePermissions('pricing.manage')

@@ -10,13 +10,14 @@ import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Brackets, DataSource, Repository } from 'typeorm';
-import { paginate } from '../../common/dto/pagination-query.dto';
+import { paginate, PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { sanitizeSecrets } from '../../common/utils/secret-sanitizer.util';
 import { AuditService } from '../audit/audit.service';
 import { Order } from '../orders/entities/order.entity';
-import { SaveChannelSettingDto, NotificationQueryDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, WebhookDto } from './dto/tracking.dto';
+import { SaveChannelSettingDto, NotificationQueryDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, WebhookDto } from './dto/tracking.dto';
 import { ChannelSetting } from './entities/channel-setting.entity';
+import { ChannelTestLog } from './entities/channel-test-log.entity';
 import { EstimationSetting } from './entities/estimation-setting.entity';
 import { NotificationAttempt } from './entities/notification-attempt.entity';
 import { NotificationTemplate } from './entities/notification-template.entity';
@@ -35,9 +36,73 @@ export const AUTHORIZED_TEMPLATE_VARIABLES = [
   'estimatedFrom',
   'estimatedUntil',
   'customerName',
+  'confirmationUrl',
+  'productList',
+  'orderTotal',
+  'deliveryDate',
+  'cancellationReason',
 ] as const;
 
-type TemplateVariables = Record<(typeof AUTHORIZED_TEMPLATE_VARIABLES)[number], string>;
+type TemplateVariables = Partial<Record<(typeof AUTHORIZED_TEMPLATE_VARIABLES)[number], string>>;
+
+interface SystemTemplateDefinition {
+  reference: string;
+  body: string;
+  variables: string[];
+}
+
+const SYSTEM_NOTIFICATION_TEMPLATES: Record<NotificationEvent, SystemTemplateDefinition> = {
+  [NotificationEvent.ORDER_DRAFT]: {
+    reference: 'PEDIDO_BORRADOR_SISTEMA',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue creado en estado borrador.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}\n\nConfirma tu pedido aquí: {{confirmationUrl}}',
+    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate', 'confirmationUrl'],
+  },
+  [NotificationEvent.ORDER_RECEIVED]: {
+    reference: 'PEDIDO_RECIBIDO_SISTEMA',
+    body: 'Hola {{customerName}}, recibimos tu pedido N° {{orderReference}} y se encuentra en revisión.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}',
+    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate'],
+  },
+  [NotificationEvent.ORDER_CONFIRMED]: {
+    reference: 'PEDIDO_CONFIRMADO_SISTEMA',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue confirmado.\n\nProductos confirmados:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}',
+    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate'],
+  },
+  [NotificationEvent.ORDER_CANCELED]: {
+    reference: 'PEDIDO_CANCELADO_SISTEMA',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue cancelado.\nMotivo: {{cancellationReason}}',
+    variables: ['customerName', 'orderReference', 'cancellationReason'],
+  },
+  [NotificationEvent.RELEVANT_CHANGE]: {
+    reference: 'CAMBIO_RELEVANTE_SISTEMA',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} cambió al estado {{publicStatus}}.',
+    variables: ['customerName', 'orderReference', 'publicStatus'],
+  },
+  [NotificationEvent.ROUTE_DEPARTURE]: {
+    reference: 'SALIDA_RUTA_SISTEMA',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} salió a distribución. Ventana estimada: {{estimatedFrom}} a {{estimatedUntil}}.',
+    variables: ['customerName', 'orderReference', 'estimatedFrom', 'estimatedUntil'],
+  },
+  [NotificationEvent.NEXT_DELIVERY]: {
+    reference: 'PROXIMA_ENTREGA_SISTEMA',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está próximo a entregarse. Paradas previas: {{pendingStops}}. Ventana estimada: {{estimatedFrom}} a {{estimatedUntil}}.',
+    variables: ['customerName', 'orderReference', 'pendingStops', 'estimatedFrom', 'estimatedUntil'],
+  },
+  [NotificationEvent.DELIVERED]: {
+    reference: 'PEDIDO_ENTREGADO_SISTEMA',
+    body: 'Hola {{customerName}}, registramos la entrega de tu pedido N° {{orderReference}}. Gracias por elegir ICAR.',
+    variables: ['customerName', 'orderReference'],
+  },
+  [NotificationEvent.DELIVERY_NOT_COMPLETED]: {
+    reference: 'ENTREGA_NO_COMPLETADA_SISTEMA',
+    body: 'Hola {{customerName}}, no fue posible completar la entrega de tu pedido N° {{orderReference}}. Nuestro equipo revisará el caso.',
+    variables: ['customerName', 'orderReference'],
+  },
+  [NotificationEvent.PAYMENT_RECEIVED]: {
+    reference: 'PAGO_RECIBIDO_SISTEMA',
+    body: 'Hola {{customerName}}, registramos el pago asociado a tu pedido N° {{orderReference}}.',
+    variables: ['customerName', 'orderReference'],
+  },
+};
 
 export interface ChannelSettingView {
   id: string;
@@ -63,6 +128,7 @@ export class NotificationService {
     @InjectRepository(NotificationTemplate) private readonly templates: Repository<NotificationTemplate>,
     @InjectRepository(EstimationSetting) private readonly settings: Repository<EstimationSetting>,
     @InjectRepository(ChannelSetting) private readonly channels: Repository<ChannelSetting>,
+    @InjectRepository(ChannelTestLog) private readonly channelTestLogs: Repository<ChannelTestLog>,
     @InjectRepository(NotificationAttempt) private readonly attempts: Repository<NotificationAttempt>,
     @InjectRepository(NotificationWebhook) private readonly webhooks: Repository<NotificationWebhook>,
     private readonly dataSource: DataSource,
@@ -100,6 +166,24 @@ export class NotificationService {
 
   async listTemplates(): Promise<NotificationTemplate[]> {
     return this.templates.find({ relations: { createdBy: true }, order: { event: 'ASC', version: 'DESC' } });
+  }
+
+  async ensureDefaultTemplates(actor: AuthenticatedUser): Promise<{ created: number; preserved: number; templates: NotificationTemplate[] }> {
+    let created = 0;
+    let preserved = 0;
+    for (const event of Object.values(NotificationEvent)) {
+      const result = await this.ensureSystemTemplate(event, actor.id);
+      result.created ? created += 1 : preserved += 1;
+    }
+    await this.audit.record({
+      userId: actor.id,
+      module: 'notifications',
+      action: 'CREAR_PLANTILLAS_BASE',
+      entity: 'plantillas_notificacion',
+      result: 'EXITOSO',
+      metadata: { created, preserved, events: Object.values(NotificationEvent) },
+    });
+    return { created, preserved, templates: await this.listTemplates() };
   }
 
   async saveTemplate(dto: SaveNotificationTemplateDto, actor: AuthenticatedUser): Promise<NotificationTemplate> {
@@ -162,29 +246,129 @@ export class NotificationService {
     return this.toChannelView(saved);
   }
 
-  async enqueue(order: Order, link: TrackingLink, event: NotificationEvent, version: number, variables: TemplateVariables): Promise<Notification | null> {
+  async listChannelTestLogs(query: PaginationQueryDto) {
+    const [items, total] = await this.channelTestLogs.findAndCount({
+      relations: { testedBy: true },
+      order: { occurredAt: 'DESC' },
+      skip: (query.page - 1) * query.limit,
+      take: query.limit,
+    });
+    return paginate(items, total, query.page, query.limit);
+  }
+
+  async testChannel(dto: TestNotificationChannelDto, actor: AuthenticatedUser): Promise<ChannelTestLog> {
+    const startedAt = Date.now();
+    const channel = await this.activeChannelWithCredential();
+    if (!channel) {
+      return this.saveChannelTestLog({
+        channelId: null,
+        actor,
+        number: dto.number,
+        result: 'ERROR',
+        httpStatus: null,
+        durationMs: Date.now() - startedAt,
+        providerMessageId: null,
+        response: { message: 'No existe un canal de WhatsApp activo' },
+        error: 'No existe un canal de WhatsApp activo',
+      });
+    }
+
+    try {
+      if (!channel.encryptedToken) throw new ServiceUnavailableException('El token de LimiteAPI no está configurado');
+      const token = this.channelTokenCipher.decrypt(channel.encryptedToken);
+      const providerResult = await this.provider.send(channel, dto.number, dto.body.trim(), token);
+      return this.saveChannelTestLog({
+        channelId: channel.id,
+        actor,
+        number: dto.number,
+        result: providerResult.ok ? 'EXITOSO' : 'ERROR',
+        httpStatus: providerResult.status,
+        durationMs: Date.now() - startedAt,
+        providerMessageId: providerResult.messageId,
+        response: providerResult.response,
+        error: providerResult.error,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Configuración de LimiteAPI no disponible';
+      return this.saveChannelTestLog({
+        channelId: channel.id,
+        actor,
+        number: dto.number,
+        result: 'ERROR',
+        httpStatus: null,
+        durationMs: Date.now() - startedAt,
+        providerMessageId: null,
+        response: { message },
+        error: message,
+      });
+    }
+  }
+
+  async enqueue(order: Order, link: TrackingLink | null, event: NotificationEvent, version: number, variables: TemplateVariables): Promise<Notification | null> {
     const template = await this.templates.findOne({ where: { event, active: true }, order: { version: 'DESC' } });
     if (!template) return null;
+    return this.enqueueWithTemplate(order, link, template, event, version, variables, `${order.id}:${event}:${version}`);
+  }
+
+  async safeEnqueueOrderLifecycle(
+    order: Order,
+    event: NotificationEvent.ORDER_DRAFT | NotificationEvent.ORDER_RECEIVED | NotificationEvent.ORDER_CONFIRMED | NotificationEvent.ORDER_CANCELED,
+    createdById: string,
+    variables: Partial<TemplateVariables>,
+  ): Promise<void> {
+    try {
+      const template = await this.lifecycleTemplate(event, createdById);
+      await this.enqueueWithTemplate(
+        order,
+        null,
+        template,
+        event,
+        1,
+        this.completeVariables(order, variables),
+        `${order.id}:${event}:lifecycle`,
+      );
+    } catch (error) {
+      await this.audit.record({
+        userId: createdById,
+        module: 'notifications',
+        action: 'ENCOLAR_MENSAJE_PEDIDO',
+        entity: 'pedidos',
+        entityId: order.id,
+        result: 'ERROR',
+        metadata: { event, message: error instanceof Error ? error.message : 'Error no identificado' },
+      }).catch(() => undefined);
+    }
+  }
+
+  private async enqueueWithTemplate(
+    order: Order,
+    link: TrackingLink | null,
+    template: NotificationTemplate,
+    event: NotificationEvent,
+    version: number,
+    variables: TemplateVariables,
+    key: string,
+  ): Promise<Notification | null> {
     const recipient = this.normalizeRecipient(order.customer.whatsapp || order.customer.phone);
     if (!recipient) return null;
-    const key = event === NotificationEvent.NEXT_DELIVERY
+    const idempotencyKey = event === NotificationEvent.NEXT_DELIVERY
       ? `${order.id}:${event}:threshold`
-      : `${order.id}:${event}:${version}`;
-    const existing = await this.notifications.findOne({ where: { idempotencyKey: key } });
+      : key;
+    const existing = await this.notifications.findOne({ where: { idempotencyKey } });
     if (existing) return existing;
-    const renderedBody = this.render(template, variables);
+    const renderedBody = this.renderLifecycleRequirements(this.render(template, variables), template, event, variables);
     try {
       return await this.notifications.save(this.notifications.create({
         orderId: order.id,
         paymentId: null,
         customerId: order.customerId,
-        linkId: link.id,
+        linkId: link?.id ?? null,
         templateId: template.id,
         resentFromId: null,
         recipient,
         event,
         renderedBody,
-        idempotencyKey: key,
+        idempotencyKey,
         eventVersion: version,
         status: NotificationStatus.PENDING,
         scheduledAt: new Date(),
@@ -194,7 +378,7 @@ export class NotificationService {
         lastError: null,
       }));
     } catch (error) {
-      const duplicate = await this.notifications.findOne({ where: { idempotencyKey: key } });
+      const duplicate = await this.notifications.findOne({ where: { idempotencyKey } });
       if (duplicate) return duplicate;
       throw error;
     }
@@ -203,25 +387,17 @@ export class NotificationService {
   async enqueuePayment(payment: Payment, version: number): Promise<Notification | null> {
     const order = payment.applications.find((application) => application.sale?.order)?.sale.order;
     if (!order) throw new BadRequestException('El pago confirmado no tiene un pedido relacionado');
-    let template = await this.templates.findOne({ where: { event: NotificationEvent.PAYMENT_RECEIVED, active: true }, order: { version: 'DESC' } });
-    if (!template) {
-      template = await this.templates.save(this.templates.create({
-        event: NotificationEvent.PAYMENT_RECEIVED,
-        reference: 'PAGO_RECIBIDO_SISTEMA',
-        version: 1,
-        body: 'Hola {{customerName}}, registramos tu pago.',
-        allowedVariables: ['customerName'],
-        active: true,
-        createdById: payment.confirmedById ?? payment.registeredById,
-      }));
-    }
+    const template = (await this.ensureSystemTemplate(
+      NotificationEvent.PAYMENT_RECEIVED,
+      payment.confirmedById ?? payment.registeredById,
+    )).template;
     const recipient = this.normalizeRecipient(payment.customer.whatsapp || payment.customer.phone);
     if (!recipient) return null;
     const key = `${payment.id}:${NotificationEvent.PAYMENT_RECEIVED}:${version}`;
     const existing = await this.notifications.findOne({ where: { idempotencyKey: key } });
     if (existing) return existing;
     const renderedBody = this.render(template, {
-      orderReference: '',
+      orderReference: order.code,
       publicStatus: '',
       pendingStops: '',
       estimatedFrom: '',
@@ -351,6 +527,53 @@ export class NotificationService {
     return true;
   }
 
+  async recoverInterruptedProcessing(timeoutMs = 60_000): Promise<{ sent: number; retried: number; failed: number }> {
+    const cutoff = new Date(Date.now() - Math.max(timeoutMs, 10_000));
+    const interrupted = await this.notifications.createQueryBuilder('notification')
+      .leftJoinAndSelect('notification.attempts', 'attempt')
+      .where('notification.estado = :status', { status: NotificationStatus.PROCESSING })
+      .andWhere('notification.updated_at <= :cutoff', { cutoff })
+      .getMany();
+    const result = { sent: 0, retried: 0, failed: 0 };
+
+    for (const notification of interrupted) {
+      const latestAttempt = [...notification.attempts].sort((a, b) => b.attemptNumber - a.attemptNumber)[0];
+      let status: NotificationStatus;
+      let processedAt: Date | null;
+      let nextAttemptAt = notification.nextAttemptAt;
+      let lastError: string | null;
+
+      if (latestAttempt?.status === NotificationAttemptStatus.SENT) {
+        status = NotificationStatus.SENT;
+        processedAt = latestAttempt.occurredAt;
+        lastError = null;
+      } else if (latestAttempt?.status === NotificationAttemptStatus.RECOVERABLE_FAILURE) {
+        status = NotificationStatus.RETRY;
+        processedAt = null;
+        nextAttemptAt = new Date();
+        lastError = 'Reintento recuperado después de reiniciar el trabajador de mensajería';
+      } else {
+        status = NotificationStatus.FAILED;
+        processedAt = latestAttempt?.occurredAt ?? new Date();
+        lastError = latestAttempt
+          ? 'Fallo definitivo recuperado después de reiniciar el trabajador de mensajería'
+          : 'Envío interrumpido con resultado indeterminado; requiere reenvío manual';
+      }
+
+      const update = await this.notifications.createQueryBuilder()
+        .update(Notification)
+        .set({ status, processedAt, nextAttemptAt, lastError })
+        .where('id = :id', { id: notification.id })
+        .andWhere('estado = :processing', { processing: NotificationStatus.PROCESSING })
+        .execute();
+      if (!update.affected) continue;
+      if (status === NotificationStatus.SENT) result.sent += 1;
+      else if (status === NotificationStatus.RETRY) result.retried += 1;
+      else result.failed += 1;
+    }
+    return result;
+  }
+
   async webhook(dto: WebhookDto, authorization: string | undefined): Promise<{ accepted: true; duplicate: boolean }> {
     this.assertWebhookAuthorization(authorization);
     const sanitized = (sanitizeSecrets(dto) ?? {}) as Record<string, unknown>;
@@ -394,6 +617,91 @@ export class NotificationService {
     return body;
   }
 
+  private renderLifecycleRequirements(
+    body: string,
+    template: NotificationTemplate,
+    event: NotificationEvent,
+    variables: TemplateVariables,
+  ): string {
+    const additions: string[] = [];
+    if (
+      [NotificationEvent.ORDER_DRAFT, NotificationEvent.ORDER_RECEIVED, NotificationEvent.ORDER_CONFIRMED].includes(event)
+      && variables.productList
+      && !template.allowedVariables.includes('productList')
+    ) {
+      additions.push(`${event === NotificationEvent.ORDER_CONFIRMED ? 'Productos confirmados' : 'Productos'}:\n${variables.productList}`);
+    }
+    if (
+      event === NotificationEvent.ORDER_DRAFT
+      && variables.confirmationUrl
+      && !template.allowedVariables.includes('confirmationUrl')
+    ) {
+      additions.push(`Confirma tu pedido aquí: ${variables.confirmationUrl}`);
+    }
+    if (
+      event === NotificationEvent.ORDER_CANCELED
+      && variables.cancellationReason
+      && !template.allowedVariables.includes('cancellationReason')
+    ) {
+      additions.push(`Motivo: ${variables.cancellationReason}`);
+    }
+    return additions.length ? `${body.trim()}\n\n${additions.join('\n\n')}` : body;
+  }
+
+  private completeVariables(order: Order, variables: Partial<TemplateVariables>): TemplateVariables {
+    return {
+      orderReference: order.code,
+      publicStatus: order.status,
+      pendingStops: '',
+      estimatedFrom: '',
+      estimatedUntil: '',
+      customerName: order.customer.businessName,
+      confirmationUrl: '',
+      productList: '',
+      orderTotal: order.total,
+      deliveryDate: order.requestedDate,
+      cancellationReason: order.cancellationReason ?? '',
+      ...variables,
+    };
+  }
+
+  private async lifecycleTemplate(
+    event: NotificationEvent.ORDER_DRAFT | NotificationEvent.ORDER_RECEIVED | NotificationEvent.ORDER_CONFIRMED | NotificationEvent.ORDER_CANCELED,
+    createdById: string,
+  ): Promise<NotificationTemplate> {
+    return (await this.ensureSystemTemplate(event, createdById)).template;
+  }
+
+  private async ensureSystemTemplate(event: NotificationEvent, createdById: string): Promise<{ template: NotificationTemplate; created: boolean }> {
+    const existing = await this.templates.findOne({ where: { event, active: true }, order: { version: 'DESC' } });
+    if (existing) return { template: existing, created: false };
+    const definition = SYSTEM_NOTIFICATION_TEMPLATES[event];
+    const inactiveSystemTemplate = await this.templates.findOne({
+      where: { event, reference: definition.reference, version: 1 },
+    });
+    if (inactiveSystemTemplate) {
+      inactiveSystemTemplate.active = true;
+      inactiveSystemTemplate.createdById = createdById;
+      return { template: await this.templates.save(inactiveSystemTemplate), created: false };
+    }
+    try {
+      const template = await this.templates.save(this.templates.create({
+        event,
+        reference: definition.reference,
+        version: 1,
+        body: definition.body,
+        allowedVariables: definition.variables,
+        active: true,
+        createdById,
+      }));
+      return { template, created: true };
+    } catch (error) {
+      const concurrent = await this.templates.findOne({ where: { event, active: true }, order: { version: 'DESC' } });
+      if (concurrent) return { template: concurrent, created: false };
+      throw error;
+    }
+  }
+
   private normalizeRecipient(value: string): string | null {
     const normalized = value.replace(/\D/g, '');
     return /^\d{8,15}$/.test(normalized) ? normalized : null;
@@ -425,6 +733,52 @@ export class NotificationService {
       updatedAt: channel.updatedAt,
       updatedBy: { id: channel.updatedBy.id, name: channel.updatedBy.name },
     };
+  }
+
+  private async saveChannelTestLog(input: {
+    channelId: string | null;
+    actor: AuthenticatedUser;
+    number: string;
+    result: 'EXITOSO' | 'ERROR';
+    httpStatus: number | null;
+    durationMs: number;
+    providerMessageId: string | null;
+    response: Record<string, unknown>;
+    error: string | null;
+  }): Promise<ChannelTestLog> {
+    const item = await this.channelTestLogs.save(this.channelTestLogs.create({
+      channelId: input.channelId,
+      testedById: input.actor.id,
+      maskedRecipient: this.maskRecipient(input.number),
+      result: input.result,
+      httpStatus: input.httpStatus,
+      durationMs: input.durationMs,
+      providerMessageId: input.providerMessageId,
+      sanitizedResponse: (sanitizeSecrets(input.response) ?? {}) as Record<string, unknown>,
+      error: input.error?.slice(0, 500) ?? null,
+    }));
+    await this.audit.record({
+      userId: input.actor.id,
+      module: 'notifications',
+      action: 'PROBAR_CANAL',
+      entity: 'registros_prueba_canal',
+      entityId: item.id,
+      result: input.result,
+      metadata: {
+        channelId: input.channelId,
+        httpStatus: input.httpStatus,
+        durationMs: input.durationMs,
+        providerMessageId: input.providerMessageId,
+        error: input.error,
+      },
+    });
+    return this.channelTestLogs.findOneOrFail({ where: { id: item.id }, relations: { testedBy: true } });
+  }
+
+  private maskRecipient(value: string): string {
+    const normalized = value.replace(/\D/g, '');
+    if (normalized.length <= 4) return '•'.repeat(normalized.length);
+    return `${'•'.repeat(normalized.length - 4)}${normalized.slice(-4)}`;
   }
 
   private async finishFailure(item: Notification, status: number | null, response: Record<string, unknown>, error: string, recoverable: boolean, maxRetries: number, retryDelaySeconds = 60): Promise<void> {

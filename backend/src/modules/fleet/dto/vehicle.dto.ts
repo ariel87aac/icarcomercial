@@ -24,11 +24,10 @@ export class CreateVehicleDto {
   @MaxLength(160)
   description: string;
 
-  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)
-  referenceCapacity?: number;
+  capacityKg: number;
 }
 
 export class UpdateVehicleDto {
@@ -48,7 +47,7 @@ export class UpdateVehicleDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 3 })
   @Min(0.001)
-  referenceCapacity?: number;
+  capacityKg?: number;
 
   @IsOptional()
   @IsEnum(RecordStatus)
