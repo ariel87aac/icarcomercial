@@ -6,12 +6,12 @@
 | --- | --- |
 | Proyecto | Sistema Comercial ICAR |
 | Tipo de documento | Matriz consolidada de pruebas de aceptación |
-| Fecha de ejecución registrada | 25 de octubre de 2026 |
+| Fecha de ejecución registrada | 26 de octubre de 2026 |
 | Entorno | Aplicación local ejecutada íntegramente con Docker Compose |
 | Dirección de verificación | `http://localhost:8080/` |
 | Base de datos | PostgreSQL del contenedor `database` |
 | Responsable de ejecución | Equipo de desarrollo del trabajo dirigido |
-| Resultado global automatizado | **139 comprobaciones aprobadas, 0 fallidas** |
+| Resultado global automatizado | **167 comprobaciones aprobadas, 0 fallidas** |
 
 ## 2. Objetivo
 
@@ -42,14 +42,14 @@ Una prueba se considera aprobada cuando:
 
 | Suite | Alcance principal | Comando | Casos | Resultado |
 | --- | --- | --- | ---: | --- |
-| Primera iteración | Autenticación, cuentas, roles, clientes, domicilios, zonas y auditoría | `docker compose exec -T backend npm run test:acceptance` | 20 | Aprobada |
-| Segunda iteración y ajustes | Productos, precios, catálogo, pedidos, programación, reservas y Almacén | `docker compose exec -T backend npm run test:acceptance:iteration2` | 46 | Aprobada |
+| Primera iteración | Autenticación, cuentas, roles, clientes, domicilios, zonas y auditoría | `docker compose exec -T backend npm run test:acceptance` | 21 | Aprobada |
+| Segunda iteración y ajustes | Productos, precios, catálogo, pedidos, programación, reservas y Almacén | `docker compose exec -T backend npm run test:acceptance:iteration2` | 47 | Aprobada |
 | Tercera iteración | Consolidación, planificación y seguimiento de Producción | `docker compose exec -T backend npm run test:acceptance:iteration3` | 25 | Aprobada |
-| Cuarta iteración | Preparación, vehículos, rutas, despacho y entrega | `docker compose exec -T backend npm run test:acceptance:iteration4` | 20 | Aprobada |
+| Cuarta iteración | Preparación, vehículos, rutas, despacho, entrega y resumen operativo | `docker compose exec -T backend npm run test:acceptance:iteration4` | 35 | Aprobada |
 | Quinta iteración | Seguimiento público, canal y mensajería | `docker compose exec -T backend npm run test:acceptance:iteration5` | 8 | Aprobada |
 | Sexta iteración | Ventas, comprobantes, cobranza y cartera | `docker compose exec -T backend npm run test:acceptance:iteration6` | 13 | Aprobada |
 | Producción–Almacén | Áreas, ejecución en planta, entrega y recepción | `docker compose exec -T backend npm run test:acceptance:production-flow` | 7 | Aprobada |
-| **Total** |  |  | **139** | **Aprobado** |
+| **Total** |  |  | **156** | **Aprobado** |
 
 Durante la ejecución de la quinta iteración se actualizó su dato de preparación para incluir `fecha_cierre_pedido` y `fecha_preparacion`, campos obligatorios incorporados por la programación de pedidos. Después de actualizar el fixture, sus ocho casos finalizaron correctamente.
 
@@ -77,6 +77,7 @@ Fuente automatizada: `backend/scripts/iteration-one.acceptance.mjs`.
 | HU-01 | Cerrar sesión invalida en el servidor la sesión renovable anterior. | Aprobada |
 | CP-USU-07 | Los usuarios reciben un código numérico automático y se listan de menor a mayor. | Aprobada |
 | CP-USU-08 | Un usuario sin operaciones puede eliminarse; la cuenta en uso se protege y la acción queda auditada. | Aprobada |
+| CP-USU-09 | El correo del usuario interno es opcional; el usuario admite 4 caracteres y la contraseña simple 6, rechazando valores inferiores. | Aprobada |
 | CP-CLI-01 | Los clientes reciben un código numérico automático, se ordenan de menor a mayor y pueden buscarse por ese código. | Aprobada |
 | CP-CLI-06 | Un cliente sin relaciones puede eliminarse; los clientes relacionados permanecen protegidos y el borrado queda auditado. | Aprobada |
 
@@ -101,6 +102,7 @@ Fuente automatizada: `backend/scripts/iteration-two.acceptance.mjs`.
 | CP-123 | Una unidad sin asignaciones puede eliminarse y la acción queda auditada. | Aprobada |
 | CP-124 | Una unidad utilizada por productos o presentaciones no puede eliminarse. | Aprobada |
 | CP-125 | Las unidades tienen código numérico estable y se listan de menor a mayor. | Aprobada |
+| CP-154 | Una unidad nueva exige y conserva una equivalencia positiva en kilogramos. | Aprobada |
 | CP-126 | Una línea productiva sin asignaciones puede eliminarse y la acción queda auditada. | Aprobada |
 | CP-127 | Una línea asignada a productos no puede eliminarse. | Aprobada |
 | CP-128 | Las líneas productivas tienen código numérico estable y orden ascendente. | Aprobada |
@@ -206,8 +208,23 @@ Fuente automatizada: `backend/scripts/iteration-four.acceptance.mjs`.
 | CP-79 | Dos salidas simultáneas no consumen dos veces la misma reserva. | Aprobada |
 | CP-72 | Un repartidor no asignado no puede registrar una visita. | Aprobada |
 | CP-73 | La entrega completa conserva cantidades, fecha y responsable. | Aprobada |
+| CP-155 | Administrador y Comercialización consultan todos los repartos activos; Comercialización puede seleccionar y marcar una entrega, mientras el repartidor ajeno permanece limitado. | Aprobada |
 | CP-78 | La liquidación operativa no registra pagos ni comprobantes financieros. | Aprobada |
 | CP-80 | El historial conserva eventos cronológicos con usuario y fecha. | Aprobada |
+| CP-140 | Un pedido despachado no puede iniciar otra preparación. | Aprobada |
+| CP-141 | El faltante se calcula desde existencia física y reserva total, conservando el disponible negativo. | Aprobada |
+| CP-142 | La preparación conserva instantáneas de faltante y referencias operativas de Producción. | Aprobada |
+| CP-143 | No se confirma una cantidad superior a la existencia física realmente separable. | Aprobada |
+| CP-144 | Una ruta sin salida se reprograma con motivo, auditoría y sin alterar el compromiso del pedido. | Aprobada |
+| CP-145 | Cancelar una ruta sin salida devuelve sus preparaciones a `PREPARADA`. | Aprobada |
+| CP-146 | Cancelar una preparación conserva la reserva y permite reiniciar el trabajo. | Aprobada |
+| CP-147 | Los pesos reales por presentación se actualizan en bloque y quedan auditados. | Aprobada |
+| CP-148 | Preparaciones y rutas aplican paginación real del servidor. | Aprobada |
+| CP-149 | La cola Preparar reúne pedidos por iniciar y preparaciones en curso, con la cantidad solicitada por defecto. | Aprobada |
+| CP-150 | Editar una preparación confirmada la reabre y obliga a verificar nuevamente todos los productos. | Aprobada |
+| CP-151 | Entregar a Distribución registra usuario y fecha sin descontar inventario antes de la salida de ruta. | Aprobada |
+| CP-152 | El Resumen consolida los pendientes por etapa y refleja el traspaso de Almacén a Distribución. | Aprobada |
+| CP-153 | La bandeja de Distribución crea la ruta y asigna los pedidos seleccionados de forma transaccional. | Aprobada |
 
 ## 9. Quinta iteración: seguimiento y mensajería
 
@@ -247,6 +264,9 @@ Fuente automatizada: `backend/scripts/iteration-six.acceptance.mjs`.
 | CP-117 | Anular un pago genera el contramovimiento y restaura el saldo. | Aprobada |
 | CP-118 | Una venta sin pagos vigentes se anula sin eliminación física. | Aprobada |
 | CP-119 | Confirmar el pago registra de manera idempotente el evento `payment.received`. | Aprobada |
+| CP-170 | Cod-Venta es numérico, inicia en 1 y mantiene correlación incremental. | Aprobada |
+| CP-171 | La consulta de ventas queda ordenada por Cod-Venta de mayor a menor. | Aprobada |
+| CP-172 | Detalle, comprobante, aplicaciones de pago y movimientos de cuenta se relacionan mediante Cod-Venta. | Aprobada |
 
 ## 11. Modificación complementaria: Producción en planta y recepción en Almacén
 
@@ -266,7 +286,7 @@ Fuente automatizada: `backend/scripts/production-plant.acceptance.mjs`.
 
 Los siguientes casos están documentados porque su aceptación depende de la presentación o interacción de la interfaz. Cuando una regla también tiene respaldo automatizado se indica como prueba mixta.
 
-- **Automatizada:** la regla ya forma parte de las 139 comprobaciones aprobadas de la sección 4.
+- **Automatizada:** la regla ya forma parte de las 167 comprobaciones aprobadas de la sección 4.
 - **Mixta:** la regla de negocio está respaldada automáticamente, pero su presentación o interacción visual debe acompañarse con evidencia manual.
 - **Manual:** el caso y su resultado esperado están definidos, pero no se incluyen en el total automatizado; deben ejecutarse y adjuntar una captura antes de declararlos aprobados en el informe final.
 
@@ -312,6 +332,7 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CP-121M | Consultar una solicitud con pedidos confirmados no cubiertos. | La tabla omite Demanda y Faltante; Disponible muestra en rojo el saldo proyectado negativo. | Mixta |
 | CP-121N | Revisar el detalle de una solicitud de abastecimiento. | La primera columna muestra el ID numérico del producto y el resto de columnas utiliza anchos compactos. | Manual |
 | CP-121O | Confirmar un pedido de 200 unidades con 170 físicas. | Reservado global queda en 200, Disponible en −30 y Almacén muestra una alerta para crear la solicitud de abastecimiento. | Automatizada y visual |
+| CP-121R | Activar **Solo negativos** dentro de una solicitud. | La tabla conserva exclusivamente productos con Disponible menor que cero; **Ver todos** restaura las filas sin perder cantidades u observaciones. | Manual |
 
 ### 12.4 Planificación neta de Producción
 
@@ -344,7 +365,28 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | PA-PROD-09 | Aceptar entregas parciales y finales. | Cada fila muestra su etapa y la orden sólo cierra cuando todas son terminales. | Mixta |
 | PA-PROD-10 | Preparar menos cantidad que la solicitada. | Se exige observación, se conserva la diferencia y nunca se supera lo solicitado. | Mixta |
 
-### 12.6 Vehículos, rutas y mapas
+### 12.6 Preparación y despacho de Almacén
+
+| Caso | Acción manual | Resultado esperado | Tipo |
+| --- | --- | --- | --- |
+| PA-RPD-11 | Abrir **Almacén > Preparación**. | Se muestran las tablas **Preparar** y **Despachar** como etapas independientes. | Manual |
+| PA-RPD-12 | Abrir una preparación. | Las columnas aparecen en el orden definido para código, nombre, stock, solicitado, entrega, diferencia, verificación y observación. | Manual |
+| PA-RPD-13 | Abrir por primera vez una preparación pendiente. | Cantidad a entregar inicia con la cantidad solicitada, incluso en preparaciones históricas sin avance. | Mixta |
+| PA-RPD-14 | Dejar un producto sin verificar. | **Preparar** permanece deshabilitado. | Manual |
+| PA-RPD-15 | Registrar una diferencia sin observación. | **Preparar** permanece deshabilitado hasta justificar la diferencia. | Mixta |
+| PA-RPD-16 | Verificar y preparar todos los productos. | El pedido pasa de **Preparar** a **Despachar**. | Mixta |
+| PA-RPD-17 | Seleccionar **Editar** en un pedido preparado. | Se reabre y obliga a verificar nuevamente cada producto. | Mixta |
+| PA-RPD-18 | Seleccionar **Entregar**. | Se registra el traspaso a Distribución sin descontar inventario antes de la salida de ruta. | Automatizada |
+| PA-RPD-19 | Seleccionar **Cancelar**. | Se exige motivo y la cancelación queda auditada. | Mixta |
+| PA-RPD-20 | Utilizar la interfaz en una pantalla móvil. | Las filas se muestran como tarjetas, los controles táctiles permanecen operables y las acciones son visibles. | Manual |
+| PA-RPD-21 | Abrir **Pedidos** y luego **Resumen**. | El flujo operativo ya no se duplica en Pedidos y aparece como flujo principal con totalizadores reales en Resumen. | Mixta |
+| PA-RPD-22 | Seleccionar una etapa del flujo principal. | Abre el módulo correspondiente; una etapa no autorizada permanece deshabilitada y oculta su cantidad. | Manual |
+| PA-RPD-23 | Abrir **Distribución > Pedidos pendientes**. | Aparecen únicamente pedidos recibidos de Almacén sin ruta, con peso, zona y fecha comprometida. | Mixta |
+| PA-RPD-24 | Seleccionar pedidos de zonas diferentes. | Se bloquea la creación de ruta y se solicita conservar una única zona. | Manual |
+| PA-RPD-25 | Crear una ruta desde una selección válida. | La zona queda fijada, se compara carga y capacidad, y la ruta nace con sus entregas y secuencia inicial. | Mixta |
+| PA-RPD-26 | Abrir una preparación, cambiar verificaciones sin guardar, cerrarla y abrir otro pedido. | El segundo pedido carga sus propias cantidades y verificaciones; no hereda valores visuales y **Preparar** se habilita al completar la verificación. | Manual |
+
+### 12.7 Vehículos, rutas y mapas
 
 | Caso | Acción manual | Resultado esperado | Tipo |
 | --- | --- | --- | --- |
@@ -354,7 +396,7 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CP-68 | Cambiar por un vehículo con capacidad suficiente. | La ruta queda dentro de capacidad y el cambio aparece en el historial. | Mixta |
 | Control visual de capas | Abrir el mapa de distribución y cambiar de capa. | El usuario puede alternar entre OpenStreetMap y vista satélite sin perder puntos ni secuencia. | Manual |
 
-### 12.7 Maestro de clientes
+### 12.8 Maestro de clientes
 
 | Caso | Acción manual | Resultado esperado | Tipo |
 | --- | --- | --- | --- |
@@ -364,6 +406,32 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CLI-04 | Presionar el botón de información. | El modal muestra identificación, contacto, condición comercial, cuenta, domicilios, distribución, coordenadas y fechas. | Manual |
 | CLI-06 | Presionar eliminar para un cliente libre y para uno relacionado. | Se muestra confirmación; el cliente libre se elimina y el relacionado presenta un rechazo controlado. | Mixta |
 | CLI-07 | Escribir en el buscador y cambiar tipo, estado o zona. | Los resultados se actualizan automáticamente; no aparece filtro por día ni botón de aplicación. | Manual |
+
+### 12.9 Entrega, retornos y cuenta por cobrar
+
+| Caso | Acción manual | Resultado esperado | Tipo |
+| --- | --- | --- | --- |
+| CP-156 | Confirmar una entrega completa para un cliente Contado. | La visita crea automáticamente nota de venta, comprobante, débito pendiente y vencimiento inmediato. | Automatizada |
+| CP-157 | Abrir una entrega en un teléfono. | La nota completa muestra cliente, domicilio, condición, todos los productos, cantidades y total. | Manual |
+| CP-158 | Reducir una cantidad con motivo. | Se registra entrega parcial, sólo se cobra lo entregado y la diferencia queda para retorno. | Automatizada; presentación visual manual |
+| CP-159 | Rechazar el pedido con motivo. | No se genera venta y toda la carga queda como devolución. | Automatizada; presentación visual manual |
+| CP-160 | Confirmar otra entrega de un cliente Contado con saldo. | La transacción se rechaza sin dejar visita ni venta parcial. | Automatizada |
+| CP-162 | Finalizar una ruta con productos no entregados. | Se crea una orden de retorno pendiente sin modificar existencias. | Automatizada |
+| CP-163 | Abrir Recepciones de Almacén. | Retornos de Distribución y entregas de Producción aparecen como grupos separados. | Manual |
+| CP-164 | Aceptar una orden de retorno. | Se registra `ENTRADA_DEVOLUCION`, la orden queda Recibida y la ruta Liquidada. | Automatizada |
+| CP-167 | Elegir Entrega en fábrica para un pedido preparado. | Se completa sin ruta ni vehículo y genera nota de venta por la entrega efectiva. | Automatizada; presentación visual manual |
+| CP-168 | Registrar una entrega parcial en fábrica. | Sólo se descuenta y factura lo retirado; la diferencia permanece en Almacén. | Automatizada |
+| CP-169 | Repetir una entrega en fábrica ya registrada. | Se rechaza la duplicidad y no se alteran inventario ni saldos. | Automatizada |
+
+### 12.10 Cobros por cliente
+
+| Caso | Acción manual | Resultado esperado | Tipo |
+| --- | --- | --- | --- |
+| CP-173 | Registrar un cobro y consultar sus relaciones. | `Cod-Cobro` es numérico e incremental desde 1; aplicaciones e historial se relacionan mediante ese código. | Automatizada |
+| CP-174 | Abrir **Cobros** con clientes que mantienen saldos. | La tabla agrupa por cliente las notas pendientes, monto adeudado y vencimientos; la deuda vencida se resalta en rojo. | Automatizada; presentación visual manual |
+| CP-175 | Registrar un abono por monto. | Se aplica desde la nota pendiente más antigua y permite una aplicación parcial en la última nota cubierta. | Automatizada |
+| PA-COB-01 | Seleccionar dos o más notas de un cliente. | El total se calcula con las notas seleccionadas y el cobro se registra con todas sus aplicaciones. | Manual |
+| PA-COB-02 | Cambiar entre **Abono por monto** y **Seleccionar notas**. | Se limpian selecciones incompatibles y no se puede registrar un importe cero, superior a la deuda o sin referencia cuando el medio la exige. | Manual |
 
 ## 13. Evidencia y trazabilidad
 
@@ -379,11 +447,13 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | Precios por tipo | `docs/pruebas-aceptacion-precios-por-tipo.md` |
 | Programación de pedidos | `docs/pruebas-aceptacion-programacion-pedidos.md` |
 | Almacén | `docs/pruebas-aceptacion-almacen.md` |
+| Preparación y distribución | `docs/pruebas-aceptacion-preparacion-distribucion-refactor.md` |
 | Producción neta | `docs/pruebas-aceptacion-produccion-neta.md` |
 | Producción en planta | `docs/pruebas-aceptacion-produccion-planta.md` |
 | Capacidad de vehículos | `docs/pruebas-aceptacion-capacidad-vehiculos.md` |
 | Usuarios y líneas productivas | `docs/pruebas-aceptacion-usuarios.md` |
 | Clientes | `docs/pruebas-aceptacion-clientes.md` |
+| Entrega, retorno, venta y cobranza | `docs/pruebas-aceptacion-entrega-ventas-retornos.md` |
 
 ## 14. Procedimiento de repetición
 
@@ -400,7 +470,7 @@ Las suites deben ejecutarse secuencialmente porque comparten la misma base de da
 
 El sistema se considera aceptado para el alcance implementado cuando:
 
-- las **139 comprobaciones automatizadas** continúan aprobadas;
+- las **170 comprobaciones automatizadas** continúan aprobadas;
 - no existe ninguna prueba automatizada fallida;
 - los controles manuales aplicables muestran el comportamiento documentado;
 - las alertas y rechazos no dejan cambios parciales;

@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestj
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
-import { ConfirmPreparationDto, CreatePreparationDto, PreparationQueryDto, RegisterPreparationProgressDto } from './dto/preparation.dto';
+import { CancelPreparationDto, ConfirmPreparationDto, CreatePreparationDto, PreparationQueryDto, RegisterPreparationProgressDto } from './dto/preparation.dto';
 import { PreparationService } from './preparation.service';
 
 @Controller('preparations')
@@ -12,6 +12,10 @@ export class PreparationController {
   @Get('eligible')
   @RequirePermissions('preparations.read')
   eligible(@Query() query: PreparationQueryDto) { return this.preparations.eligible(query); }
+
+  @Get('work-queue')
+  @RequirePermissions('preparations.read')
+  workQueue(@Query() query: PreparationQueryDto) { return this.preparations.workQueue(query); }
 
   @Get()
   @RequirePermissions('preparations.read')
@@ -35,6 +39,24 @@ export class PreparationController {
   @RequirePermissions('preparations.confirm')
   confirm(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmPreparationDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.preparations.confirm(id, dto, actor);
+  }
+
+  @Post(':id/reopen')
+  @RequirePermissions('preparations.progress')
+  reopen(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.reopen(id, actor);
+  }
+
+  @Post(':id/handoff')
+  @RequirePermissions('preparations.handoff')
+  handoff(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.handoff(id, actor);
+  }
+
+  @Post(':id/cancel')
+  @RequirePermissions('preparations.cancel')
+  cancel(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelPreparationDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.cancel(id, dto, actor);
   }
 
   @Get(':id/history')

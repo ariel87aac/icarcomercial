@@ -200,8 +200,11 @@ try {
   assert.equal(lineDeletionAudit.data[0].metadata.name, disposableLine.name);
   passed('CP-126', 'una línea sin asignaciones se elimina y la acción queda auditada');
   passed('CP-128', 'las líneas tienen código numérico estable y se listan de menor a mayor');
-  const unit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad Aceptación ${suffix}`, abbreviation: `U${suffix.slice(-5)}` } }, 201, 'unidad')).payload;
-  const disposableUnit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad Eliminable ${suffix}`, abbreviation: `X${suffix.slice(-5)}` } }, 201, 'unidad eliminable')).payload;
+  const unit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad Aceptación ${suffix}`, abbreviation: `U${suffix.slice(-5)}`, kilogramFactor: 1 } }, 201, 'unidad')).payload;
+  const disposableUnit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad Eliminable ${suffix}`, abbreviation: `X${suffix.slice(-5)}`, kilogramFactor: 1 } }, 201, 'unidad eliminable')).payload;
+  assert.equal(Number(unit.kilogramFactor), 1);
+  await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Unidad sin peso ${suffix}`, abbreviation: `S${suffix.slice(-5)}` } }, 400, 'unidad sin equivalencia en kg');
+  passed('CP-154', 'una unidad nueva exige y conserva su equivalencia positiva en kilogramos');
   const deletedUnit = (await expectStatus(`/api/unidades/${disposableUnit.id}`, { method: 'DELETE', jar: adminJar }, 200, 'eliminar unidad sin uso')).payload;
   assert.deepEqual(deletedUnit, { id: disposableUnit.id, deleted: true });
   const unitsAfterDeletion = (await expectStatus('/api/unidades', { jar: adminJar }, 200, 'recargar unidades')).payload;

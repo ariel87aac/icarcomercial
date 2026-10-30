@@ -111,3 +111,20 @@ docker compose exec backend node scripts/iteration-five.acceptance.mjs
 ```
 
 La prueba valida permisos, respuesta uniforme para tokens inválidos, almacenamiento exclusivo del hash, privacidad pública, renovación, unicidad del enlace activo, consulta autenticada, revocación y protección de secretos. Las pruebas unitarias comprueban además el cifrado y descifrado del token del canal, el formato enviado a LimiteAPI, la sanitización de respuestas y el diagnóstico de fallos de conexión. Las pruebas automatizadas no envían mensajes reales.
+
+## Configuración de envío por evento
+
+Se incorpora en **Seguimiento y mensajería → Plantillas** un check por evento existente para habilitar o deshabilitar sus futuros mensajes automáticos de WhatsApp. La configuración es global, independiente de la versión y activación de las plantillas. Crear plantillas base o confirmar un pedido no reactiva un envío deshabilitado.
+
+- Lectura: `GET /api/notification-event-settings`, permiso `notifications.templates.read`.
+- Escritura: `POST /api/notification-event-settings`, cuerpo `{ event, enabled }`, permiso `notifications.templates.manage`.
+- Persistencia: migración `1720000049000-add-notification-event-settings.ts`, tabla `notificaciones_eventos_configuracion`.
+- Cada cambio de configuración registra usuario, evento y valor en auditoría, en la misma transacción.
+- Para mantener compatibilidad, los eventos sin configuración explícita conservan el envío habilitado; sigue siendo necesaria una plantilla válida y el resto de condiciones del canal.
+- Se aplica a mensajes de ciclo comercial, seguimiento y cobros. No modifica el historial, los enlaces, el estado del pedido, las notificaciones ya en cola, el diagnóstico manual del canal ni el reenvío manual autorizado.
+- Deshabilitar no genera mensajes pendientes de recuperar: volver a habilitar afecta únicamente a eventos futuros.
+- Las nuevas etapas definidas en [Flujo del pedido y seguimiento](./flujo-pedido-seguimiento-definicion.md) aún requieren implementar sus eventos específicos. Actualmente Cambios relevantes agrupa los cambios operativos sin evento propio; no equivale a un check independiente por cada nueva etapa.
+
+Verificación: backend compilado y cinco pruebas unitarias de preferencias aprobadas en `notification-event-settings.spec.ts`. La aplicación de la migración y la verificación visual/integrada quedan pendientes; no se enviaron WhatsApp reales.
+
+Validación adicional: compilador Angular (`ngc -p tsconfig.app.json --noEmit`) aprobado; seis pruebas unitarias aprobadas al incluir el diagnóstico de canal. El empaquetado `ng build` terminó con código 134 sin diagnóstico adicional en este entorno. Docker no fue accesible por permisos, por lo que no se aplicó la migración ni se verificó la interfaz en ejecución.

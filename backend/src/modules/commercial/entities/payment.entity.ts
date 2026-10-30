@@ -9,6 +9,7 @@ import { PaymentMethod } from './payment-method.entity';
 
 @Entity({ name: 'pagos' })
 export class Payment extends AuditableEntity {
+  @Column({ name: 'codigo', type: 'integer', unique: true, generated: 'increment' }) code: number;
   @Column({ name: 'cliente_id', type: 'uuid' }) customerId: string;
   @ManyToOne(() => Customer, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'cliente_id' }) customer: Customer;
   @Column({ name: 'medio_pago_id', type: 'uuid' }) paymentMethodId: string;
@@ -23,6 +24,7 @@ export class Payment extends AuditableEntity {
   @Column({ name: 'fecha_pago', type: 'date' }) paymentDate: string;
   @Column({ name: 'importe', type: 'numeric', precision: 14, scale: 2 }) amount: string;
   @Column({ name: 'referencia', type: 'varchar', length: 160, nullable: true }) reference: string | null;
+  @Column({ name: 'observacion', type: 'varchar', length: 500, nullable: true }) observation: string | null;
   @Column({ name: 'estado', type: 'enum', enum: PaymentStatus, enumName: 'estado_pago_enum', default: PaymentStatus.REGISTERED }) status: PaymentStatus;
   @Column({ name: 'confirmado_at', type: 'timestamptz', nullable: true }) confirmedAt: Date | null;
   @Column({ name: 'anulado_at', type: 'timestamptz', nullable: true }) voidedAt: Date | null;

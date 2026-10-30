@@ -7,8 +7,8 @@ import { VoucherSeries } from './voucher-series.entity';
 
 @Entity({ name: 'comprobantes_internos' })
 export class InternalVoucher extends AuditableEntity {
-  @Column({ name: 'venta_id', type: 'uuid', unique: true }) saleId: string;
-  @OneToOne(() => Sale, (sale) => sale.voucher, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'venta_id' }) sale: Sale;
+  @Column({ name: 'venta_codigo', type: 'integer', unique: true }) saleCode: number;
+  @OneToOne(() => Sale, (sale) => sale.voucher, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'venta_codigo', referencedColumnName: 'code' }) sale: Sale;
   @Column({ name: 'serie_id', type: 'uuid' }) seriesId: string;
   @ManyToOne(() => VoucherSeries, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'serie_id' }) series: VoucherSeries;
   @Column({ name: 'numero', type: 'bigint' }) number: string;

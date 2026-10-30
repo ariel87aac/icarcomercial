@@ -76,6 +76,10 @@ export class CommercialController {
   @RequirePermissions('commercial.payments.create')
   createPayment(@Body() dto: CreatePaymentDto, @CurrentUser() actor: AuthenticatedUser) { return this.payments.create(dto, actor); }
 
+  @Get('payments/collection-customers')
+  @RequirePermissions('commercial.payments.read')
+  collectionCustomers(@CurrentUser() actor: AuthenticatedUser) { return this.payments.receivableCustomers(actor); }
+
   @Get('payments')
   @RequirePermissions('commercial.payments.read')
   listPayments(@Query() query: PaymentQueryDto, @CurrentUser() actor: AuthenticatedUser) { return this.payments.findAll(query, actor); }

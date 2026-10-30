@@ -56,5 +56,6 @@ import { SaleService } from './sale.service';
     CommercialOutboxService,
     CommercialOutboxWorkerService,
   ],
+  exports: [SaleService],
 })
 export class CommercialModule {}

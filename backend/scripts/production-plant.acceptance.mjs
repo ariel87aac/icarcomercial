@@ -86,7 +86,7 @@ try {
   process.stdout.write('✓ CP-P01 áreas configurables con categorías existentes y asignación única\n');
 
   const line = await expectStatus('/api/lineas-productivas', { method: 'POST', jar, body: { name: `Línea flujo producción ${suffix}` } }, 201, 'crear línea');
-  const unit = await expectStatus('/api/unidades', { method: 'POST', jar, body: { name: `Bolsa flujo ${suffix}`, abbreviation: `PF${suffix.slice(-4)}U`.toUpperCase(), decimalScale: 3 } }, 201, 'crear unidad');
+  const unit = await expectStatus('/api/unidades', { method: 'POST', jar, body: { name: `Bolsa flujo ${suffix}`, abbreviation: `PF${suffix.slice(-4)}U`.toUpperCase(), decimalScale: 3, kilogramFactor: 1 } }, 201, 'crear unidad');
   const product = await expectStatus('/api/productos', { method: 'POST', jar, body: { name: `Pan molde flujo ${suffix}`, categoryId: category.id, productLineId: line.id, baseUnitId: unit.id } }, 201, 'crear producto');
   const presentation = await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar, body: { unitId: unit.id, description: 'Bolsa de pan molde', conversionFactor: 1, weightKg: 1 } }, 201, 'crear presentación');
 

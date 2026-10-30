@@ -22,6 +22,8 @@ La relación vigente queda dividida en dos partes: `areas_produccion_categorias`
 - Una línea puede eliminarse cuando no está asignada a productos. Ya no existe una dependencia con usuarios.
 - Cada usuario recibe un código numérico automático y la tabla se ordena por dicho código.
 - El botón **Eliminar** solicita confirmación y sólo elimina cuentas internas sin operaciones asociadas; la cuenta en uso y el último administrador activo permanecen protegidos.
+- El correo es opcional para usuarios internos y se persiste como `NULL` cuando no se informa.
+- El nombre de usuario exige al menos 4 caracteres y la contraseña al menos 6, sin requisitos de composición. La migración `1720000042000-make-user-email-optional.ts` habilita el cambio en PostgreSQL.
 
 ## Matriz de aceptación
 
@@ -39,13 +41,14 @@ La relación vigente queda dividida en dos partes: `areas_produccion_categorias`
 | USU-10 | Crear un usuario de Producción con dos áreas y otro con una sola. | Las relaciones se guardan y se devuelven en la interfaz y sesión. | Suite de tercera iteración, CP-126. | Aprobada |
 | USU-11 | Intentar iniciar un producto de un área no asignada. | La API rechaza la operación con HTTP 403. | Suite de tercera iteración, CP-54. | Aprobada |
 | USU-12 | Asignar la misma categoría a una segunda área. | La restricción y el servicio rechazan la duplicidad con HTTP 409. | Suite de tercera iteración, CP-125. | Aprobada |
+| CP-USU-09 | Crear un usuario interno sin correo, con usuario de 4 caracteres y contraseña simple de 6; luego intentar usuario de 3 y contraseña de 5. | El usuario se crea e inicia sesión; los valores inferiores devuelven HTTP 400. | Suite de primera iteración, CP-USU-09. | Aprobada |
 
 ## Regresión ejecutada
 
 | Suite | Resultado |
 | --- | ---: |
-| Pruebas unitarias del backend | 13 aprobadas, 0 fallidas |
-| Primera iteración: usuarios, autenticación, permisos y clientes | 20 aprobadas, 0 fallidas |
+| Pruebas unitarias del backend | 16 aprobadas, 0 fallidas |
+| Primera iteración: usuarios, autenticación, permisos y clientes | 21 aprobadas, 0 fallidas |
 | Segunda iteración: Productos, pedidos y Almacén | 46 aprobadas, 0 fallidas |
 | Tercera iteración: Producción | 27 aprobadas, 0 fallidas |
 | Flujo complementario Producción–Almacén | 7 aprobadas, 0 fallidas |

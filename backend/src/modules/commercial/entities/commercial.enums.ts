@@ -17,6 +17,11 @@ export enum PaymentStatus {
   VOIDED = 'ANULADO',
 }
 
+export enum PaymentApplicationMode {
+  OLDEST_FIRST = 'MAS_ANTIGUA_PRIMERO',
+  SELECTED = 'NOTAS_SELECCIONADAS',
+}
+
 export enum AccountMovementType {
   SALE_DEBIT = 'DEBITO_VENTA',
   PAYMENT_CREDIT = 'CREDITO_PAGO',

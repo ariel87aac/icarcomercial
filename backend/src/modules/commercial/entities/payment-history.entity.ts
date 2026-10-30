@@ -6,8 +6,8 @@ import { Payment } from './payment.entity';
 @Entity({ name: 'pagos_historial' })
 export class PaymentHistory {
   @PrimaryGeneratedColumn('uuid') id: string;
-  @Column({ name: 'pago_id', type: 'uuid' }) paymentId: string;
-  @ManyToOne(() => Payment, (payment) => payment.history, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'pago_id' }) payment: Payment;
+  @Column({ name: 'pago_codigo', type: 'integer' }) paymentCode: number;
+  @ManyToOne(() => Payment, (payment) => payment.history, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'pago_codigo', referencedColumnName: 'code' }) payment: Payment;
   @Column({ name: 'usuario_id', type: 'uuid' }) userId: string;
   @ManyToOne(() => User, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'usuario_id' }) user: User;
   @Column({ name: 'estado_anterior', type: 'enum', enum: PaymentStatus, enumName: 'estado_pago_enum', nullable: true }) previousStatus: PaymentStatus | null;

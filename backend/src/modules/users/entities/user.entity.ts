@@ -25,8 +25,8 @@ export class User extends AuditableEntity {
   @Column({ name: 'nombre_usuario', type: 'varchar', length: 80, unique: true })
   username: string;
 
-  @Column({ type: 'varchar', length: 150, unique: true })
-  email: string;
+  @Column({ type: 'varchar', length: 150, nullable: true })
+  email: string | null;
 
   @Column({ name: 'password_hash', type: 'varchar', length: 255, select: false })
   passwordHash: string;
@@ -70,7 +70,7 @@ export class User extends AuditableEntity {
   @BeforeInsert()
   @BeforeUpdate()
   normalizeIdentity(): void {
-    this.email = this.email.trim().toLowerCase();
+    this.email = this.email?.trim().toLowerCase() || null;
     this.username = this.username.trim().toLowerCase();
     this.name = this.name.trim();
   }

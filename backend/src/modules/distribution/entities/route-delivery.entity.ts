@@ -4,17 +4,20 @@ import { CustomerAddress } from '../../customers/entities/customer-address.entit
 import { Order } from '../../orders/entities/order.entity';
 import { OrderPreparation } from '../../preparation/entities/order-preparation.entity';
 import { DistributionRoute } from './distribution-route.entity';
-import { RouteDeliveryStatus } from './distribution.enums';
+import { DistributionDeliveryType, RouteDeliveryStatus } from './distribution.enums';
 import { VisitResult } from './visit-result.entity';
 
 @Entity({ name: 'rutas_entregas' })
 export class RouteDelivery extends AuditableEntity {
-  @Column({ name: 'ruta_id', type: 'uuid' })
-  routeId: string;
+  @Column({ name: 'ruta_id', type: 'uuid', nullable: true })
+  routeId: string | null;
 
-  @ManyToOne(() => DistributionRoute, (route) => route.deliveries, { onDelete: 'CASCADE' })
+  @ManyToOne(() => DistributionRoute, (route) => route.deliveries, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'ruta_id' })
-  route: DistributionRoute;
+  route: DistributionRoute | null;
+
+  @Column({ name: 'tipo_entrega', type: 'enum', enum: DistributionDeliveryType, enumName: 'tipo_entrega_distribucion_enum', default: DistributionDeliveryType.ROUTE })
+  deliveryType: DistributionDeliveryType;
 
   @Column({ name: 'preparacion_id', type: 'uuid', unique: true })
   preparationId: string;

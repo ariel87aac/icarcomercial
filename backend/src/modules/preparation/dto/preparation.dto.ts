@@ -1,9 +1,14 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsDateString, IsEnum, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import { PreparationStatus } from '../entities/preparation.enums';
 
 export class PreparationQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  q?: string;
+
   @IsOptional()
   @IsDateString()
   deliveryDate?: string;
@@ -19,6 +24,10 @@ export class PreparationQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(PreparationStatus)
   status?: PreparationStatus;
+
+  @IsOptional()
+  @IsIn(['PREPARE', 'READY', 'HANDED_OFF'])
+  stage?: 'PREPARE' | 'READY' | 'HANDED_OFF';
 }
 
 export class CreatePreparationDto {
@@ -56,4 +65,11 @@ export class ConfirmPreparationDto {
   @IsString()
   @MaxLength(1000)
   observation?: string;
+}
+
+export class CancelPreparationDto {
+  @IsString()
+  @MinLength(5)
+  @MaxLength(1000)
+  reason: string;
 }

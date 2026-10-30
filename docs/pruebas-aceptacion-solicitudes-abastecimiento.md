@@ -46,6 +46,7 @@ Separar la cantidad adicional solicitada por el área Comercial para mantener st
 | SA-13 | Cuando existen disponibilidades negativas, Almacén muestra una alerta y permite abrir directamente la creación de una solicitud. |
 | SA-14 | Un pedido de 200 con físico 170 genera 30 de faltante automático; una solicitud con `Para stock = 0` no duplica ese faltante y la orden de Producción conserva un total base de 30. |
 | SA-15 | Aunque para la fecha exista una orden emitida o cerrada, Comercial puede crear y enviar otra solicitud; Producción la recibe pendiente y genera una orden complementaria independiente. |
+| SA-16 | El filtro **Solo negativos** muestra exclusivamente disponibilidades menores que cero; al volver a **Ver todos** mantiene intactas las cantidades para stock y observaciones ya ingresadas. |
 
 ## Evidencia automatizada
 

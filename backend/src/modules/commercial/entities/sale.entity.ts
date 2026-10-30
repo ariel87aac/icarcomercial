@@ -10,6 +10,7 @@ import { SaleStatus } from './commercial.enums';
 
 @Entity({ name: 'ventas' })
 export class Sale extends AuditableEntity {
+  @Column({ name: 'codigo', type: 'integer', unique: true, generated: 'increment' }) code: number;
   @Column({ name: 'pedido_id', type: 'uuid' }) orderId: string;
   @ManyToOne(() => Order, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'pedido_id' }) order: Order;
   @Column({ name: 'cliente_id', type: 'uuid' }) customerId: string;

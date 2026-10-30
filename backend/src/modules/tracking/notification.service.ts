@@ -13,6 +13,7 @@ import { Brackets, DataSource, Repository } from 'typeorm';
 import { paginate, PaginationQueryDto } from '../../common/dto/pagination-query.dto';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { sanitizeSecrets } from '../../common/utils/secret-sanitizer.util';
+import { AuditEvent } from '../audit/entities/audit-event.entity';
 import { AuditService } from '../audit/audit.service';
 import { Order } from '../orders/entities/order.entity';
 import { SaveChannelSettingDto, NotificationQueryDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, WebhookDto } from './dto/tracking.dto';
@@ -164,6 +165,37 @@ export class NotificationService {
     return this.settings.findOneOrFail({ where: { id }, relations: { zone: true, createdBy: true } });
   }
 
+  async listEventSettings(): Promise<Array<{ event: NotificationEvent; enabled: boolean }>> {
+    const rows: Array<{ event: NotificationEvent; enabled: boolean }> = await this.dataSource.query(
+      'SELECT evento AS event, habilitado AS enabled FROM notificaciones_eventos_configuracion',
+    );
+    const configured = new Map(rows.map((row) => [row.event, row.enabled]));
+    return Object.values(NotificationEvent).map((event) => ({ event, enabled: configured.get(event) ?? true }));
+  }
+
+  async saveEventSetting(event: NotificationEvent, enabled: boolean, actor: AuthenticatedUser) {
+    await this.dataSource.transaction(async (manager) => {
+      await manager.query(`
+        INSERT INTO notificaciones_eventos_configuracion (evento, habilitado, actualizado_por)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (evento) DO UPDATE SET habilitado = EXCLUDED.habilitado,
+          actualizado_por = EXCLUDED.actualizado_por, updated_at = now()
+      `, [event, enabled, actor.id]);
+      const audit = manager.getRepository(AuditEvent);
+      await audit.save(audit.create({ userId: actor.id, module: 'notifications',
+        action: 'CONFIGURAR_ENVIO_EVENTO', entity: 'notificaciones_eventos_configuracion',
+        entityId: event, result: 'EXITOSO', metadata: { event, enabled } }));
+    });
+    return { event, enabled };
+  }
+
+  private async eventEnabled(event: NotificationEvent): Promise<boolean> {
+    const rows: Array<{ enabled: boolean }> = await this.dataSource.query(
+      'SELECT habilitado AS enabled FROM notificaciones_eventos_configuracion WHERE evento = $1', [event],
+    );
+    return rows[0]?.enabled ?? true;
+  }
+
   async listTemplates(): Promise<NotificationTemplate[]> {
     return this.templates.find({ relations: { createdBy: true }, order: { event: 'ASC', version: 'DESC' } });
   }
@@ -305,6 +337,7 @@ export class NotificationService {
   }
 
   async enqueue(order: Order, link: TrackingLink | null, event: NotificationEvent, version: number, variables: TemplateVariables): Promise<Notification | null> {
+    if (!await this.eventEnabled(event)) return null;
     const template = await this.templates.findOne({ where: { event, active: true }, order: { version: 'DESC' } });
     if (!template) return null;
     return this.enqueueWithTemplate(order, link, template, event, version, variables, `${order.id}:${event}:${version}`);
@@ -317,6 +350,7 @@ export class NotificationService {
     variables: Partial<TemplateVariables>,
   ): Promise<void> {
     try {
+      if (!await this.eventEnabled(event)) return;
       const template = await this.lifecycleTemplate(event, createdById);
       await this.enqueueWithTemplate(
         order,
@@ -360,7 +394,7 @@ export class NotificationService {
     try {
       return await this.notifications.save(this.notifications.create({
         orderId: order.id,
-        paymentId: null,
+        paymentCode: null,
         customerId: order.customerId,
         linkId: link?.id ?? null,
         templateId: template.id,
@@ -385,8 +419,9 @@ export class NotificationService {
   }
 
   async enqueuePayment(payment: Payment, version: number): Promise<Notification | null> {
+    if (!await this.eventEnabled(NotificationEvent.PAYMENT_RECEIVED)) return null;
     const order = payment.applications.find((application) => application.sale?.order)?.sale.order;
-    if (!order) throw new BadRequestException('El pago confirmado no tiene un pedido relacionado');
+    if (!order) throw new BadRequestException('El cobro confirmado no tiene un pedido relacionado');
     const template = (await this.ensureSystemTemplate(
       NotificationEvent.PAYMENT_RECEIVED,
       payment.confirmedById ?? payment.registeredById,
@@ -407,7 +442,7 @@ export class NotificationService {
     try {
       return await this.notifications.save(this.notifications.create({
         orderId: order.id,
-        paymentId: payment.id,
+        paymentCode: payment.code,
         customerId: payment.customerId,
         linkId: null,
         templateId: template.id,
@@ -461,7 +496,7 @@ export class NotificationService {
     const original = await this.findOne(id);
     const item = await this.notifications.save(this.notifications.create({
       orderId: original.orderId,
-      paymentId: original.paymentId,
+      paymentCode: original.paymentCode,
       customerId: original.customerId,
       linkId: original.linkId,
       templateId: original.templateId,

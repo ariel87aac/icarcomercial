@@ -4,6 +4,7 @@ export enum DistributionRouteStatus {
   IN_DELIVERY = 'EN_REPARTO',
   FINISHED = 'FINALIZADA',
   SETTLED = 'LIQUIDADA',
+  CANCELED = 'CANCELADA',
 }
 
 export enum RouteResponsibleFunction {
@@ -16,20 +17,33 @@ export enum RouteDeliveryStatus {
   VISITED = 'VISITADA',
 }
 
+export enum DistributionDeliveryType {
+  ROUTE = 'REPARTO',
+  FACTORY = 'FABRICA',
+}
+
 export enum VisitResultType {
   DELIVERED = 'ENTREGADA',
   PARTIAL = 'ENTREGA_PARCIAL',
   NOT_DELIVERED = 'NO_ENTREGADA',
 }
 
+export enum WarehouseReturnStatus {
+  PENDING = 'PENDIENTE',
+  RECEIVED = 'RECIBIDA',
+}
+
 export enum RouteHistoryEvent {
   CREATION = 'CREACION',
   ASSIGNMENT = 'ASIGNACION',
+  UNASSIGNMENT = 'DESASIGNACION',
   VEHICLE_CHANGE = 'CAMBIO_VEHICULO',
   SEQUENCE = 'SECUENCIA',
+  RESCHEDULING = 'REPROGRAMACION',
   PLANNING = 'PLANIFICACION',
   DEPARTURE = 'SALIDA',
   VISIT = 'VISITA',
   FINISH = 'FINALIZACION',
   SETTLEMENT = 'LIQUIDACION',
+  CANCELLATION = 'CANCELACION',
 }

@@ -11,8 +11,6 @@ import {
   MinLength,
 } from 'class-validator';
 
-export const STRONG_PASSWORD = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/;
-
 export class CreateUserDto {
   @IsString()
   @MinLength(3)
@@ -20,17 +18,18 @@ export class CreateUserDto {
   name: string;
 
   @IsString()
-  @Matches(/^[a-zA-Z0-9._-]{3,80}$/)
+  @Matches(/^[a-zA-Z0-9._-]{4,80}$/, {
+    message: 'El nombre de usuario debe tener al menos 4 caracteres y solo puede usar letras, números, punto, guion o guion bajo',
+  })
   username: string;
 
+  @IsOptional()
   @IsEmail()
   @MaxLength(150)
-  email: string;
+  email?: string | null;
 
   @IsString()
-  @Matches(STRONG_PASSWORD, {
-    message: 'La contraseña debe tener 10 caracteres e incluir mayúscula, minúscula, número y símbolo',
-  })
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   password: string;
 
   @IsOptional()

@@ -72,14 +72,15 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto, actor: AuthenticatedUser): Promise<User> {
-    await this.assertIdentityAvailable(dto.email, dto.username);
+    const email = dto.email?.trim() || null;
+    await this.assertIdentityAvailable(email, dto.username);
     const roles = await this.resolveRoles(dto.roleIds);
     const productionAreas = await this.resolveProductionAreas(dto.productionAreaIds ?? [], roles);
     const user = await this.userRepository.save(
       this.userRepository.create({
         name: dto.name,
         username: dto.username,
-        email: dto.email,
+        email,
         phone: dto.phone?.trim() || null,
         passwordHash: await hash(dto.password, 12),
         type: UserType.INTERNAL,
@@ -107,12 +108,16 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto, actor: AuthenticatedUser): Promise<User> {
     const user = await this.findOne(id);
     const previousStatus = user.status;
-    if (dto.email || dto.username) {
-      await this.assertIdentityAvailable(dto.email ?? user.email, dto.username ?? user.username, id);
+    if (dto.email !== undefined || dto.username !== undefined) {
+      await this.assertIdentityAvailable(
+        dto.email === undefined ? user.email : dto.email?.trim() || null,
+        dto.username ?? user.username,
+        id,
+      );
     }
     if (dto.name !== undefined) user.name = dto.name;
     if (dto.username !== undefined) user.username = dto.username;
-    if (dto.email !== undefined) user.email = dto.email;
+    if (dto.email !== undefined) user.email = dto.email?.trim() || null;
     if (dto.phone !== undefined) user.phone = dto.phone?.trim() || null;
     if (dto.status !== undefined) user.status = dto.status;
     const roles = dto.roleIds ? await this.resolveRoles(dto.roleIds) : user.roles;
@@ -314,15 +319,17 @@ export class UsersService {
     return areas;
   }
 
-  private async assertIdentityAvailable(email: string, username: string, excludedId?: string) {
-    const found = await this.userRepository
+  private async assertIdentityAvailable(email: string | null, username: string, excludedId?: string) {
+    const builder = this.userRepository
       .createQueryBuilder('user')
-      .where('(lower(user.email) = lower(:email) OR lower(user.username) = lower(:username))', {
-        email,
-        username,
-      })
-      .andWhere(excludedId ? 'user.id <> :excludedId' : '1=1', { excludedId })
-      .getOne();
+      .where(
+        new Brackets((identity) => {
+          identity.where('lower(user.username) = lower(:username)', { username });
+          if (email) identity.orWhere('lower(user.email) = lower(:email)', { email });
+        }),
+      );
+    if (excludedId) builder.andWhere('user.id <> :excludedId', { excludedId });
+    const found = await builder.getOne();
     if (found) throw new ConflictException('El correo o nombre de usuario ya está registrado');
   }
 }

@@ -44,9 +44,34 @@ export class OrderPreparation extends AuditableEntity {
   @Column({ name: 'confirmado_at', type: 'timestamptz', nullable: true })
   confirmedAt: Date | null;
 
+  @Column({ name: 'cancelado_por', type: 'uuid', nullable: true })
+  canceledById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'cancelado_por' })
+  canceledBy: User | null;
+
+  @Column({ name: 'cancelado_at', type: 'timestamptz', nullable: true })
+  canceledAt: Date | null;
+
+  @Column({ name: 'motivo_cancelacion', type: 'varchar', length: 1000, nullable: true })
+  cancellationReason: string | null;
+
+  @Column({ name: 'entregado_distribucion_por', type: 'uuid', nullable: true })
+  handedOffById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'entregado_distribucion_por' })
+  handedOffBy: User | null;
+
+  @Column({ name: 'entregado_distribucion_at', type: 'timestamptz', nullable: true })
+  handedOffAt: Date | null;
+
   @OneToMany(() => OrderPreparationDetail, (detail) => detail.preparation)
   details: OrderPreparationDetail[];
 
   @OneToMany(() => PreparationHistory, (history) => history.preparation)
   history: PreparationHistory[];
+
+  shortageItemCount: number;
 }

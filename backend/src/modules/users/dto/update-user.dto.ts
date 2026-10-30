@@ -22,13 +22,15 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-zA-Z0-9._-]{3,80}$/)
+  @Matches(/^[a-zA-Z0-9._-]{4,80}$/, {
+    message: 'El nombre de usuario debe tener al menos 4 caracteres y solo puede usar letras, números, punto, guion o guion bajo',
+  })
   username?: string;
 
   @IsOptional()
   @IsEmail()
   @MaxLength(150)
-  email?: string;
+  email?: string | null;
 
   @IsOptional()
   @IsString()

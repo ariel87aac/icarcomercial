@@ -45,6 +45,12 @@ export class OrderPreparationDetail extends AuditableEntity {
   @Column({ name: 'disponible_copia', type: 'numeric', precision: 14, scale: 3 })
   availableSnapshot: string;
 
+  @Column({ name: 'fisico_copia', type: 'numeric', precision: 14, scale: 3, default: 0 })
+  physicalSnapshot: string;
+
+  @Column({ name: 'faltante_copia', type: 'numeric', precision: 14, scale: 3, default: 0 })
+  shortageSnapshot: string;
+
   @Column({ name: 'cantidad_preparada', type: 'numeric', precision: 14, scale: 3, default: 0 })
   preparedQuantity: string;
 
@@ -63,4 +69,27 @@ export class OrderPreparationDetail extends AuditableEntity {
 
   @Column({ name: 'verificado_at', type: 'timestamptz', nullable: true })
   verifiedAt: Date | null;
+
+  physicalQuantityCurrent: string;
+
+  totalReservedQuantityCurrent: string;
+
+  availableQuantityCurrent: string;
+
+  shortageQuantityCurrent: string;
+
+  pickableQuantityCurrent: string;
+
+  productionReceivedQuantity: string;
+
+  productionPendingQuantity: string;
+
+  relatedProductionOrders: Array<{
+    id: string;
+    code: number;
+    status: string;
+    scheduledDate: string;
+    receivedQuantity: string;
+    plannedQuantity: string;
+  }>;
 }

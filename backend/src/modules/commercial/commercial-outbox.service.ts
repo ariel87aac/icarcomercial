@@ -21,10 +21,10 @@ export class CommercialOutboxService {
     if (!event || event.status === CommercialOutboxStatus.PUBLISHED) return false;
     try {
       const payment = await this.dataSource.getRepository(Payment).findOne({
-        where: { id: event.paymentId },
+        where: { code: event.paymentCode },
         relations: { customer: true, applications: { sale: { order: true } }, confirmedBy: true },
       });
-      if (!payment) throw new Error('El pago del evento no existe');
+      if (!payment) throw new Error('El cobro del evento no existe');
       await this.notifications.enqueuePayment(payment, event.eventVersion);
       event.status = CommercialOutboxStatus.PUBLISHED;
       event.publishedAt = new Date();

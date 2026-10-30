@@ -4,7 +4,7 @@ export interface AuthenticatedUser {
   id: string;
   sessionId: string;
   name: string;
-  email: string;
+  email: string | null;
   username: string;
   type: UserType;
   customerId: string | null;

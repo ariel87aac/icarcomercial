@@ -195,14 +195,14 @@ export class TrackingService {
     let status = PublicTrackingStatus.ORDER_CONFIRMED;
     if (preparation && [PreparationStatus.PENDING, PreparationStatus.IN_PROGRESS, PreparationStatus.OBSERVED].includes(preparation.status)) status = PublicTrackingStatus.IN_PREPARATION;
     if (preparation && [PreparationStatus.PREPARED, PreparationStatus.ASSIGNED, PreparationStatus.DISPATCHED].includes(preparation.status)) status = PublicTrackingStatus.PREPARED;
-    if (delivery?.route.status === DistributionRouteStatus.IN_DELIVERY && !delivery.result) status = PublicTrackingStatus.IN_ROUTE;
+    if (delivery?.route?.status === DistributionRouteStatus.IN_DELIVERY && !delivery.result) status = PublicTrackingStatus.IN_ROUTE;
     if (delivery?.result) status = delivery.result.result === VisitResultType.DELIVERED ? PublicTrackingStatus.DELIVERED : PublicTrackingStatus.DELIVERY_NOT_COMPLETED;
     const estimate = await this.estimate(delivery, order.address.zoneId);
     return { status, ...estimate };
   }
 
   private async estimate(delivery: RouteDelivery | null, zoneId: string | null): Promise<{ pendingPriorStops: number; estimatedFrom: Date | null; estimatedUntil: Date | null }> {
-    if (!delivery || !delivery.route.departedAt || !delivery.position || delivery.result) return { pendingPriorStops: 0, estimatedFrom: null, estimatedUntil: null };
+    if (!delivery || !delivery.route || !delivery.route.departedAt || !delivery.position || delivery.result) return { pendingPriorStops: 0, estimatedFrom: null, estimatedUntil: null };
     const setting = await this.notifications.activeSetting(zoneId);
     const pendingPriorStops = await this.deliveries.createQueryBuilder('delivery')
       .leftJoin('delivery.result', 'result')

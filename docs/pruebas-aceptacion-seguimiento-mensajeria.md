@@ -31,3 +31,19 @@ Se agregó a **Seguimiento y mensajería → Canal** una prueba manual de Limite
 - Recuperación verificada: una notificación interrumpida con intento exitoso se concilió sin generar un nuevo envío.
 
 La entrega efectiva a WhatsApp debe comprobarse manualmente con un token y un número válidos desde la nueva pantalla, porque la automatización no debe enviar mensajes reales a terceros.
+
+## Checks de envío por evento
+
+| Caso | Resultado esperado | Evidencia |
+| --- | --- | --- |
+| Deshabilitar borrador y generar pedido | No busca ni recrea plantilla para enviar | Prueba unitaria aprobada |
+| Deshabilitar salida o evento de seguimiento | No consulta plantilla ni encola mensaje | Prueba unitaria aprobada |
+| Deshabilitar cobro | No genera mensaje automático | Prueba unitaria aprobada |
+| Habilitar evento | Consulta la plantilla activa del evento | Prueba unitaria aprobada |
+| Consultar preferencias | Devuelve todos los eventos y conserva valor deshabilitado; los no configurados siguen habilitados | Prueba unitaria aprobada |
+| Guardar y recargar pantalla | Conserva check y registra auditoría | Pendiente de integración |
+| Usuario sin permiso de gestión | No puede cambiar configuración | Pendiente de integración |
+| Crear plantillas base con envío deshabilitado | No reactiva la preferencia | Pendiente de integración |
+| Evento deshabilitado con seguimiento activo | Cambia estado e historial sin WhatsApp | Pendiente de integración |
+
+Comando ejecutado: `cd backend && npm test -- src/modules/tracking/notification-event-settings.spec.ts` (5 pruebas aprobadas). No se enviaron mensajes reales.

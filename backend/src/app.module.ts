@@ -25,6 +25,7 @@ import { FleetModule } from './modules/fleet/fleet.module';
 import { DistributionModule } from './modules/distribution/distribution.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { CommercialModule } from './modules/commercial/commercial.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { CommercialModule } from './modules/commercial/commercial.module';
     TrackingModule,
     CommercialModule,
     DistributionModule,
+    DashboardModule,
     HealthModule,
   ],
   controllers: [AppController],

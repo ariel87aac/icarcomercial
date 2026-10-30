@@ -16,6 +16,7 @@ Verificar que el módulo antes identificado como **Inventario** se presente como
 - Cuando el total reservado supera al físico, Disponible conserva el valor negativo, **Faltante** muestra explícitamente la cantidad no cubierta, la fila se identifica en rojo y aparece una alerta superior con acceso directo a **Crear solicitud**. La pestaña Existencias conserva además un contador rojo mientras exista algún faltante.
 - El servidor ordena los registros por código de producto de menor a mayor y, cuando un producto tiene varias presentaciones, por descripción.
 - El buscador admite código, nombre del producto o presentación y actualiza la tabla automáticamente mientras se escribe.
+- En el detalle de una solicitud, el filtro **Solo negativos** limita la tabla a productos cuyo Disponible sea menor que cero. **Ver todos** restablece la lista sin perder cantidades u observaciones ingresadas.
 
 ## Casos de aceptación
 
@@ -38,6 +39,7 @@ Verificar que el módulo antes identificado como **Inventario** se presente como
 | CP-121O | Un pedido reserva 200 unidades y el producto tiene 170 físicas | Abrir **Almacén → Existencias** | Reservado muestra 200, Disponible muestra −30, Faltante muestra 30, la pestaña tiene contador rojo y aparece **Se requiere abastecimiento** con acceso a una nueva solicitud | Automatizada y visual |
 | CP-121P | Al confirmar un pedido queda cantidad sin cobertura física | Confirmar desde **Pedidos** | Aparece una alerta inmediata con la cantidad no cubierta y Almacén mantiene la alerta persistente mientras exista Disponible negativo | Visual |
 | CP-121Q | La fecha ya tiene una solicitud y una orden de Producción emitida o cerrada | Crear y enviar otra solicitud para la misma fecha | La nueva solicitud se registra con otro código y queda disponible para generar una orden complementaria, sin modificar la anterior | Automatizada y visual |
+| CP-121R | Una solicitud contiene productos con Disponible positivo, cero y negativo | Presionar **Solo negativos** y luego **Ver todos** | Primero se muestran únicamente los productos con Disponible menor que cero; al restaurar se recupera la lista y se conservan cantidades y observaciones editadas | Visual |
 
 ## Guion de verificación visual
 
@@ -58,6 +60,7 @@ Verificar que el módulo antes identificado como **Inventario** se presente como
 15. Abrir una solicitud y comprobar que no existan columnas de Demanda ni Faltante; un Disponible negativo debe conservar el signo y mostrarse en rojo.
 16. Comprobar que **ID producto** sea la primera columna y que producto, clasificación, cantidades y observación conserven un ancho legible y compacto.
 17. Confirmar un pedido mayor al físico y comprobar que Disponible sea negativo, Faltante muestre la diferencia positiva, el estado indique **Requiere abastecimiento**, la pestaña muestre un contador rojo y la alerta permita abrir una nueva solicitud.
+18. Abrir el detalle de una solicitud, presionar **Solo negativos** y comprobar que todas las filas visibles tengan Disponible menor que cero; presionar **Ver todos** y verificar que reaparezcan las demás filas sin perder ediciones.
 
 ## Ejecución automatizada
 

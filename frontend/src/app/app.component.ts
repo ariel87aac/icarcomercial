@@ -71,6 +71,30 @@ interface NavigationItem {
   permission?: string;
 }
 
+type OperationalStageKey = 'orders' | 'production' | 'preparation' | 'distribution';
+
+interface OperationalDashboardSummary {
+  pendingTotal: number;
+  generatedAt: string;
+  stages: {
+    orders: { available: boolean; pending: number; breakdown: { draft: number; received: number } };
+    production: { available: boolean; pending: number; breakdown: { draft: number; issued: number; inProgress: number } };
+    preparation: { available: boolean; pending: number; breakdown: { notStarted: number; inProgress: number; observed: number } };
+    distribution: { available: boolean; pending: number; breakdown: { readyForRoute: number; scheduled: number; inDelivery: number } };
+  };
+}
+
+const EMPTY_OPERATIONAL_SUMMARY: OperationalDashboardSummary = {
+  pendingTotal: 0,
+  generatedAt: '',
+  stages: {
+    orders: { available: false, pending: 0, breakdown: { draft: 0, received: 0 } },
+    production: { available: false, pending: 0, breakdown: { draft: 0, issued: 0, inProgress: 0 } },
+    preparation: { available: false, pending: 0, breakdown: { notStarted: 0, inProgress: 0, observed: 0 } },
+    distribution: { available: false, pending: 0, breakdown: { readyForRoute: 0, scheduled: 0, inDelivery: 0 } },
+  },
+};
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -135,6 +159,8 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly zones = signal<Zone[]>([]);
   protected readonly auditEvents = signal<AuditEvent[]>([]);
   protected readonly auditMeta = signal({ page: 1, total: 0, totalPages: 1 });
+  protected readonly operationalSummary = signal<OperationalDashboardSummary>(EMPTY_OPERATIONAL_SUMMARY);
+  protected readonly operationalLoading = signal(false);
 
   protected readonly customerDialog = signal(false);
   protected readonly customerInfoDialog = signal(false);
@@ -185,7 +211,7 @@ export class AppComponent implements OnInit, OnDestroy {
     },
     {
       id: 'distribution',
-      label: 'Preparación y distribución',
+      label: 'Distribución',
       icon: 'pi pi-truck',
       permission: 'distribution.summary.read',
     },
@@ -256,8 +282,8 @@ export class AppComponent implements OnInit, OnDestroy {
   });
   protected readonly userForm = this.fb.nonNullable.group({
     name: ['', [Validators.required, Validators.minLength(3)]],
-    username: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9._-]{3,80}$/)]],
-    email: ['', [Validators.required, Validators.email]],
+    username: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9._-]{4,80}$/)]],
+    email: ['', Validators.email],
     phone: [''],
     password: [''],
     roleIds: [[] as string[], Validators.required],
@@ -292,7 +318,7 @@ export class AppComponent implements OnInit, OnDestroy {
     status: ['ACTIVO'],
   });
   protected readonly passwordForm = this.fb.nonNullable.group({
-    newPassword: ['', [Validators.required, Validators.pattern(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/)]],
+    newPassword: ['', [Validators.required, Validators.minLength(6)]],
   });
   protected readonly accountForm = this.fb.nonNullable.group({
     password: [
@@ -360,6 +386,7 @@ export class AppComponent implements OnInit, OnDestroy {
   protected selectSection(section: Section): void {
     this.activeSection.set(section);
     this.sidebarOpen.set(false);
+    if (section === 'dashboard') this.loadOperationalSummary();
     if (section === 'customers') this.loadCustomers(1);
     if (section === 'users') { this.loadUsers(1); this.loadUserProductionAreas(); }
     if (section === 'roles') this.loadRoles();
@@ -390,9 +417,35 @@ export class AppComponent implements OnInit, OnDestroy {
   }
 
   private loadDashboard(): void {
+    this.loadOperationalSummary();
     if (this.can('customers.read')) this.loadCustomers(1);
     if (this.can('users.read')) { this.loadUsers(1); this.loadUserProductionAreas(); }
     if (this.can('audit.read')) this.loadAudit(1);
+  }
+
+  protected loadOperationalSummary(): void {
+    this.operationalLoading.set(true);
+    this.http.get<OperationalDashboardSummary>('/api/dashboard/operational-summary').subscribe({
+      next: (summary) => {
+        this.operationalSummary.set(summary);
+        this.operationalLoading.set(false);
+      },
+      error: (error) => {
+        this.operationalLoading.set(false);
+        this.handleLoadError(error);
+      },
+    });
+  }
+
+  protected openOperationalStage(stage: OperationalStageKey): void {
+    if (!this.operationalSummary().stages[stage].available) return;
+    const section: Record<OperationalStageKey, Section> = {
+      orders: 'orders',
+      production: 'production',
+      preparation: 'inventory',
+      distribution: 'distribution',
+    };
+    this.selectSection(section[stage]);
   }
 
   protected loadCustomers(page = this.customerMeta().page): void {
@@ -547,8 +600,8 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected saveUser(): void {
     const id = this.editingUserId();
-    if (!id && !this.userForm.value.password?.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{10,72}$/)) {
-      this.userForm.controls.password.setErrors({ strongPassword: true });
+    if (!id && (this.userForm.value.password?.length ?? 0) < 6) {
+      this.userForm.controls.password.setErrors({ minlength: { requiredLength: 6 } });
     }
     if (this.isProductionUserForm() && !this.userForm.value.productionAreaIds?.length) {
       this.userForm.controls.productionAreaIds.setErrors({ required: true });
@@ -556,7 +609,11 @@ export class AppComponent implements OnInit, OnDestroy {
     if (this.userForm.invalid || !this.userForm.value.roleIds?.length) return this.userForm.markAllAsTouched();
     this.saving.set(true);
     const raw = this.userForm.getRawValue();
-    const payload: Record<string, unknown> = { ...raw, phone: raw.phone || undefined };
+    const payload: Record<string, unknown> = {
+      ...raw,
+      email: raw.email.trim() || (id ? null : undefined),
+      phone: raw.phone || undefined,
+    };
     if (id) delete payload['password'];
     else delete payload['status'];
     const request = id
@@ -868,7 +925,7 @@ export class AppComponent implements OnInit, OnDestroy {
           this.toast(
             'success',
             status === 'ACTIVO' ? 'Cuenta habilitada' : 'Cuenta deshabilitada',
-            account.user.email,
+            account.user.email ?? account.user.username,
           );
           this.loadCustomers(this.customerMeta().page);
         },

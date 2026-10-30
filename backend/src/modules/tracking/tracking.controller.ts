@@ -5,7 +5,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
-import { CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
+import { SaveNotificationEventSettingDto, CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
 import { NotificationService } from './notification.service';
 import { TrackingService } from './tracking.service';
 
@@ -54,6 +54,16 @@ export class TrackingController {
   @RequirePermissions('tracking.settings.manage')
   saveSettings(@Body() dto: SaveEstimationSettingDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.notifications.saveSetting(dto, actor);
+  }
+
+  @Get('notification-event-settings')
+  @RequirePermissions('notifications.templates.read')
+  eventSettings() { return this.notifications.listEventSettings(); }
+
+  @Post('notification-event-settings')
+  @RequirePermissions('notifications.templates.manage')
+  saveEventSetting(@Body() dto: SaveNotificationEventSettingDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.notifications.saveEventSetting(dto.event, dto.enabled, actor);
   }
 
   @Get('notification-templates')

@@ -5,6 +5,7 @@ const baseUrl = process.env.ACCEPTANCE_BASE_URL ?? 'http://frontend:8080';
 const adminIdentifier = process.env.INITIAL_ADMIN_EMAIL ?? 'admin@icar.local';
 const adminPassword = process.env.INITIAL_ADMIN_PASSWORD ?? 'Cambiar123!';
 const suffix = Date.now().toString(36);
+const minimumUsername = `u${suffix.slice(-3)}`;
 
 class CookieJar {
   values = new Map();
@@ -79,7 +80,7 @@ async function cleanupAcceptanceData() {
   try {
     await client.query('BEGIN');
     const users = await client.query(
-      'SELECT id FROM usuarios WHERE email = ANY($1::text[])',
+      'SELECT id FROM usuarios WHERE email = ANY($1::text[]) OR nombre_usuario = $2',
       [[
         `inactivo.${suffix}@icar.local`,
         `eliminable.${suffix}@icar.local`,
@@ -88,7 +89,7 @@ async function cleanupAcceptanceData() {
         `cliente.${suffix}@icar.local`,
         `contacto.a.${suffix}@example.test`,
         `contacto.actualizado.${suffix}@example.test`,
-      ]],
+      ], minimumUsername],
     );
     const userIds = users.rows.map((row) => row.id);
     const roles = await client.query(
@@ -169,6 +170,44 @@ try {
     permissionsResponse.payload.some((permission) => permission.key === 'customers.delete'),
     'No existe customers.delete',
   );
+
+  const minimumCredentialsUser = await expectStatus('/api/usuarios', {
+    method: 'POST',
+    jar: adminJar,
+    body: {
+      name: 'Usuario Sin Correo',
+      username: minimumUsername,
+      password: '123456',
+      roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
+    },
+  }, 201, 'crear usuario sin correo y con credenciales mínimas');
+  assert.equal(minimumCredentialsUser.payload.username, minimumUsername);
+  assert.equal(minimumCredentialsUser.payload.email, null);
+  await expectStatus('/api/auth/login', {
+    method: 'POST',
+    body: { identifier: minimumUsername, password: '123456' },
+  }, 200, 'iniciar sesión con usuario sin correo');
+  await expectStatus('/api/usuarios', {
+    method: 'POST',
+    jar: adminJar,
+    body: {
+      name: 'Usuario Demasiado Corto',
+      username: 'abc',
+      password: '123456',
+      roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
+    },
+  }, 400, 'rechazar usuario con menos de cuatro caracteres');
+  await expectStatus('/api/usuarios', {
+    method: 'POST',
+    jar: adminJar,
+    body: {
+      name: 'Contraseña Demasiado Corta',
+      username: `corta.${suffix}`,
+      password: '12345',
+      roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
+    },
+  }, 400, 'rechazar contraseña con menos de seis caracteres');
+  passed('CP-USU-09', 'el correo es opcional y se aceptan usuario de 4 caracteres y contraseña simple de 6');
 
   const disposableUser = await expectStatus('/api/usuarios', {
     method: 'POST',

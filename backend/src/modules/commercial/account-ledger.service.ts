@@ -6,7 +6,7 @@ import { CustomerAccountMovement } from './entities/customer-account-movement.en
 
 export interface AppendMovementInput {
   customerId: string;
-  saleId?: string | null;
+  saleCode?: number | null;
   paymentApplicationId?: string | null;
   type: AccountMovementType;
   debitCents?: number;
@@ -40,7 +40,7 @@ export class AccountLedgerService {
     const repository = manager.getRepository(CustomerAccountMovement);
     return repository.save(repository.create({
       customerId: input.customerId,
-      saleId: input.saleId ?? null,
+      saleCode: input.saleCode ?? null,
       paymentApplicationId: input.paymentApplicationId ?? null,
       type: input.type,
       debit: centsToMoney(debitCents),

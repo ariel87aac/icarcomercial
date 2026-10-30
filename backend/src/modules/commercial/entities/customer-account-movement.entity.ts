@@ -10,8 +10,8 @@ export class CustomerAccountMovement {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column({ name: 'cliente_id', type: 'uuid' }) customerId: string;
   @ManyToOne(() => Customer, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'cliente_id' }) customer: Customer;
-  @Column({ name: 'venta_id', type: 'uuid', nullable: true }) saleId: string | null;
-  @ManyToOne(() => Sale, { nullable: true, onDelete: 'RESTRICT' }) @JoinColumn({ name: 'venta_id' }) sale: Sale | null;
+  @Column({ name: 'venta_codigo', type: 'integer', nullable: true }) saleCode: number | null;
+  @ManyToOne(() => Sale, { nullable: true, onDelete: 'RESTRICT' }) @JoinColumn({ name: 'venta_codigo', referencedColumnName: 'code' }) sale: Sale | null;
   @Column({ name: 'pago_aplicacion_id', type: 'uuid', nullable: true }) paymentApplicationId: string | null;
   @ManyToOne(() => PaymentApplication, { nullable: true, onDelete: 'RESTRICT' }) @JoinColumn({ name: 'pago_aplicacion_id' }) paymentApplication: PaymentApplication | null;
   @Column({ name: 'tipo', type: 'enum', enum: AccountMovementType, enumName: 'tipo_movimiento_cuenta_enum' }) type: AccountMovementType;

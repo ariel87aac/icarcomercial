@@ -15,10 +15,11 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  ValidateIf,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import { RecordStatus } from '../../../common/enums/record-status.enum';
-import { CommercialReportType, PaymentStatus, ReportFormat, SaleStatus } from '../entities/commercial.enums';
+import { CommercialReportType, PaymentApplicationMode, PaymentStatus, ReportFormat, SaleStatus } from '../entities/commercial.enums';
 
 export class CreateSaleDto {
   @IsUUID()
@@ -70,15 +71,25 @@ export class CreatePaymentDto {
   amount: number;
 
   @IsOptional()
+  @IsEnum(PaymentApplicationMode)
+  applicationMode: PaymentApplicationMode = PaymentApplicationMode.SELECTED;
+
+  @IsOptional()
   @IsString()
   @MaxLength(160)
   reference?: string;
 
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  observation?: string;
+
+  @ValidateIf((dto: CreatePaymentDto) => dto.applicationMode === PaymentApplicationMode.SELECTED)
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => PaymentApplicationDto)
-  applications: PaymentApplicationDto[];
+  applications?: PaymentApplicationDto[];
 }
 
 export class PaymentQueryDto extends PaginationQueryDto {

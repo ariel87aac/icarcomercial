@@ -79,6 +79,10 @@ La migración correctiva `1720000018000-unify-customer-types-and-prices.ts` elim
 
 Se rechazan vigencias superpuestas para una misma presentación y tipo de cliente. La fecha de entrega debe coincidir con cualquiera de los días de distribución activos de la zona del domicilio. No se usa una anticipación fija por tipo de cliente: la disponibilidad se decide con el cierre configurable y sólo se ofrecen fechas cuyo cierre todavía no venció.
 
+### Identificadores comerciales y relaciones internas
+
+`productos.codigo`, `pedidos.codigo` y `consolidaciones_produccion.codigo` son códigos comerciales únicos y visibles. Los tres se generan de forma correlativa; los códigos actuales de pedido contienen únicamente dígitos. Las claves foráneas continúan usando los UUID internos (`id`): las presentaciones apuntan al producto, el detalle apunta a la presentación y los detalles de Producción conservan producto y presentación. Esto evita que un cambio de formato o una corrección futura del código comercial rompa el historial. La verificación de desarrollo no encontró códigos duplicados, registros huérfanos ni detalles de Producción cuyo producto difiera del producto de su presentación.
+
 ## Ajuste de aceptación: tabla unificada de precios
 
 La opción **Productos → Precios** presenta una fila por presentación, ordenada por código de producto, nombre y presentación. Sus columnas son **Cod-Producto**, **Producto/Presentación**, **Público**, **Minorista**, **Distribuidor**, **Mayorista** y **Última Modificación**.
@@ -86,6 +90,8 @@ La opción **Productos → Precios** presenta una fila por presentación, ordena
 Los cuatro importes se editan directamente en la tabla. La edición sólo modifica un borrador local: no se envía una petición por cada celda. El botón superior **Actualizar** se habilita cuando existe al menos un cambio y abre un modal que informa cuántos precios se actualizarán. **Cancelar** conserva la base sin cambios; **Aceptar** envía el conjunto a `/api/precios/actualizacion-masiva`, que bloquea los registros involucrados y los guarda dentro de una única transacción. La acción queda registrada como `ACTUALIZAR_PRECIOS_MASIVO` en auditoría.
 
 Como ajuste de integración con la cuarta iteración, `1720000017000-add-route-weight-capacity.ts` agrega `peso_kg` a `presentaciones_producto`. El alta de una presentación exige este dato positivo y la edición permite corregirlo. Para los productos históricos cuya unidad base es kilogramo se inicializa con el factor de conversión; las demás presentaciones deben configurarse explícitamente para evitar asumir pesos no documentados.
+
+La migración `1720000041000-add-unit-kilogram-factor-and-clean-demo-data.ts` incorpora `factor_kg` a las unidades, consolida unidades y líneas de demostración duplicadas, elimina el marcador `[DEMO]` de los catálogos y corrige pesos que pueden deducirse inequívocamente de descripciones en gramos o kilogramos. Las unidades nuevas conservan una equivalencia positiva en kilogramos. Distribución prioriza el peso específico de la presentación y usa como respaldo `equivalencia de la unidad × factor de conversión`; de este modo una unidad fija **Sachet 200 g** registra `0,2 kg`, sin reemplazar el peso explícito de presentaciones variables.
 
 Los movimientos son inmutables y no pueden dejar una existencia física negativa ni inferior a su cantidad reservada. El disponible se calcula como `cantidad física - cantidad reservada`.
 

@@ -65,6 +65,32 @@ export class DistributionRoute extends AuditableEntity {
   @Column({ name: 'liquidado_at', type: 'timestamptz', nullable: true })
   settledAt: Date | null;
 
+  @Column({ name: 'reprogramado_por', type: 'uuid', nullable: true })
+  rescheduledById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'reprogramado_por' })
+  rescheduledBy: User | null;
+
+  @Column({ name: 'reprogramado_at', type: 'timestamptz', nullable: true })
+  rescheduledAt: Date | null;
+
+  @Column({ name: 'motivo_reprogramacion', type: 'varchar', length: 1000, nullable: true })
+  rescheduleReason: string | null;
+
+  @Column({ name: 'cancelado_por', type: 'uuid', nullable: true })
+  canceledById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'cancelado_por' })
+  canceledBy: User | null;
+
+  @Column({ name: 'cancelado_at', type: 'timestamptz', nullable: true })
+  canceledAt: Date | null;
+
+  @Column({ name: 'motivo_cancelacion', type: 'varchar', length: 1000, nullable: true })
+  cancellationReason: string | null;
+
   @VersionColumn({ name: 'version' })
   version: number;
 

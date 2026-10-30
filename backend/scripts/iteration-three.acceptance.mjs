@@ -121,7 +121,7 @@ try {
   passed('CP-125', 'una categoría solo puede pertenecer a un área de Producción');
   const lineA = (await expectStatus('/api/lineas-productivas', { method: 'POST', jar: adminJar, body: { name: `Línea A ${suffix}` } }, 201, 'línea A')).payload;
   const lineB = (await expectStatus('/api/lineas-productivas', { method: 'POST', jar: adminJar, body: { name: `Línea B ${suffix}` } }, 201, 'línea B')).payload;
-  const unit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Kilogramo Iteración 3 ${suffix}`, abbreviation: `I3${suffix.slice(-4)}KG`.toUpperCase(), decimalScale: 3 } }, 201, 'unidad')).payload;
+  const unit = (await expectStatus('/api/unidades', { method: 'POST', jar: adminJar, body: { name: `Kilogramo Iteración 3 ${suffix}`, abbreviation: `I3${suffix.slice(-4)}KG`.toUpperCase(), decimalScale: 3, kilogramFactor: 1 } }, 201, 'unidad')).payload;
   assert.equal(unit.decimalScale, 3);
   const productA = (await expectStatus('/api/productos', { method: 'POST', jar: adminJar, body: { name: `Producto A ${suffix}`, categoryId: category.id, productLineId: lineA.id, baseUnitId: unit.id } }, 201, 'producto A')).payload;
   const productB = (await expectStatus('/api/productos', { method: 'POST', jar: adminJar, body: { name: `Producto B ${suffix}`, categoryId: categoryB.id, productLineId: lineB.id, baseUnitId: unit.id } }, 201, 'producto B')).payload;

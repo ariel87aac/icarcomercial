@@ -16,6 +16,9 @@ export class UnitMeasure extends AuditableEntity {
   @Column({ name: 'precision_decimal', type: 'smallint', default: 3 })
   decimalScale: number;
 
+  @Column({ name: 'factor_kg', type: 'numeric', precision: 14, scale: 6, nullable: true })
+  kilogramFactor: string | null;
+
   @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
   status: RecordStatus;
 

@@ -1,5 +1,4 @@
-import { IsString, Matches, MaxLength, MinLength } from 'class-validator';
-import { STRONG_PASSWORD } from '../../users/dto/create-user.dto';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 
 export class RequestRecoveryDto {
   @IsString()
@@ -15,9 +14,7 @@ export class ConfirmRecoveryDto {
   token: string;
 
   @IsString()
-  @Matches(STRONG_PASSWORD, {
-    message: 'La contraseña debe tener 10 caracteres e incluir mayúscula, minúscula, número y símbolo',
-  })
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
   newPassword: string;
 }
 

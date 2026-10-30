@@ -45,6 +45,12 @@ export class CreateUnitMeasureDto extends CreateNamedCatalogItemDto {
   @Min(0)
   @Max(6)
   decimalScale = 3;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(99999999)
+  kilogramFactor: number;
 }
 
 export class UpdateUnitMeasureDto extends UpdateNamedCatalogItemDto {
@@ -60,6 +66,13 @@ export class UpdateUnitMeasureDto extends UpdateNamedCatalogItemDto {
   @Min(0)
   @Max(6)
   decimalScale?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 6 })
+  @Min(0.000001)
+  @Max(99999999)
+  kilogramFactor?: number;
 }
 
 export class CreateProductDto {

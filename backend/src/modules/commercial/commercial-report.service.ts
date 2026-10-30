@@ -67,7 +67,7 @@ export class CommercialReportService {
       .leftJoinAndSelect('address.zone', 'zone')
       .leftJoinAndSelect('sale.voucher', 'voucher')
       .leftJoinAndSelect('voucher.series', 'series')
-      .orderBy('sale.issuedDate', 'DESC');
+      .orderBy('sale.code', 'DESC');
     this.saleFilters(builder, query);
     const data = await builder.getMany();
     const included = data.filter((sale) => sale.status !== SaleStatus.VOIDED);
@@ -100,7 +100,7 @@ export class CommercialReportService {
     const sales = await this.salesReport(query);
     return {
       data: sales.data.map((sale) => ({
-        saleNumber: sale.number,
+        saleCode: sale.code,
         orderCode: sale.order.code,
         customer: sale.customer.businessName,
         saleStatus: sale.status,
@@ -122,9 +122,9 @@ export class CommercialReportService {
   }
 
   private flattenReport(type: CommercialReportType, report: any): Record<string, unknown>[] {
-    if (type === CommercialReportType.SALES) return report.data.map((sale: Sale) => ({ venta: sale.number, pedido: sale.order.code, cliente: sale.customer.businessName, fecha: sale.issuedDate, vencimiento: sale.dueDate, estado: sale.status, total: sale.total, saldo: sale.balance }));
-    if (type === CommercialReportType.PAYMENTS) return report.data.map((payment: Payment) => ({ pago: payment.number, cliente: payment.customer.businessName, fecha: payment.paymentDate, medio: payment.paymentMethod.name, referencia: payment.reference, estado: payment.status, importe: payment.amount }));
-    if (type === CommercialReportType.RECEIVABLES) return report.data.map((row: any) => ({ venta: row.sale.number, cliente: row.sale.customer.businessName, vencimiento: row.sale.dueDate, estado: row.receivableStatus, diasMora: row.daysPastDue, antiguedad: row.agingRange, saldo: row.sale.balance }));
+    if (type === CommercialReportType.SALES) return report.data.map((sale: Sale) => ({ codVenta: sale.code, codPedido: sale.order.code, cliente: sale.customer.businessName, fechaEmision: sale.issuedDate, fechaVencimiento: sale.dueDate, total: sale.total, estado: sale.status }));
+    if (type === CommercialReportType.PAYMENTS) return report.data.map((payment: Payment) => ({ codCobro: payment.code, cliente: payment.customer.businessName, fecha: payment.paymentDate, medio: payment.paymentMethod.name, referencia: payment.reference, observacion: payment.observation, estado: payment.status, importe: payment.amount }));
+    if (type === CommercialReportType.RECEIVABLES) return report.data.map((row: any) => ({ codVenta: row.sale.code, cliente: row.sale.customer.businessName, vencimiento: row.sale.dueDate, estado: row.receivableStatus, diasMora: row.daysPastDue, antiguedad: row.agingRange, saldo: row.sale.balance }));
     return report.data;
   }
 

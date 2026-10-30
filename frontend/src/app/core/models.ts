@@ -9,8 +9,8 @@ export type StockReplenishmentRequestStatus = 'BORRADOR' | 'ENVIADA' | 'PROGRAMA
 export type ProductionConsolidationStatus = 'BORRADOR' | 'EMITIDA' | 'EN_PROCESO' | 'CERRADA' | 'CANCELADA' | 'CERRADA_INCOMPLETA';
 export type ProductionConsolidationType = 'PRINCIPAL' | 'COMPLEMENTARIA';
 export type ProductionDetailStage = 'PENDIENTE' | 'EN_PROCESO' | 'PENDIENTE_RECEPCION' | 'RECIBIDO_PARCIAL' | 'COMPLETADO' | 'CERRADO_CON_INCIDENCIA' | 'CANCELADO';
-export type PreparationStatus = 'PENDIENTE' | 'EN_PREPARACION' | 'OBSERVADA' | 'PREPARADA' | 'ASIGNADA' | 'DESPACHADA';
-export type DistributionRouteStatus = 'BORRADOR' | 'PLANIFICADA' | 'EN_REPARTO' | 'FINALIZADA' | 'LIQUIDADA';
+export type PreparationStatus = 'PENDIENTE' | 'EN_PREPARACION' | 'OBSERVADA' | 'PREPARADA' | 'ASIGNADA' | 'DESPACHADA' | 'CANCELADA';
+export type DistributionRouteStatus = 'BORRADOR' | 'PLANIFICADA' | 'EN_REPARTO' | 'FINALIZADA' | 'LIQUIDADA' | 'CANCELADA';
 export type VisitResultType = 'ENTREGADA' | 'ENTREGA_PARCIAL' | 'NO_ENTREGADA';
 export type PublicTrackingStatus = 'PEDIDO_CONFIRMADO' | 'EN_PREPARACION' | 'PREPARADO' | 'EN_RUTA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA';
 export type NotificationEvent = 'PEDIDO_BORRADOR' | 'PEDIDO_RECIBIDO' | 'PEDIDO_CONFIRMADO' | 'PEDIDO_CANCELADO' | 'CAMBIO_RELEVANTE' | 'SALIDA_RUTA' | 'PROXIMA_ENTREGA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA' | 'PAGO_RECIBIDO';
@@ -19,7 +19,7 @@ export type NotificationStatus = 'PENDIENTE' | 'PROCESANDO' | 'ENVIADO' | 'ENTRE
 export interface SessionUser {
   id: string;
   name: string;
-  email: string;
+  email: string | null;
   username: string;
   type: UserType;
   customerId: string | null;
@@ -50,7 +50,7 @@ export interface User {
   code: number;
   name: string;
   username: string;
-  email: string;
+  email: string | null;
   phone: string | null;
   type: UserType;
   status: RecordStatus;
@@ -144,6 +144,7 @@ export interface UnitMeasure {
   name: string;
   abbreviation: string;
   decimalScale: number;
+  kilogramFactor: string | null;
   status: RecordStatus;
 }
 
@@ -704,7 +705,7 @@ export interface PreparationHistory {
   preparationId: string;
   previousStatus: PreparationStatus | null;
   newStatus: PreparationStatus;
-  event: 'INICIO' | 'AVANCE' | 'OBSERVACION' | 'CONFIRMACION' | 'ASIGNACION' | 'DESPACHO';
+  event: 'INICIO' | 'AVANCE' | 'OBSERVACION' | 'CONFIRMACION' | 'ASIGNACION' | 'DESASIGNACION' | 'DESPACHO' | 'CANCELACION' | 'REAPERTURA' | 'ENTREGA_DISTRIBUCION';
   user: Pick<User, 'id' | 'name' | 'email'>;
   observation: string | null;
   metadata: Record<string, unknown>;
@@ -723,11 +724,21 @@ export interface OrderPreparationDetail {
   requestedQuantity: string;
   reservedQuantity: string;
   availableSnapshot: string;
+  physicalSnapshot: string;
+  shortageSnapshot: string;
   preparedQuantity: string;
   difference: string;
   observation: string | null;
   verifiedById: string | null;
   verifiedAt: string | null;
+  physicalQuantityCurrent: string;
+  totalReservedQuantityCurrent: string;
+  availableQuantityCurrent: string;
+  shortageQuantityCurrent: string;
+  pickableQuantityCurrent: string;
+  productionReceivedQuantity: string;
+  productionPendingQuantity: string;
+  relatedProductionOrders: Array<{ id: string; code: number; status: string; scheduledDate: string; receivedQuantity: string; plannedQuantity: string }>;
 }
 
 export interface OrderPreparation {
@@ -742,15 +753,31 @@ export interface OrderPreparation {
   startedAt: string;
   confirmedBy: Pick<User, 'id' | 'name'> | null;
   confirmedAt: string | null;
+  canceledBy: Pick<User, 'id' | 'name'> | null;
+  canceledAt: string | null;
+  cancellationReason: string | null;
+  handedOffBy: Pick<User, 'id' | 'name'> | null;
+  handedOffAt: string | null;
   details: OrderPreparationDetail[];
   history: PreparationHistory[];
   detailCount?: number;
+  shortageItemCount?: number;
   createdAt: string;
   updatedAt: string;
 }
 
+export interface PendingDistributionPreparation extends OrderPreparation {
+  loadWeightKg: string;
+  missingWeightPresentations: string[];
+  detailCount: number;
+}
+
 export interface EligibleOrder extends Order {
-  details: Array<OrderDetail & { reservation: InventoryReservation | null; availableQuantity: string }>;
+  details: Array<OrderDetail & { reservation: InventoryReservation | null; physicalQuantity: string; totalReservedQuantity: string; availableQuantity: string; shortageQuantity: string; pickableQuantity: string }>;
+}
+
+export interface PreparationWorkOrder extends EligibleOrder {
+  preparation: OrderPreparation | null;
 }
 
 export interface RouteResponsible {
@@ -770,6 +797,7 @@ export interface VisitResultDetail {
   deliveredQuantity: string;
   returnedQuantity: string;
   acceptedReturnQuantity: string;
+  visitResult: VisitResult;
 }
 
 export interface VisitResult {
@@ -780,11 +808,13 @@ export interface VisitResult {
   observation: string | null;
   occurredAt: string;
   details: VisitResultDetail[];
+  delivery: RouteDelivery;
 }
 
 export interface RouteDelivery {
   id: string;
-  routeId: string;
+  routeId: string | null;
+  deliveryType: 'REPARTO' | 'FABRICA';
   preparationId: string;
   preparation: OrderPreparation;
   orderId: string;
@@ -796,12 +826,22 @@ export interface RouteDelivery {
   result: VisitResult | null;
 }
 
+export interface FactoryDeliveryCompletion {
+  delivery: RouteDelivery;
+  generatedSale?: {
+    id: string;
+    code: number;
+    dueDate: string;
+    total: string;
+  };
+}
+
 export interface RouteHistory {
   id: string;
   routeId: string;
   previousStatus: DistributionRouteStatus | null;
   newStatus: DistributionRouteStatus;
-  event: 'CREACION' | 'ASIGNACION' | 'CAMBIO_VEHICULO' | 'SECUENCIA' | 'PLANIFICACION' | 'SALIDA' | 'VISITA' | 'FINALIZACION' | 'LIQUIDACION';
+  event: 'CREACION' | 'ASIGNACION' | 'DESASIGNACION' | 'CAMBIO_VEHICULO' | 'SECUENCIA' | 'REPROGRAMACION' | 'PLANIFICACION' | 'SALIDA' | 'VISITA' | 'FINALIZACION' | 'LIQUIDACION' | 'CANCELACION';
   user: Pick<User, 'id' | 'name' | 'email'>;
   observation: string | null;
   metadata: Record<string, unknown>;
@@ -833,6 +873,10 @@ export interface DistributionRoute {
   departedAt: string | null;
   finishedAt: string | null;
   settledAt: string | null;
+  rescheduledAt: string | null;
+  rescheduleReason: string | null;
+  canceledAt: string | null;
+  cancellationReason: string | null;
   version: number;
   responsibles: RouteResponsible[];
   deliveries: RouteDelivery[];
@@ -851,8 +895,40 @@ export interface DistributionRoute {
     acceptedReturnQuantity: string;
   };
   settlement?: RouteSettlement | null;
+  generatedSale?: {
+    id: string;
+    code: number;
+    dueDate: string;
+    total: string;
+  };
   createdAt: string;
   updatedAt: string;
+}
+
+export interface WarehouseReturnOrderDetail {
+  id: string;
+  returnOrderId: string;
+  expectedQuantity: string;
+  receivedQuantity: string;
+  stock: Stock;
+  visitResultDetail: VisitResultDetail;
+}
+
+export interface WarehouseReturnOrder {
+  id: string;
+  code: number;
+  routeId: string;
+  route: DistributionRoute;
+  status: 'PENDIENTE' | 'RECIBIDA';
+  expectedQuantity: string;
+  receivedQuantity: string;
+  createdBy: Pick<User, 'id' | 'name'>;
+  createdAt: string;
+  receivedBy: Pick<User, 'id' | 'name'> | null;
+  receivedAt: string | null;
+  observation: string | null;
+  details: WarehouseReturnOrderDetail[];
+  detailCount?: number;
 }
 
 export interface AuditEvent {

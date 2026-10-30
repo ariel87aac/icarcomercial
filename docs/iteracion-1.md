@@ -71,6 +71,8 @@ La migración `1720000025000-add-customer-code.ts` incorpora un código numéric
 
 La migración `1720000026000-add-customer-delete.ts` añade `customers.delete` al rol `ADMINISTRADOR`. Un cliente sólo puede eliminarse físicamente cuando no tiene cuenta, domicilios, pedidos, ventas ni otras operaciones asociadas; los rechazos no modifican información y el borrado exitoso registra `ELIMINAR_CLIENTE` en auditoría.
 
+La migración `1720000042000-make-user-email-optional.ts` permite que el correo de un usuario sea nulo. En el alta de usuarios internos el nombre de usuario exige un mínimo de 4 caracteres y la contraseña un mínimo de 6, sin reglas de mayúsculas, números o símbolos. Los correos que sí se registren conservan su validación de formato y unicidad. La misma regla mínima de contraseña se aplica al cambio, recuperación y restablecimiento administrativo para no crear políticas contradictorias.
+
 ## Ajuste posterior de aceptación: cliente y cuenta unificados
 
 La gestión separada de **Cuentas de clientes** se eliminó porque duplicaba datos y permitía que el operador escribiera una identidad distinta a la registrada en el cliente. La única acción disponible ahora se encuentra en la fila del maestro **Clientes** y se denomina **Habilitar cuenta de cliente**.
@@ -80,7 +82,7 @@ Se aplican estas reglas:
 - El cliente debe tener NIT o CI y correo antes de habilitar su acceso.
 - El nombre de usuario se obtiene del campo NIT/CI; el operador no puede escribir otro valor.
 - Nombre, correo y teléfono se toman del registro del cliente.
-- La contraseña inicial debe tener exactamente 8 caracteres. Esta regla es exclusiva de la cuenta de cliente; los usuarios internos conservan su política fuerte.
+- La contraseña inicial debe tener exactamente 8 caracteres. Esta regla sigue siendo exclusiva de la cuenta de cliente; para usuarios internos rige el mínimo de 6 caracteres sin requisitos de composición.
 - Solo se permite habilitar una cuenta nueva por cliente. Si ya existe una cuenta, la interfaz ofrece habilitarla o deshabilitarla y la API rechaza un segundo alta.
 - Si se modifican NIT/CI, correo, contacto, razón social o teléfono del cliente, la cuenta principal vinculada se mantiene sincronizada.
 - Las cuentas históricas adicionales se muestran en la fila del cliente para que ningún acceso existente quede oculto; no se eliminan automáticamente.
@@ -107,7 +109,7 @@ Los cambios de áreas, el inicio de elaboración, las cantidades entregadas por 
 
 ## Pruebas de aceptación
 
-El script `backend/scripts/iteration-one.acceptance.mjs` ejecuta CP-01 a CP-12 y las comprobaciones adicionales CP-04A/CP-04B/CP-04C, CP-USU-07, CP-USU-08, CP-CLI-01 y CP-CLI-06: acceso válido, credenciales inválidas, cuenta inactiva, cuenta de cliente, aislamiento entre clientes, permiso insuficiente, gestión institucional, alta auditada, duplicidad, coordenadas inválidas, zona con día, auditoría filtrada, códigos automáticos y eliminaciones controladas. También comprueba que el cierre de sesión invalide la sesión anterior.
+El script `backend/scripts/iteration-one.acceptance.mjs` ejecuta CP-01 a CP-12 y las comprobaciones adicionales CP-04A/CP-04B/CP-04C, CP-USU-07, CP-USU-08, CP-USU-09, CP-CLI-01 y CP-CLI-06: acceso válido, credenciales inválidas, cuenta inactiva, cuenta de cliente, aislamiento entre clientes, permiso insuficiente, gestión institucional, alta auditada, duplicidad, coordenadas inválidas, zona con día, auditoría filtrada, códigos automáticos, credenciales mínimas y eliminaciones controladas. También comprueba que el cierre de sesión invalide la sesión anterior.
 
 | Caso | Preparación y acción | Resultado esperado |
 | --- | --- | --- |
@@ -117,6 +119,7 @@ El script `backend/scripts/iteration-one.acceptance.mjs` ejecuta CP-01 a CP-12 y
 | CP-04C | Modificar NIT/CI, correo y contacto de un cliente con cuenta | La cuenta principal se sincroniza y permite iniciar sesión con el nuevo NIT/CI. |
 | CP-USU-07 | Crear usuarios internos y consultar la tabla | Cada usuario recibe un código numérico automático y la lista se ordena de menor a mayor. |
 | CP-USU-08 | Intentar eliminar la cuenta autenticada y luego un usuario nuevo sin operaciones | La cuenta autenticada se protege; el usuario sin operaciones se elimina y queda el evento `ELIMINAR_USUARIO`. |
+| CP-USU-09 | Crear un usuario interno sin correo, con usuario de 4 caracteres y contraseña simple de 6; intentar valores inferiores | El alta y el inicio de sesión funcionan con los mínimos; usuario de 3 o contraseña de 5 se rechazan con HTTP 400. |
 | CP-CLI-01 | Crear clientes, consultar la lista y buscar por código | Cada cliente recibe un código automático único; la lista está ordenada de menor a mayor y el buscador encuentra el código. |
 | CP-CLI-06 | Eliminar un cliente sin relaciones e intentar eliminar otro con cuenta | El primero se elimina y audita; el segundo permanece intacto y devuelve HTTP 409. |
 

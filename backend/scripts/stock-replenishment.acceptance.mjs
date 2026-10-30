@@ -89,7 +89,7 @@ try {
   const category = await expectStatus('/api/categorias', { method: 'POST', jar, body: { name: `Categoría abastecimiento ${suffix}` } }, 201, 'categoría');
   const area = await expectStatus('/api/production-areas', { method: 'POST', jar, body: { name: `Área abastecimiento ${suffix}`, categoryIds: [category.id] } }, 201, 'área');
   const line = await expectStatus('/api/lineas-productivas', { method: 'POST', jar, body: { name: `Línea abastecimiento ${suffix}` } }, 201, 'línea');
-  const unit = await expectStatus('/api/unidades', { method: 'POST', jar, body: { name: `Unidad abastecimiento ${suffix}`, abbreviation: `SA${suffix.slice(-4)}U`.toUpperCase(), decimalScale: 0 } }, 201, 'unidad');
+  const unit = await expectStatus('/api/unidades', { method: 'POST', jar, body: { name: `Unidad abastecimiento ${suffix}`, abbreviation: `SA${suffix.slice(-4)}U`.toUpperCase(), decimalScale: 0, kilogramFactor: 1 } }, 201, 'unidad');
   const product = await expectStatus('/api/productos', { method: 'POST', jar, body: { name: `Producto abastecimiento ${suffix}`, categoryId: category.id, productLineId: line.id, baseUnitId: unit.id } }, 201, 'producto');
   const presentation = await expectStatus(`/api/productos/${product.id}/presentaciones`, { method: 'POST', jar, body: { unitId: unit.id, description: 'Bolsa de prueba', conversionFactor: 1, weightKg: 1 } }, 201, 'presentación');
   const requiredDate = futureDate();

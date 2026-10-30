@@ -1,10 +1,11 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, SelectQueryBuilder } from 'typeorm';
+import { DataSource, EntityManager, Repository, SelectQueryBuilder } from 'typeorm';
 import { paginate } from '../../common/dto/pagination-query.dto';
 import { RecordStatus } from '../../common/enums/record-status.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AuditService } from '../audit/audit.service';
+import { PaymentCondition } from '../customers/entities/customer.enums';
 import { VisitResult } from '../distribution/entities/visit-result.entity';
 import { VisitResultType } from '../distribution/entities/distribution.enums';
 import { UserType } from '../users/entities/user-type.enum';
@@ -44,6 +45,15 @@ export class SaleService {
       .where('visit.result IN (:...results)', { results: [VisitResultType.DELIVERED, VisitResultType.PARTIAL] })
       .andWhere('visitDetail.deliveredQuantity > 0')
       .andWhere(`NOT EXISTS (SELECT 1 FROM ventas sale WHERE sale.resultado_visita_id = visit.id AND sale.estado <> 'ANULADA')`)
+      .andWhere(`(
+        customer.condicion_pago = 'CREDITO'
+        OR NOT EXISTS (
+          SELECT 1 FROM ventas pending_sale
+           WHERE pending_sale.cliente_id = customer.id
+             AND pending_sale.estado IN ('EMITIDA', 'PAGO_PARCIAL')
+             AND pending_sale.saldo > 0
+        )
+      )`)
       .orderBy('visit.occurredAt', 'ASC')
       .getMany();
   }
@@ -56,8 +66,7 @@ export class SaleService {
       .leftJoinAndSelect('address.zone', 'zone')
       .leftJoinAndSelect('sale.voucher', 'voucher')
       .leftJoinAndSelect('voucher.series', 'series')
-      .orderBy('sale.issuedDate', 'DESC')
-      .addOrderBy('sale.createdAt', 'DESC')
+      .orderBy('sale.code', 'DESC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
     this.scopeSales(builder, actor);
@@ -83,86 +92,102 @@ export class SaleService {
   }
 
   async create(dto: CreateSaleDto, actor: AuthenticatedUser): Promise<Sale> {
-    const saleId = await this.dataSource.transaction(async (manager) => {
-      const visit = await manager.getRepository(VisitResult).createQueryBuilder('visit')
-        .setLock('pessimistic_write')
-        .innerJoinAndSelect('visit.delivery', 'delivery')
-        .innerJoinAndSelect('delivery.order', 'orders')
-        .innerJoinAndSelect('orders.customer', 'customer')
-        .innerJoinAndSelect('visit.details', 'visitDetail')
-        .innerJoinAndSelect('visitDetail.preparationDetail', 'preparationDetail')
-        .innerJoinAndSelect('preparationDetail.orderDetail', 'orderDetail')
-        .where('visit.id = :id', { id: dto.visitResultId })
-        .getOne();
-      if (!visit) throw new NotFoundException('Resultado de visita no encontrado');
-      if (![VisitResultType.DELIVERED, VisitResultType.PARTIAL].includes(visit.result)) throw new UnprocessableEntityException('Solo una entrega completa o parcial puede originar una venta');
-      const existing = await manager.getRepository(Sale).createQueryBuilder('sale')
-        .where('(sale.visitResultId = :visitId OR sale.orderId = :orderId)', { visitId: visit.id, orderId: visit.delivery.orderId })
-        .andWhere('sale.status <> :voided', { voided: SaleStatus.VOIDED })
-        .getOne();
-      if (existing) throw new ConflictException('La entrega ya tiene una venta vigente');
-      const delivered = visit.details.filter((detail) => Number(detail.deliveredQuantity) > 0);
-      if (!delivered.length) throw new UnprocessableEntityException('La entrega no contiene cantidades efectivamente entregadas');
-
-      const issuedDate = this.businessDate();
-      const creditDays = Math.max(0, visit.delivery.order.customer.creditDays);
-      const sequence = await manager.query<{ value: string }[]>(`SELECT nextval('ventas_numero_seq')::text AS value`);
-      const lineValues = delivered.map((detail) => {
-        const orderDetail = detail.preparationDetail.orderDetail;
-        const subtotalCents = lineSubtotalCents(detail.deliveredQuantity, orderDetail.unitPrice, 0);
-        return { detail, orderDetail, subtotalCents };
-      });
-      const totalCents = lineValues.reduce((sum, line) => sum + line.subtotalCents, 0);
-      if (totalCents <= 0) throw new UnprocessableEntityException('El total de la venta debe ser mayor que cero');
-
-      await this.ledger.lockCustomer(manager, visit.delivery.order.customerId);
-      const saleRepository = manager.getRepository(Sale);
-      const sale = await saleRepository.save(saleRepository.create({
-        orderId: visit.delivery.orderId,
-        customerId: visit.delivery.order.customerId,
-        visitResultId: visit.id,
-        number: `VTA-${issuedDate.slice(0, 4)}-${sequence[0].value.padStart(6, '0')}`,
-        issuedDate,
-        dueDate: addDays(issuedDate, creditDays),
-        creditDaysSnapshot: creditDays,
-        status: SaleStatus.ISSUED,
-        total: centsToMoney(totalCents),
-        balance: centsToMoney(totalCents),
-        createdById: actor.id,
-        issuedById: actor.id,
-        voidedById: null,
-        voidedAt: null,
-        voidReason: null,
-      }));
-      const detailRepository = manager.getRepository(SaleDetail);
-      for (const line of lineValues) {
-        await detailRepository.save(detailRepository.create({
-          saleId: sale.id,
-          orderDetailId: line.orderDetail.id,
-          deliveredQuantity: line.detail.deliveredQuantity,
-          unitPrice: line.orderDetail.unitPrice,
-          discount: '0.00',
-          subtotal: centsToMoney(line.subtotalCents),
-          productSnapshot: line.orderDetail.productDescriptionSnapshot,
-          presentationSnapshot: line.orderDetail.presentationDescriptionSnapshot,
-          unitSnapshot: line.orderDetail.unitAbbreviationSnapshot,
-        }));
-      }
-      const series = await manager.getRepository(VoucherSeries).createQueryBuilder('series')
-        .setLock('pessimistic_write')
-        .where('series.type = :type AND series.status = :status', { type: 'COMPROBANTE_INTERNO', status: RecordStatus.ACTIVE })
-        .getOne();
-      if (!series) throw new UnprocessableEntityException('No existe una serie activa para comprobantes internos');
-      const voucherNumber = series.nextNumber;
-      series.nextNumber = (BigInt(series.nextNumber) + 1n).toString();
-      await manager.getRepository(VoucherSeries).save(series);
-      const voucherRepository = manager.getRepository(InternalVoucher);
-      await voucherRepository.save(voucherRepository.create({ saleId: sale.id, seriesId: series.id, number: voucherNumber, issuedById: actor.id, issuedAt: new Date(), status: VoucherStatus.ISSUED }));
-      await this.ledger.append(manager, { customerId: sale.customerId, saleId: sale.id, type: AccountMovementType.SALE_DEBIT, debitCents: totalCents, description: `Venta ${sale.number}`, actorId: actor.id });
-      return sale.id;
-    });
+    const saleId = await this.dataSource.transaction((manager) => this.createInTransaction(manager, dto.visitResultId, actor));
     await this.audit.record({ userId: actor.id, module: 'commercial', action: 'EMITIR_VENTA', entity: 'ventas', entityId: saleId, result: 'EXITOSO', metadata: { visitResultId: dto.visitResultId } });
     return this.findOne(saleId, actor);
+  }
+
+  async createInTransaction(manager: EntityManager, visitResultId: string, actor: AuthenticatedUser): Promise<string> {
+    const visit = await manager.getRepository(VisitResult).createQueryBuilder('visit')
+      .setLock('pessimistic_write')
+      .innerJoinAndSelect('visit.delivery', 'delivery')
+      .innerJoinAndSelect('delivery.order', 'orders')
+      .innerJoinAndSelect('orders.customer', 'customer')
+      .innerJoinAndSelect('visit.details', 'visitDetail')
+      .innerJoinAndSelect('visitDetail.preparationDetail', 'preparationDetail')
+      .innerJoinAndSelect('preparationDetail.orderDetail', 'orderDetail')
+      .where('visit.id = :id', { id: visitResultId })
+      .getOne();
+    if (!visit) throw new NotFoundException('Resultado de visita no encontrado');
+    if (![VisitResultType.DELIVERED, VisitResultType.PARTIAL].includes(visit.result)) throw new UnprocessableEntityException('Solo una entrega completa o parcial puede originar una venta');
+    const existing = await manager.getRepository(Sale).createQueryBuilder('sale')
+      .where('(sale.visitResultId = :visitId OR sale.orderId = :orderId)', { visitId: visit.id, orderId: visit.delivery.orderId })
+      .andWhere('sale.status <> :voided', { voided: SaleStatus.VOIDED })
+      .getOne();
+    if (existing) throw new ConflictException('La entrega ya tiene una venta vigente');
+    const delivered = visit.details.filter((detail) => Number(detail.deliveredQuantity) > 0);
+    if (!delivered.length) throw new UnprocessableEntityException('La entrega no contiene cantidades efectivamente entregadas');
+
+    await this.ledger.lockCustomer(manager, visit.delivery.order.customerId);
+    if (visit.delivery.order.customer.paymentCondition === PaymentCondition.CASH) {
+      const pendingSale = await manager.getRepository(Sale).createQueryBuilder('sale')
+        .where('sale.customerId = :customerId', { customerId: visit.delivery.order.customerId })
+        .andWhere('sale.status IN (:...statuses)', { statuses: [SaleStatus.ISSUED, SaleStatus.PARTIALLY_PAID] })
+        .andWhere('sale.balance > 0')
+        .orderBy('sale.issuedDate', 'ASC')
+        .getOne();
+      if (pendingSale) {
+        throw new ConflictException(`El cliente es de contado y mantiene pendiente la venta ${pendingSale.code}. Registre y confirme su pago antes de generar una nueva entrega`);
+      }
+    }
+
+    const issuedDate = this.businessDate();
+    const creditDays = visit.delivery.order.customer.paymentCondition === PaymentCondition.CREDIT
+      ? Math.max(0, visit.delivery.order.customer.creditDays)
+      : 0;
+    const sequence = await manager.query<{ value: string }[]>(`SELECT nextval('ventas_numero_seq')::text AS value`);
+    const lineValues = delivered.map((detail) => {
+      const orderDetail = detail.preparationDetail.orderDetail;
+      const subtotalCents = lineSubtotalCents(detail.deliveredQuantity, orderDetail.unitPrice, 0);
+      return { detail, orderDetail, subtotalCents };
+    });
+    const totalCents = lineValues.reduce((sum, line) => sum + line.subtotalCents, 0);
+    if (totalCents <= 0) throw new UnprocessableEntityException('El total de la venta debe ser mayor que cero');
+
+    const saleRepository = manager.getRepository(Sale);
+    const sale = await saleRepository.save(saleRepository.create({
+      orderId: visit.delivery.orderId,
+      customerId: visit.delivery.order.customerId,
+      visitResultId: visit.id,
+      number: `VTA-${issuedDate.slice(0, 4)}-${sequence[0].value.padStart(6, '0')}`,
+      issuedDate,
+      dueDate: addDays(issuedDate, creditDays),
+      creditDaysSnapshot: creditDays,
+      status: SaleStatus.ISSUED,
+      total: centsToMoney(totalCents),
+      balance: centsToMoney(totalCents),
+      createdById: actor.id,
+      issuedById: actor.id,
+      voidedById: null,
+      voidedAt: null,
+      voidReason: null,
+    }));
+    const detailRepository = manager.getRepository(SaleDetail);
+    for (const line of lineValues) {
+      await detailRepository.save(detailRepository.create({
+        saleCode: sale.code,
+        orderDetailId: line.orderDetail.id,
+        deliveredQuantity: line.detail.deliveredQuantity,
+        unitPrice: line.orderDetail.unitPrice,
+        discount: '0.00',
+        subtotal: centsToMoney(line.subtotalCents),
+        productSnapshot: line.orderDetail.productDescriptionSnapshot,
+        presentationSnapshot: line.orderDetail.presentationDescriptionSnapshot,
+        unitSnapshot: line.orderDetail.unitAbbreviationSnapshot,
+      }));
+    }
+    const series = await manager.getRepository(VoucherSeries).createQueryBuilder('series')
+      .setLock('pessimistic_write')
+      .where('series.type = :type AND series.status = :status', { type: 'COMPROBANTE_INTERNO', status: RecordStatus.ACTIVE })
+      .getOne();
+    if (!series) throw new UnprocessableEntityException('No existe una serie activa para comprobantes internos');
+    const voucherNumber = series.nextNumber;
+    series.nextNumber = (BigInt(series.nextNumber) + 1n).toString();
+    await manager.getRepository(VoucherSeries).save(series);
+    const voucherRepository = manager.getRepository(InternalVoucher);
+    await voucherRepository.save(voucherRepository.create({ saleCode: sale.code, seriesId: series.id, number: voucherNumber, issuedById: actor.id, issuedAt: new Date(), status: VoucherStatus.ISSUED }));
+    await this.ledger.append(manager, { customerId: sale.customerId, saleCode: sale.code, type: AccountMovementType.SALE_DEBIT, debitCents: totalCents, description: `Venta ${sale.code}`, actorId: actor.id });
+    return sale.id;
   }
 
   async voucher(id: string, actor: AuthenticatedUser) {
@@ -176,7 +201,7 @@ export class SaleService {
     const voucherNumber = `${item.series.series}-${String(item.number).padStart(8, '0')}`;
     const lines = [
       `Comprobante: ${voucherNumber}`,
-      `Venta: ${item.sale.number}`,
+      `Cod-Venta: ${item.sale.code}`,
       `Pedido: ${item.sale.order.code}`,
       `Cliente: ${item.sale.customer.businessName}`,
       `Fecha de emisión: ${item.sale.issuedDate}`,
@@ -200,18 +225,18 @@ export class SaleService {
       if (sale.status !== SaleStatus.ISSUED || moneyToCents(sale.balance) !== moneyToCents(sale.total)) throw new UnprocessableEntityException('Solo una venta Emitida y sin pagos confirmados puede anularse');
       const confirmedApplications = await manager.getRepository(PaymentApplication).createQueryBuilder('application')
         .innerJoin('application.payment', 'payment')
-        .where('application.saleId = :saleId AND payment.status = :status', { saleId: id, status: PaymentStatus.CONFIRMED })
+        .where('application.saleCode = :saleCode AND payment.status = :status', { saleCode: sale.code, status: PaymentStatus.CONFIRMED })
         .getCount();
       if (confirmedApplications) throw new UnprocessableEntityException('La venta tiene pagos confirmados y no puede anularse');
       await this.ledger.lockCustomer(manager, sale.customerId);
-      await this.ledger.append(manager, { customerId: sale.customerId, saleId: sale.id, type: AccountMovementType.SALE_VOID_CREDIT, creditCents: moneyToCents(sale.total), description: `Anulación de venta ${sale.number}`, actorId: actor.id });
+      await this.ledger.append(manager, { customerId: sale.customerId, saleCode: sale.code, type: AccountMovementType.SALE_VOID_CREDIT, creditCents: moneyToCents(sale.total), description: `Anulación de venta ${sale.code}`, actorId: actor.id });
       sale.status = SaleStatus.VOIDED;
       sale.balance = '0.00';
       sale.voidedById = actor.id;
       sale.voidedAt = new Date();
       sale.voidReason = dto.reason.trim();
       await manager.getRepository(Sale).save(sale);
-      await manager.getRepository(InternalVoucher).update({ saleId: sale.id }, { status: VoucherStatus.VOIDED });
+      await manager.getRepository(InternalVoucher).update({ saleCode: sale.code }, { status: VoucherStatus.VOIDED });
     });
     await this.audit.record({ userId: actor.id, module: 'commercial', action: 'ANULAR_VENTA', entity: 'ventas', entityId: id, result: 'EXITOSO', metadata: { reason: dto.reason } });
     return this.findOne(id, actor);
@@ -225,7 +250,7 @@ export class SaleService {
   }
 
   private applyFilters(builder: SelectQueryBuilder<Sale>, query: SaleQueryDto): void {
-    if (query.q) builder.andWhere('(sale.number ILIKE :q OR orders.code ILIKE :q OR customer.businessName ILIKE :q)', { q: `%${query.q.trim()}%` });
+    if (query.q) builder.andWhere('(CAST(sale.code AS text) ILIKE :q OR orders.code ILIKE :q OR customer.businessName ILIKE :q)', { q: `%${query.q.trim()}%` });
     if (query.orderId) builder.andWhere('sale.orderId = :orderId', { orderId: query.orderId });
     if (query.customerId) builder.andWhere('sale.customerId = :customerId', { customerId: query.customerId });
     if (query.zoneId) builder.andWhere('address.zoneId = :zoneId', { zoneId: query.zoneId });

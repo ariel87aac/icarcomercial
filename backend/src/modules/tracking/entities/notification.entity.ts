@@ -12,8 +12,8 @@ import { Payment } from '../../commercial/entities/payment.entity';
 export class Notification extends AuditableEntity {
   @Column({ name: 'pedido_id', type: 'uuid' }) orderId: string;
   @ManyToOne(() => Order, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'pedido_id' }) order: Order;
-  @Column({ name: 'pago_id', type: 'uuid', nullable: true }) paymentId: string | null;
-  @ManyToOne(() => Payment, { nullable: true, onDelete: 'RESTRICT' }) @JoinColumn({ name: 'pago_id' }) payment: Payment | null;
+  @Column({ name: 'pago_codigo', type: 'integer', nullable: true }) paymentCode: number | null;
+  @ManyToOne(() => Payment, { nullable: true, onDelete: 'RESTRICT' }) @JoinColumn({ name: 'pago_codigo', referencedColumnName: 'code' }) payment: Payment | null;
   @Column({ name: 'cliente_id', type: 'uuid' }) customerId: string;
   @ManyToOne(() => Customer, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'cliente_id' }) customer: Customer;
   @Column({ name: 'enlace_id', type: 'uuid', nullable: true }) linkId: string | null;

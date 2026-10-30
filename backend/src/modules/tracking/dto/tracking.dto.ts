@@ -173,3 +173,11 @@ export class WebhookDto {
   @MaxLength(500)
   detail?: string;
 }
+
+export class SaveNotificationEventSettingDto {
+  @IsEnum(NotificationEvent)
+  event: NotificationEvent;
+
+  @IsBoolean()
+  enabled: boolean;
+}

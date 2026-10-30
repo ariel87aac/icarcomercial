@@ -141,8 +141,9 @@ export class CatalogService {
       name: dto.name.trim(),
       abbreviation: dto.abbreviation.trim(),
       decimalScale: dto.decimalScale,
+      kilogramFactor: dto.kilogramFactor.toFixed(6),
     }));
-    await this.audit(actor, 'CREAR_UNIDAD', 'unidades_medida', unit.id, { code: unit.code, name: unit.name, abbreviation: unit.abbreviation });
+    await this.audit(actor, 'CREAR_UNIDAD', 'unidades_medida', unit.id, { code: unit.code, name: unit.name, abbreviation: unit.abbreviation, kilogramFactor: unit.kilogramFactor });
     return unit;
   }
 
@@ -152,6 +153,7 @@ export class CatalogService {
     if (dto.name !== undefined) unit.name = dto.name.trim();
     if (dto.abbreviation !== undefined) unit.abbreviation = dto.abbreviation.trim();
     if (dto.decimalScale !== undefined) unit.decimalScale = dto.decimalScale;
+    if (dto.kilogramFactor !== undefined) unit.kilogramFactor = dto.kilogramFactor.toFixed(6);
     if (dto.status !== undefined) unit.status = dto.status;
     const saved = await this.unitRepository.save(unit);
     await this.audit(actor, this.statusAction('UNIDAD', dto.status), 'unidades_medida', id, { fields: Object.keys(dto) });
