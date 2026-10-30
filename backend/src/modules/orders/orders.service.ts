@@ -1,3 +1,4 @@
+import { workflowTransaction } from './order-workflow';
 import {
   BadRequestException,
   ConflictException,
@@ -10,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes } from 'node:crypto';
 import { Brackets, DataSource, EntityManager, Repository } from 'typeorm';
 import { paginate } from '../../common/dto/pagination-query.dto';
+import { attachOrderWorkflow } from './order-workflow';
 import { RecordStatus } from '../../common/enums/record-status.enum';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AuditEvent } from '../audit/entities/audit-event.entity';
@@ -50,6 +52,7 @@ interface ResolvedItem {
 }
 
 export interface PublicOrderConfirmationView {
+  trackingUrl?: string;
   orderReference: string;
   customerName: string;
   requestedDate: string;
@@ -113,7 +116,7 @@ export class OrdersService {
     if (query.from) builder.andWhere('order.requestedDate >= :from', { from: query.from });
     if (query.to) builder.andWhere('order.requestedDate <= :to', { to: query.to });
     const [data, total] = await builder.getManyAndCount();
-    return paginate(data, total, query.page, query.limit);
+    return paginate(await attachOrderWorkflow(this.dataSource.manager, data), total, query.page, query.limit);
   }
 
   async statusSummary(actor: AuthenticatedUser): Promise<Record<OrderStatus, number>> {
@@ -138,6 +141,7 @@ export class OrdersService {
   async findOne(id: string, actor: AuthenticatedUser): Promise<Order> {
     const order = await this.loadOrder(id);
     await this.assertScope(order, actor);
+    await attachOrderWorkflow(this.dataSource.manager, [order]);
     return order;
   }
 
@@ -153,7 +157,7 @@ export class OrdersService {
     );
     const total = items.reduce((sum, item) => sum + item.subtotal, 0);
     const rawConfirmationToken = randomBytes(32).toString('base64url');
-    const orderId = await this.dataSource.transaction(async (manager) => {
+    const orderId = await workflowTransaction(this.dataSource, async (manager) => {
       const sequence = await manager.query<{ nextval: string }[]>(`SELECT nextval('pedidos_codigo_seq')::text AS nextval`);
       const code = sequence[0].nextval;
       const order = await manager.getRepository(Order).save(manager.getRepository(Order).create({
@@ -210,11 +214,14 @@ export class OrdersService {
       metadata: { customerId, origin },
     });
     const created = await this.findOne(orderId, actor);
+    const trackingUrl = await this.trackingService.ensureOrderLink(created);
+    await this.trackingService.safeCaptureOrder(orderId, `order.created:${orderId}`, false);
     await this.notificationService.safeEnqueueOrderLifecycle(
       created,
       NotificationEvent.ORDER_DRAFT,
       actor.id,
       {
+        trackingUrl,
         confirmationUrl: `${this.publicBaseUrl()}/confirmar-pedido/${rawConfirmationToken}`,
         productList: this.productList(created),
       },
@@ -237,7 +244,7 @@ export class OrdersService {
     const scheduleChanged = addressId !== current.addressId || requestedDate !== current.requestedDate;
     const { items, schedule } = await this.validateOrder(current.customerId, addressId, requestedDate, itemsDto, undefined, scheduleChanged);
     const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('order')
         .setLock('pessimistic_write')
         .where('order.id = :id', { id })
@@ -279,7 +286,7 @@ export class OrdersService {
     const itemsDto = current.details.map((detail) => ({ presentationId: detail.presentationId, quantity: Number(detail.requestedQuantity) }));
     const { items } = await this.validateOrder(current.customerId, current.addressId, current.requestedDate, itemsDto, undefined, false);
     const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('order').setLock('pessimistic_write').where('order.id = :id', { id }).getOneOrFail();
       if (order.status !== OrderStatus.DRAFT) throw new ConflictException('El pedido ya cambió de estado');
       order.status = OrderStatus.RECEIVED;
@@ -303,11 +310,12 @@ export class OrdersService {
     });
     await this.auditService.record({ userId: actor.id, module: 'orders', action: 'ENVIAR_PEDIDO', entity: 'pedidos', entityId: id, result: 'EXITOSO' });
     const received = await this.findOne(id, actor);
+    await this.trackingService.safeCaptureOrder(id, `order.received:${id}:${received.updatedAt.getTime()}`, false);
     await this.notificationService.safeEnqueueOrderLifecycle(
       received,
       NotificationEvent.ORDER_RECEIVED,
       actor.id,
-      { productList: this.productList(received) },
+      { productList: this.productList(received), trackingUrl: await this.trackingService.ensureOrderLink(received) },
     );
     return received;
   }
@@ -317,7 +325,7 @@ export class OrdersService {
     const current = await this.findOne(id, actor);
     if (current.status !== OrderStatus.RECEIVED) throw new ConflictException('Solo un pedido Recibido puede devolverse');
     this.schedulingService.assertOrderOpen(current.orderCutoffAt);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('order').setLock('pessimistic_write').where('order.id = :id', { id }).getOneOrFail();
       if (order.status !== OrderStatus.RECEIVED) throw new ConflictException('El pedido ya cambió de estado');
       order.status = OrderStatus.DRAFT;
@@ -332,6 +340,7 @@ export class OrdersService {
       }));
     });
     await this.auditService.record({ userId: actor.id, module: 'orders', action: 'DEVOLVER_PEDIDO', entity: 'pedidos', entityId: id, result: 'EXITOSO', metadata: { observation: dto.observation } });
+    await this.trackingService.safeCaptureOrder(id, `order.returned:${id}:${Date.now()}`, false);
     return this.findOne(id, actor);
   }
 
@@ -353,7 +362,7 @@ export class OrdersService {
   async publicConfirmation(token: string): Promise<PublicOrderConfirmationView> {
     const link = await this.resolveConfirmationLink(token, true);
     const order = await this.loadOrder(link.orderId);
-    return this.publicConfirmationView(order, link.status === OrderConfirmationLinkStatus.ACTIVE);
+    return { ...this.publicConfirmationView(order, link.status === OrderConfirmationLinkStatus.ACTIVE), trackingUrl: await this.trackingService.ensureOrderLink(order) };
   }
 
   async confirmPublic(token: string): Promise<PublicOrderConfirmationView> {
@@ -371,7 +380,7 @@ export class OrdersService {
     });
     const confirmed = await this.loadOrder(order.id);
     await this.afterConfirmation(confirmed, order.createdById, `order.confirmed.public:${order.id}`);
-    return this.publicConfirmationView(confirmed, false);
+    return { ...this.publicConfirmationView(confirmed, false), trackingUrl: await this.trackingService.ensureOrderLink(confirmed) };
   }
 
   private async confirmOrder(id: string, input: {
@@ -383,7 +392,7 @@ export class OrdersService {
     action: string;
     confirmationTokenHash?: string;
   }): Promise<void> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       let confirmationLink: OrderConfirmationLink | null = null;
       if (input.confirmationTokenHash) {
         confirmationLink = await manager.getRepository(OrderConfirmationLink).createQueryBuilder('link')
@@ -505,7 +514,7 @@ export class OrdersService {
       throw new UnprocessableEntityException('No existe una siguiente fecha de entrega disponible para la zona del pedido');
     }
 
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('order')
         .setLock('pessimistic_write')
         .where('order.id = :id', { id })
@@ -571,7 +580,7 @@ export class OrdersService {
 
   async cancel(id: string, dto: CancelOrderDto, actor: AuthenticatedUser): Promise<Order> {
     await this.findOne(id, actor);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('order')
         .setLock('pessimistic_write')
         .where('order.id = :id', { id })
@@ -636,11 +645,6 @@ export class OrdersService {
         origin: this.origin(actor),
         observation: order.cancellationReason,
       }));
-      await manager.query(`
-        UPDATE enlaces_seguimiento
-           SET estado = 'REVOCADO', revocado_por = $2, revocado_at = now(), updated_at = now()
-         WHERE pedido_id = $1 AND estado = 'ACTIVO'
-      `, [id, actor.id]);
       await manager.getRepository(OrderConfirmationLink).update(
         { orderId: id, status: OrderConfirmationLinkStatus.ACTIVE },
         { status: OrderConfirmationLinkStatus.REVOKED, revokedAt: new Date() },
@@ -657,11 +661,14 @@ export class OrdersService {
       }));
     });
     const canceled = await this.findOne(id, actor);
+    await this.trackingService.safeCaptureOrder(id, `order.canceled:${id}`, false);
+    await this.trackingService.refreshStock(`stock.cancel:${id}`);
     await this.notificationService.safeEnqueueOrderLifecycle(
       canceled,
       NotificationEvent.ORDER_CANCELED,
       actor.id,
       {
+        trackingUrl: await this.trackingService.ensureOrderLink(canceled),
         productList: this.productList(canceled),
         cancellationReason: canceled.cancellationReason ?? dto.reason.trim(),
       },
@@ -681,7 +688,7 @@ export class OrdersService {
       total: current.total,
       reason: dto.reason.trim(),
     };
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('order')
         .setLock('pessimistic_write')
         .where('order.id = :id', { id })
@@ -706,6 +713,11 @@ export class OrdersService {
       }));
     });
     return { id, code: current.code, deleted: true };
+  }
+
+  async workflow(id: string, actor: AuthenticatedUser) {
+    await this.findOne(id, actor);
+    return this.trackingService.orderSnapshot(id);
   }
 
   async history(id: string, actor: AuthenticatedUser): Promise<OrderHistory[]> {
@@ -807,9 +819,10 @@ export class OrdersService {
       order,
       NotificationEvent.ORDER_CONFIRMED,
       notificationOwnerId,
-      { productList: this.productList(order) },
+      { productList: this.productList(order), trackingUrl: await this.trackingService.ensureOrderLink(order) },
     );
     await this.trackingService.safeCaptureOrder(order.id, sourceEvent);
+    await this.trackingService.refreshStock(`stock.confirm:${order.id}`);
   }
 
   private publicConfirmationView(order: Order, linkActive: boolean): PublicOrderConfirmationView {

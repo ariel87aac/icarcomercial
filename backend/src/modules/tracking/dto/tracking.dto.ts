@@ -181,3 +181,18 @@ export class SaveNotificationEventSettingDto {
   @IsBoolean()
   enabled: boolean;
 }
+
+export class RequestOrderChangeDto {
+  @IsString()
+  @MinLength(5)
+  @MaxLength(1000)
+  @Matches(/\S/, { message: 'Debe describir la solicitud' })
+  message: string;
+}
+export class ResolveOrderChangeDto {
+  @IsString()
+  @MinLength(5)
+  @MaxLength(1000)
+  @Matches(/\S/, { message: 'Debe describir la resolución' })
+  response: string;
+}

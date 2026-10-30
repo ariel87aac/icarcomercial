@@ -1,3 +1,6 @@
+import { workflowTransaction } from '../orders/order-workflow';
+import { TrackingService } from '../tracking/tracking.service';
+import { productionTrackingSummary } from './production-tracking';
 import {
   BadRequestException,
   ConflictException,
@@ -88,6 +91,7 @@ interface ConsolidatedGroup {
 @Injectable()
 export class ProductionService {
   constructor(
+    private readonly trackingService: TrackingService,
     @InjectRepository(ProductionConsolidation)
     private readonly consolidationRepository: Repository<ProductionConsolidation>,
     @InjectRepository(ProductionConsolidationDetail)
@@ -124,7 +128,7 @@ export class ProductionService {
   }
 
   async createArea(dto: CreateProductionAreaDto, actor: AuthenticatedUser): Promise<ProductionArea> {
-    return this.dataSource.transaction(async (manager) => {
+    return workflowTransaction(this.dataSource, async (manager) => {
       const repository = manager.getRepository(ProductionArea);
       const name = dto.name.trim();
       if (!name) throw new BadRequestException('El nombre del área es obligatorio');
@@ -139,7 +143,7 @@ export class ProductionService {
   }
 
   async updateArea(id: string, dto: UpdateProductionAreaDto, actor: AuthenticatedUser): Promise<ProductionArea> {
-    return this.dataSource.transaction(async (manager) => {
+    return workflowTransaction(this.dataSource, async (manager) => {
       const repository = manager.getRepository(ProductionArea);
       const area = await repository.findOne({ where: { id }, relations: { categories: true } });
       if (!area) throw new NotFoundException('Área de Producción no encontrada');
@@ -196,6 +200,33 @@ export class ProductionService {
     ]);
   }
 
+  async tracking(query: ProductionConsolidationQueryDto, actor: AuthenticatedUser) {
+    const page = await this.findAll(query, actor);
+    if (!page.data.length) return page;
+    const areaIds = this.productionAreaScope(actor);
+    const details = await this.detailRepository.find({
+      loadEagerRelations: false,
+      where: {
+        consolidationId: In(page.data.map((order) => order.id)),
+        ...(areaIds !== null ? { productionAreaId: In(areaIds) } : {}),
+      },
+      relations: { deliveries: true },
+    });
+    const grouped = new Map<string, ProductionConsolidationDetail[]>();
+    for (const detail of details) {
+      const group = grouped.get(detail.consolidationId) ?? [];
+      group.push(detail);
+      grouped.set(detail.consolidationId, group);
+    }
+    return {
+      ...page,
+      data: page.data.map((order) => ({
+        ...order,
+        tracking: productionTrackingSummary(grouped.get(order.id) ?? []),
+      })),
+    };
+  }
+
   async findOne(id: string, actor: AuthenticatedUser): Promise<ProductionConsolidation> {
     const consolidation = await this.loadConsolidation(id, actor);
     if (this.isRequirementsOnly(actor) && consolidation.status === ProductionConsolidationStatus.DRAFT) {
@@ -235,7 +266,7 @@ export class ProductionService {
     actor: AuthenticatedUser,
     complementary: boolean,
   ): Promise<ProductionConsolidation> {
-    const consolidationId = await this.dataSource.transaction(async (manager) => {
+    const consolidationId = await workflowTransaction(this.dataSource, async (manager) => {
       await this.lockDeliveryDate(manager, dto.deliveryDate);
       const consolidationRepository = manager.getRepository(ProductionConsolidation);
       const stockRequestRepository = manager.getRepository(StockReplenishmentRequest);
@@ -341,7 +372,7 @@ export class ProductionService {
   }
 
   async recalculate(id: string, actor: AuthenticatedUser): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -381,7 +412,7 @@ export class ProductionService {
     dto: AdjustProductionPlanDto,
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -458,7 +489,7 @@ export class ProductionService {
     dto: ScheduleProductionDetailDto,
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -528,7 +559,7 @@ export class ProductionService {
   }
 
   async emit(id: string, actor: AuthenticatedUser): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -584,7 +615,7 @@ export class ProductionService {
   }
 
   async startDetail(id: string, detailId: string, actor: AuthenticatedUser): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const detail = await manager.getRepository(ProductionConsolidationDetail).createQueryBuilder('detail')
         .innerJoinAndSelect('detail.consolidation', 'consolidation')
         .innerJoinAndSelect('detail.product', 'product')
@@ -622,7 +653,7 @@ export class ProductionService {
     dto: RegisterProductionDeliveryDto,
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const detail = await manager.getRepository(ProductionConsolidationDetail).createQueryBuilder('detail')
         .innerJoinAndSelect('detail.consolidation', 'consolidation')
         .innerJoinAndSelect('detail.product', 'product')
@@ -738,7 +769,7 @@ export class ProductionService {
   }
 
   async receiveDelivery(id: string, dto: ReceiveProductionDeliveryDto, actor: AuthenticatedUser): Promise<ProductionDelivery> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const delivery = await manager.getRepository(ProductionDelivery).createQueryBuilder('delivery')
         .innerJoinAndSelect('delivery.consolidatedDetail', 'detail')
         .innerJoinAndSelect('detail.consolidation', 'consolidation')
@@ -803,6 +834,7 @@ export class ProductionService {
       await this.closeIfCompleted(manager, detail.consolidationId, actor.id);
       await this.saveAudit(manager, actor.id, 'RECIBIR_PRODUCCION_EN_ALMACEN', delivery.id, { consolidatedDetailId: detail.id, receivedQuantity: received, stockId: stock.id });
     });
+    await this.trackingService.refreshStock(`stock.production:${id}`);
     return this.deliveryRepository.findOneOrFail({
       where: { id },
       relations: { receivedBy: true, deliveredBy: true, consolidatedDetail: { product: true, presentation: { unit: true }, productionArea: true, category: true, consolidation: true } },
@@ -814,7 +846,7 @@ export class ProductionService {
     dto: RegisterProductionProgressDto,
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -874,7 +906,7 @@ export class ProductionService {
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
     const reason = this.requiredReason(dto.reason);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const detail = await manager.getRepository(ProductionConsolidationDetail)
         .createQueryBuilder('detail')
         .innerJoinAndSelect('detail.consolidation', 'consolidation')
@@ -920,7 +952,7 @@ export class ProductionService {
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
     const reason = this.requiredReason(dto.reason);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -977,7 +1009,7 @@ export class ProductionService {
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
     const reason = this.requiredReason(dto.reason);
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -1041,7 +1073,7 @@ export class ProductionService {
     dto: CloseProductionConsolidationDto,
     actor: AuthenticatedUser,
   ): Promise<ProductionConsolidation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const consolidation = await manager.getRepository(ProductionConsolidation)
         .createQueryBuilder('consolidation')
         .setLock('pessimistic_write')
@@ -1223,6 +1255,7 @@ export class ProductionService {
     consolidationAlias = 'consolidation',
     detailAlias?: string,
   ): void {
+    if (query.code) builder.andWhere(`${consolidationAlias}.code = :code`, { code: query.code });
     if (query.deliveryDate) builder.andWhere(`${consolidationAlias}.deliveryDate = :deliveryDate`, { deliveryDate: query.deliveryDate });
     if (query.version) builder.andWhere(`${consolidationAlias}.version = :version`, { version: query.version });
     if (query.type) builder.andWhere(`${consolidationAlias}.type = :type`, { type: query.type });
@@ -1248,6 +1281,9 @@ export class ProductionService {
   private async loadConsolidation(id: string, actor: AuthenticatedUser): Promise<ProductionConsolidation> {
     const consolidation = await this.consolidationRepository.findOne({
       where: { id },
+      // El seguimiento necesita responsables, no sus roles/permisos anidados.
+      // Cargar solo las relaciones explícitas evita multiplicar filas en cada refresco.
+      loadEagerRelations: false,
       relations: {
         generatedBy: true,
         emittedBy: true,

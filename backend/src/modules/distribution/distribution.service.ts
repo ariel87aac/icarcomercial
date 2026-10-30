@@ -1,3 +1,5 @@
+import { workflowTransaction } from '../orders/order-workflow';
+import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, EntityManager, In, Repository } from 'typeorm';
@@ -234,7 +236,7 @@ export class DistributionService {
     if (new Set(dto.items.map((item) => item.presentationId)).size !== dto.items.length) {
       throw new BadRequestException('No puede repetir una presentación');
     }
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const repository = manager.getRepository(ProductPresentation);
       for (const item of [...dto.items].sort((a, b) => a.presentationId.localeCompare(b.presentationId))) {
         const presentation = await repository.createQueryBuilder('presentation')
@@ -262,7 +264,7 @@ export class DistributionService {
   }
 
   async create(dto: CreateDistributionRouteDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    const id = await this.dataSource.transaction(async (manager) => {
+    const id = await workflowTransaction(this.dataSource, async (manager) => {
       const zone = await manager.getRepository(Zone).findOne({ where: { id: dto.zoneId, status: RecordStatus.ACTIVE } });
       if (!zone) throw new NotFoundException('Zona no encontrada o inactiva');
       const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: dto.vehicleId, status: RecordStatus.ACTIVE } });
@@ -325,7 +327,7 @@ export class DistributionService {
   }
 
   async updateVehicle(id: string, dto: UpdateRouteVehicleDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'El vehículo sólo puede cambiarse mientras la ruta está en Borrador');
       const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: dto.vehicleId, status: RecordStatus.ACTIVE } });
@@ -348,7 +350,7 @@ export class DistributionService {
   }
 
   async addDeliveries(id: string, dto: AddRouteDeliveriesDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'Solo una ruta en Borrador admite pedidos');
       const preparationIds = [...new Set(dto.preparationIds)];
@@ -361,7 +363,7 @@ export class DistributionService {
   }
 
   async removeDelivery(id: string, deliveryId: string, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    const orderId = await this.dataSource.transaction(async (manager) => {
+    const orderId = await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'Solo una ruta en Borrador permite retirar entregas');
       const delivery = await manager.getRepository(RouteDelivery).findOne({
@@ -383,12 +385,13 @@ export class DistributionService {
       await this.saveAudit(manager, actor.id, 'RETIRAR_ENTREGA_RUTA', id, { deliveryId, preparationId: delivery.preparationId, orderId: delivery.orderId });
       return delivery.orderId;
     });
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureOrder(orderId, `route.delivery.removed:${deliveryId}`);
     return this.findOne(id);
   }
 
   async reschedule(id: string, dto: RescheduleRouteDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       if (![DistributionRouteStatus.DRAFT, DistributionRouteStatus.PLANNED].includes(route.status)) {
         throw new ConflictException('Solo una ruta sin salida registrada puede reprogramarse');
@@ -405,12 +408,13 @@ export class DistributionService {
       await this.saveHistory(manager, id, route.status, route.status, RouteHistoryEvent.RESCHEDULING, actor.id, route.rescheduleReason, { previousDate, date: route.date });
       await this.saveAudit(manager, actor.id, 'REPROGRAMAR_RUTA', id, { previousDate, date: route.date, reason: route.rescheduleReason });
     });
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureRoute(id, `route.rescheduled:${id}:${dto.date}`);
     return this.findOne(id);
   }
 
   async cancel(id: string, dto: CancelRouteDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    const orderIds = await this.dataSource.transaction(async (manager) => {
+    const orderIds = await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       if (![DistributionRouteStatus.DRAFT, DistributionRouteStatus.PLANNED].includes(route.status)) {
         throw new ConflictException('Solo una ruta sin salida registrada puede cancelarse');
@@ -441,7 +445,7 @@ export class DistributionService {
   }
 
   async updateSequence(id: string, dto: UpdateRouteSequenceDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'La secuencia solo puede modificarse en Borrador');
       const deliveries = await manager.getRepository(RouteDelivery).find({ where: { routeId: id } });
@@ -457,12 +461,13 @@ export class DistributionService {
       await this.saveHistory(manager, id, route.status, route.status, RouteHistoryEvent.SEQUENCE, actor.id, 'Secuencia manual actualizada', { sequence: dto.deliveries });
       await this.saveAudit(manager, actor.id, 'ACTUALIZAR_SECUENCIA_RUTA', id, { deliveries: deliveries.length });
     });
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureRoute(id, `route.sequence:${id}:${Date.now()}`);
     return this.findOne(id);
   }
 
   async plan(id: string, dto: RouteTransitionDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'Solo una ruta en Borrador puede planificarse');
       const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: route.vehicleId, status: RecordStatus.ACTIVE } });
@@ -484,12 +489,13 @@ export class DistributionService {
       await this.saveHistory(manager, id, DistributionRouteStatus.DRAFT, DistributionRouteStatus.PLANNED, RouteHistoryEvent.PLANNING, actor.id, dto.observation?.trim() || 'Ruta planificada');
       await this.saveAudit(manager, actor.id, 'PLANIFICAR_RUTA', id, { deliveries: deliveries.length });
     });
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureRoute(id, `route.planned:${id}`);
     return this.findOne(id);
   }
 
   async departure(id: string, dto: RouteTransitionDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.PLANNED, 'La salida solo puede registrarse desde una ruta Planificada');
       const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: route.vehicleId, status: RecordStatus.ACTIVE } });
@@ -548,6 +554,7 @@ export class DistributionService {
       await this.saveHistory(manager, id, DistributionRouteStatus.PLANNED, DistributionRouteStatus.IN_DELIVERY, RouteHistoryEvent.DEPARTURE, actor.id, dto.observation?.trim() || 'Salida registrada', { deliveries: deliveries.length });
       await this.saveAudit(manager, actor.id, 'REGISTRAR_SALIDA_RUTA', id, { deliveries: deliveries.length });
     });
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureRoute(id, `route.departure:${id}`);
     return this.findOne(id);
   }
@@ -556,7 +563,7 @@ export class DistributionService {
     dto: CompleteFactoryDeliveryDto,
     actor: AuthenticatedUser,
   ): Promise<{ delivery: RouteDelivery; generatedSale?: Pick<Sale, 'id' | 'code' | 'dueDate' | 'total'> }> {
-    const transactionResult = await this.dataSource.transaction(async (manager) => {
+    const transactionResult = await workflowTransaction(this.dataSource, async (manager) => {
       const preparation = await manager.getRepository(OrderPreparation).createQueryBuilder('preparation')
         .setLock('pessimistic_write', undefined, ['preparation'])
         .innerJoinAndSelect('preparation.order', 'orders')
@@ -703,6 +710,7 @@ export class DistributionService {
       return { deliveryId: delivery.id, orderId: preparation.orderId, saleId };
     });
 
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureOrder(transactionResult.orderId, `factory.delivery:${transactionResult.deliveryId}`);
     const delivery = await this.loadDelivery(transactionResult.deliveryId);
     if (!transactionResult.saleId) return { delivery };
@@ -711,7 +719,7 @@ export class DistributionService {
   }
 
   async registerVisit(deliveryId: string, dto: RegisterVisitResultDto, actor: AuthenticatedUser): Promise<DistributionRoute & { generatedSale?: Pick<Sale, 'id' | 'code' | 'dueDate' | 'total'> }> {
-    const transactionResult = await this.dataSource.transaction(async (manager) => {
+    const transactionResult = await workflowTransaction(this.dataSource, async (manager) => {
       const delivery = await manager.getRepository(RouteDelivery).createQueryBuilder('delivery')
         .setLock('pessimistic_write', undefined, ['delivery'])
         .leftJoinAndSelect('delivery.route', 'route')
@@ -782,6 +790,7 @@ export class DistributionService {
       await this.saveAudit(manager, actor.id, 'REGISTRAR_RESULTADO_VISITA', deliveryId, { routeId, result: dto.result, saleId });
       return { routeId, saleId };
     });
+    await this.trackingService.refreshStock(`stock.distribution:${randomUUID()}`);
     await this.trackingService.safeCaptureRoute(transactionResult.routeId, `route.visit:${deliveryId}`);
     const route = await this.findOne(transactionResult.routeId) as DistributionRoute & { generatedSale?: Pick<Sale, 'id' | 'code' | 'dueDate' | 'total'> };
     if (transactionResult.saleId) {
@@ -792,7 +801,7 @@ export class DistributionService {
   }
 
   async finish(id: string, dto: RouteTransitionDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.IN_DELIVERY, 'Solo una ruta En reparto puede finalizarse');
       const deliveries = await manager.getRepository(RouteDelivery).find({
@@ -815,7 +824,7 @@ export class DistributionService {
   }
 
   async settle(id: string, dto: SettleRouteDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const route = await this.lockRoute(manager, id);
       this.assertRouteStatus(route, DistributionRouteStatus.FINISHED, 'Solo una ruta Finalizada puede liquidarse');
       const pendingReturn = await manager.getRepository(WarehouseReturnOrder).findOne({ where: { routeId: id, status: WarehouseReturnStatus.PENDING } });
@@ -921,7 +930,7 @@ export class DistributionService {
   }
 
   async receiveWarehouseReturn(id: string, dto: ReceiveWarehouseReturnDto, actor: AuthenticatedUser): Promise<WarehouseReturnOrder> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const returnOrder = await manager.getRepository(WarehouseReturnOrder).createQueryBuilder('returnOrder')
         .setLock('pessimistic_write')
         .innerJoinAndSelect('returnOrder.route', 'route')

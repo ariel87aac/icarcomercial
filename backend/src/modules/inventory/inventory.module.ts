@@ -1,3 +1,4 @@
+import { TrackingModule } from '../tracking/tracking.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ProductPresentation } from '../catalog/entities/product-presentation.entity';
@@ -13,7 +14,7 @@ import { ProductionArea } from '../production/entities/production-area.entity';
 import { StockReplenishmentRequestService } from './stock-replenishment-request.service';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([
+  imports: [TrackingModule, TypeOrmModule.forFeature([
     Stock,
     InventoryMovement,
     InventoryReservation,

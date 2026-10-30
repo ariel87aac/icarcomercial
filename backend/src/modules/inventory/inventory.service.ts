@@ -1,3 +1,5 @@
+import { workflowTransaction } from '../orders/order-workflow';
+import { TrackingService } from '../tracking/tracking.service';
 import { Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, Repository } from 'typeorm';
@@ -19,6 +21,7 @@ import { Stock } from './entities/stock.entity';
 @Injectable()
 export class InventoryService {
   constructor(
+    private readonly trackingService: TrackingService,
     @InjectRepository(Stock) private readonly stockRepository: Repository<Stock>,
     @InjectRepository(InventoryMovement)
     private readonly movementRepository: Repository<InventoryMovement>,
@@ -127,7 +130,7 @@ export class InventoryService {
       relations: { product: true, unit: true },
     });
     if (!presentation) throw new NotFoundException('Presentación no encontrada');
-    const result = await this.dataSource.transaction(async (manager) => {
+    const result = await workflowTransaction(this.dataSource, async (manager) => {
       await manager.query(
         `INSERT INTO existencias (presentacion_id, cantidad_fisica, cantidad_reservada)
          VALUES ($1, 0, 0) ON CONFLICT (presentacion_id) DO NOTHING`,
@@ -168,6 +171,7 @@ export class InventoryService {
       result: 'EXITOSO',
       metadata: { stockId: result.stockId, presentationId: dto.presentationId, type: dto.type, quantity: dto.quantity },
     });
+    await this.trackingService.refreshStock(`stock.movement:${result.movementId}`);
     return this.movementRepository.findOneOrFail({
       where: { id: result.movementId },
       relations: { stock: { presentation: { product: true, unit: true } }, user: true },

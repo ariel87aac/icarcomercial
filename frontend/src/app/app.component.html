@@ -125,7 +125,7 @@
                 </button>
                 <i class="pi pi-angle-right operational-flow__arrow"></i>
                 <button type="button" class="operational-stage preparation" [disabled]="!operationalSummary().stages.preparation.available" (click)="openOperationalStage('preparation')">
-                  <span class="operational-stage__icon"><i class="pi pi-box"></i></span><span class="operational-stage__body"><small>Etapa 3</small><strong>Preparación</strong><em>{{ operationalSummary().stages.preparation.breakdown.notStarted }} por iniciar · {{ operationalSummary().stages.preparation.breakdown.inProgress }} en curso · {{ operationalSummary().stages.preparation.breakdown.observed }} observados</em></span><b>{{ operationalSummary().stages.preparation.available ? operationalSummary().stages.preparation.pending : '—' }}</b>
+                  <span class="operational-stage__icon"><i class="pi pi-box"></i></span><span class="operational-stage__body"><small>Etapa 3</small><strong>Preparación</strong><em>{{ operationalSummary().stages.preparation.breakdown.waitingStock }} en preparación · {{ operationalSummary().stages.preparation.breakdown.readyToPrepare }} disponibles para preparar · {{ operationalSummary().stages.preparation.breakdown.verified }} verificados</em></span><b>{{ operationalSummary().stages.preparation.available ? operationalSummary().stages.preparation.pending : '—' }}</b>
                 </button>
                 <i class="pi pi-angle-right operational-flow__arrow"></i>
                 <button type="button" class="operational-stage distribution" [disabled]="!operationalSummary().stages.distribution.available" (click)="openOperationalStage('distribution')">
@@ -157,7 +157,7 @@
           @case ('catalog-admin') { <app-catalog-admin /> }
           @case ('orders') { <app-orders /> }
           @case ('inventory') { <app-inventory /> }
-          @case ('production') { <app-production /> }
+          @case ('production') { @defer (on immediate) { <app-production /> } @placeholder { <p>Cargando Producción…</p> } }
           @case ('distribution') { <app-distribution /> }
           @case ('messaging') { <app-messaging /> }
           @case ('commercial') { <app-commercial /> }

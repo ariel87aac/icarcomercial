@@ -1,3 +1,5 @@
+import { workflowTransaction } from '../orders/order-workflow';
+import { attachOrderWorkflow, coverageForOrders } from '../orders/order-workflow';
 import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, DataSource, EntityManager, In, Repository } from 'typeorm';
@@ -43,7 +45,7 @@ export class PreparationService {
         WHERE preparation.pedido_id = orders.id
           AND preparation.estado <> :canceledStatus
       )`, { canceledStatus: PreparationStatus.CANCELED })
-      .orderBy('orders.requestedDate', 'ASC')
+      .orderBy('orders.createdAt', 'ASC')
       .addOrderBy('orders.code', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
@@ -75,7 +77,7 @@ export class PreparationService {
          WHERE terminal_preparation.pedido_id = orders.id
            AND terminal_preparation.estado IN (:...terminalStatuses)
       )`, { terminalStatuses: [PreparationStatus.PREPARED, PreparationStatus.ASSIGNED, PreparationStatus.DISPATCHED] })
-      .orderBy('orders.requestedDate', 'ASC')
+      .orderBy('orders.createdAt', 'ASC')
       .addOrderBy('orders.code', 'ASC')
       .skip((query.page - 1) * query.limit)
       .take(query.limit);
@@ -164,7 +166,7 @@ export class PreparationService {
   }
 
   async create(dto: CreatePreparationDto, actor: AuthenticatedUser): Promise<OrderPreparation> {
-    const id = await this.dataSource.transaction(async (manager) => {
+    const id = await workflowTransaction(this.dataSource, async (manager) => {
       const order = await manager.getRepository(Order).createQueryBuilder('orders')
         .setLock('pessimistic_write')
         .where('orders.id = :id', { id: dto.orderId })
@@ -238,7 +240,7 @@ export class PreparationService {
 
   async progress(id: string, dto: RegisterPreparationProgressDto, actor: AuthenticatedUser): Promise<OrderPreparation> {
     if (!dto.details.length) throw new BadRequestException('Debe registrar al menos un detalle');
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const preparation = await this.lockPreparation(manager, id);
       if (![PreparationStatus.PENDING, PreparationStatus.IN_PROGRESS, PreparationStatus.OBSERVED].includes(preparation.status)) {
         throw new ConflictException('La preparación ya no admite avances');
@@ -281,7 +283,7 @@ export class PreparationService {
   }
 
   async confirm(id: string, dto: ConfirmPreparationDto, actor: AuthenticatedUser): Promise<OrderPreparation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const preparation = await this.lockPreparation(manager, id);
       if (![PreparationStatus.IN_PROGRESS, PreparationStatus.OBSERVED].includes(preparation.status)) {
         throw new ConflictException('La preparación debe tener detalles verificados antes de confirmarse');
@@ -292,22 +294,19 @@ export class PreparationService {
       }
       const unjustified = details.find((detail) => Number(detail.difference) !== 0 && !detail.observation?.trim());
       if (unjustified) throw new UnprocessableEntityException('Toda diferencia requiere una observación antes de confirmar');
-      for (const detail of [...details].sort((a, b) => a.stockId.localeCompare(b.stockId))) {
-        const stock = await manager.getRepository(Stock).createQueryBuilder('stock')
-          .setLock('pessimistic_write')
-          .where('stock.id = :stockId', { stockId: detail.stockId })
-          .getOneOrFail();
-        const allocatedRows = await manager.query<Array<{ quantity: string }>>(`
-          SELECT COALESCE(SUM(other_detail.cantidad_preparada), 0)::text AS quantity
-            FROM preparaciones_detalle other_detail
-            JOIN preparaciones_pedido other_preparation ON other_preparation.id = other_detail.preparacion_id
-           WHERE other_detail.existencia_id = $1
-             AND other_detail.preparacion_id <> $2
-             AND other_preparation.estado IN ('PREPARADA', 'ASIGNADA')
-        `, [detail.stockId, id]);
-        const pickable = Math.max(0, Number(stock.physicalQuantity) - Number(allocatedRows[0]?.quantity ?? 0));
-        if (Number(detail.preparedQuantity) > pickable + 0.0005) {
-          throw new UnprocessableEntityException(`La cantidad preparada supera la existencia física asignable. Disponible para separar: ${pickable.toFixed(3)}`);
+      // Serialize stock decisions before evaluating priority and coverage.
+      for (const stockId of [...new Set(details.map((detail) => detail.stockId))].sort()) {
+        await manager.getRepository(Stock).createQueryBuilder('stock').setLock('pessimistic_write')
+          .where('stock.id = :stockId', { stockId }).getOneOrFail();
+      }
+      const coverage = await coverageForOrders(manager, [preparation.orderId]);
+      for (const detail of details) {
+        const available = Number(coverage.get(detail.orderDetailId)?.cubierto ?? 0);
+        if (Number(detail.preparedQuantity) !== Number(detail.requestedQuantity)) {
+          throw new UnprocessableEntityException('El pedido debe prepararse completo; manténgalo En preparación hasta cubrir todos sus productos');
+        }
+        if (Number(detail.preparedQuantity) > available + 0.0005) {
+          throw new UnprocessableEntityException(`El pedido todavía no dispone de cobertura por prioridad. Cantidad cubierta: ${available.toFixed(3)}`);
         }
       }
       const previous = preparation.status;
@@ -320,11 +319,12 @@ export class PreparationService {
     });
     const result = await this.findOne(id);
     await this.trackingService.safeCaptureOrder(result.orderId, `preparation.confirmed:${id}:${result.version}`);
+    await this.trackingService.refreshStock(`stock.preparation.confirm:${id}`);
     return result;
   }
 
   async cancel(id: string, dto: CancelPreparationDto, actor: AuthenticatedUser): Promise<OrderPreparation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const preparation = await this.lockPreparation(manager, id);
       if (![PreparationStatus.PENDING, PreparationStatus.IN_PROGRESS, PreparationStatus.OBSERVED, PreparationStatus.PREPARED].includes(preparation.status)) {
         throw new ConflictException('Solo una preparación no asignada ni despachada puede cancelarse');
@@ -343,11 +343,12 @@ export class PreparationService {
     });
     const result = await this.findOne(id);
     await this.trackingService.safeCaptureOrder(result.orderId, `preparation.canceled:${id}:${result.version}`);
+    await this.trackingService.refreshStock(`stock.preparation.cancel:${id}`);
     return result;
   }
 
   async reopen(id: string, actor: AuthenticatedUser): Promise<OrderPreparation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const preparation = await this.lockPreparation(manager, id);
       if (preparation.status !== PreparationStatus.PREPARED) throw new ConflictException('Solo una preparación lista para despacho puede editarse');
       if (preparation.handedOffAt) throw new ConflictException('La preparación ya fue entregada a Distribución');
@@ -361,11 +362,14 @@ export class PreparationService {
       await this.saveHistory(manager, id, PreparationStatus.PREPARED, PreparationStatus.IN_PROGRESS, PreparationEvent.REOPENING, actor.id, 'Preparación reabierta para edición antes de su entrega');
       await this.saveAudit(manager, actor.id, 'REABRIR_PREPARACION', id, { orderId: preparation.orderId });
     });
-    return this.findOne(id);
+    const result = await this.findOne(id);
+    await this.trackingService.safeCaptureOrder(result.orderId, `preparation.reopened:${id}:${result.version}`);
+    await this.trackingService.refreshStock(`stock.reopened:${id}:${result.version}`);
+    return result;
   }
 
   async handoff(id: string, actor: AuthenticatedUser): Promise<OrderPreparation> {
-    await this.dataSource.transaction(async (manager) => {
+    await workflowTransaction(this.dataSource, async (manager) => {
       const preparation = await this.lockPreparation(manager, id);
       if (preparation.status !== PreparationStatus.PREPARED) throw new ConflictException('Solo una preparación confirmada puede entregarse a Distribución');
       if (preparation.handedOffAt) throw new ConflictException('La preparación ya fue entregada a Distribución');
@@ -387,20 +391,8 @@ export class PreparationService {
 
   private async attachOperationalDetailMetrics(preparation: OrderPreparation): Promise<void> {
     if (!preparation.details.length) return;
-    const stockIds = [...new Set(preparation.details.map((detail) => detail.stockId))];
     const orderDetailIds = preparation.details.map((detail) => detail.orderDetailId);
-    const [allocations, productionRows] = await Promise.all([
-      this.dataSource.query<Array<{ stock_id: string; quantity: string }>>(`
-        SELECT other_detail.existencia_id AS stock_id,
-               COALESCE(SUM(other_detail.cantidad_preparada), 0)::text AS quantity
-          FROM preparaciones_detalle other_detail
-          JOIN preparaciones_pedido other_preparation ON other_preparation.id = other_detail.preparacion_id
-         WHERE other_detail.existencia_id = ANY($1::uuid[])
-           AND other_detail.preparacion_id <> $2
-           AND other_preparation.estado IN ('PREPARADA', 'ASIGNADA')
-         GROUP BY other_detail.existencia_id
-      `, [stockIds, preparation.id]),
-      this.dataSource.query<Array<{
+    const productionRows = await this.dataSource.query<Array<{
         order_detail_id: string;
         id: string;
         code: number;
@@ -430,9 +422,8 @@ export class PreparationService {
           JOIN consolidaciones_produccion consolidation ON consolidation.id = detail.consolidacion_id
          WHERE source.detalle_pedido_id = ANY($1::uuid[])
          ORDER BY consolidation.codigo, detail.secuencia
-      `, [orderDetailIds]),
-    ]);
-    const allocatedByStock = new Map(allocations.map((row) => [row.stock_id, Number(row.quantity)]));
+      `, [orderDetailIds]);
+    const coverage = await coverageForOrders(this.dataSource.manager, [preparation.orderId]);
     const productionByDetail = new Map<string, typeof productionRows>();
     for (const row of productionRows) productionByDetail.set(row.order_detail_id, [...(productionByDetail.get(row.order_detail_id) ?? []), row]);
     for (const detail of preparation.details) {
@@ -445,7 +436,8 @@ export class PreparationService {
       detail.totalReservedQuantityCurrent = totalReserved.toFixed(3);
       detail.availableQuantityCurrent = (physical - totalReserved).toFixed(3);
       detail.shortageQuantityCurrent = Math.max(0, totalReserved - physical).toFixed(3);
-      detail.pickableQuantityCurrent = Math.max(0, physical - (allocatedByStock.get(detail.stockId) ?? 0)).toFixed(3);
+      detail.pickableQuantityCurrent = coverage.get(detail.orderDetailId)?.cubierto ?? '0.000';
+      detail.shortageQuantityCurrent = coverage.get(detail.orderDetailId)?.faltante ?? detail.requestedQuantity;
       detail.productionReceivedQuantity = received.toFixed(3);
       detail.productionPendingQuantity = Math.max(0, productionRequired - received).toFixed(3);
       detail.relatedProductionOrders = related.map((row) => ({
@@ -468,6 +460,8 @@ export class PreparationService {
     ]);
     const stockByPresentation = new Map(stocks.map((stock) => [stock.presentationId, stock]));
     const reservationByDetail = new Map(reservations.map((reservation) => [reservation.orderDetailId, reservation]));
+    await attachOrderWorkflow(this.dataSource.manager, orders);
+    const coverage = await coverageForOrders(this.dataSource.manager, orders.map(order => order.id));
     return orders.map((order) => ({
       ...order,
       details: order.details.map((detail) => {
@@ -478,8 +472,10 @@ export class PreparationService {
           physicalQuantity: Number(stock?.physicalQuantity ?? 0).toFixed(3),
           totalReservedQuantity: Number(stock?.reservedQuantity ?? 0).toFixed(3),
           availableQuantity: stock ? (Number(stock.physicalQuantity) - Number(stock.reservedQuantity)).toFixed(3) : '0.000',
-          shortageQuantity: stock ? Math.max(0, Number(stock.reservedQuantity) - Number(stock.physicalQuantity)).toFixed(3) : Number(detail.requestedQuantity).toFixed(3),
-          pickableQuantity: Math.max(0, Number(stock?.physicalQuantity ?? 0)).toFixed(3),
+          coveredQuantity: coverage.get(detail.id)?.cubierto ?? '0.000',
+          shortageQuantity: coverage.get(detail.id)?.faltante ?? detail.requestedQuantity,
+          availability: coverage.get(detail.id)?.disponibilidad ?? 'PENDIENTE_STOCK',
+          pickableQuantity: coverage.get(detail.id)?.cubierto ?? '0.000',
         };
       }),
     }));

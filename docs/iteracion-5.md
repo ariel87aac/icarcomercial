@@ -5,7 +5,7 @@ La quinta iteración implementa el seguimiento público protegido de pedidos y l
 ## Flujo implementado
 
 1. Atención al Cliente genera o renueva un enlace para un pedido confirmado.
-2. El sistema entrega el token una sola vez y guarda únicamente su hash SHA-256.
+2. El sistema entrega el token una sola vez y guarda su hash SHA-256 para validar el acceso y una copia cifrada del token para reutilizar la URL en notificaciones.
 3. La página pública expone la referencia del pedido, el estado visible, las paradas previas pendientes, el rango horario referencial y la última actualización.
 4. La confirmación, la preparación, la secuencia, la salida y los resultados de visita actualizan la proyección de seguimiento.
 5. Los eventos con plantilla activa generan una notificación idempotente en la cola PostgreSQL.
@@ -14,7 +14,7 @@ La quinta iteración implementa el seguimiento público protegido de pedidos y l
 
 ## Plantillas base por estado
 
-La pestaña **Plantillas** permite crear de forma idempotente el catálogo base sin reemplazar una plantilla activa configurada manualmente. El catálogo incluye:
+La pestaña **Plantillas** permite crear de forma idempotente el catálogo base sin reemplazar una plantilla activa configurada manualmente. El catálogo incluye los siguientes eventos originales, además de los nuevos estados documentados en el flujo unificado:
 
 - `PEDIDO_BORRADOR`: detalle, total, fecha de entrega y enlace de confirmación;
 - `PEDIDO_RECIBIDO`: constancia de recepción y detalle en revisión;
@@ -26,7 +26,7 @@ La pestaña **Plantillas** permite crear de forma idempotente el catálogo base 
 
 El botón **Crear plantillas base** sólo agrega los eventos que no tienen una plantilla activa. La acción queda auditada con la cantidad creada y la cantidad preservada. El cambio `BORRADOR → RECIBIDO` ahora encola también su mensaje específico mediante la misma política idempotente de los demás estados.
 
-Los estados públicos son `PEDIDO_CONFIRMADO`, `EN_PREPARACION`, `PREPARADO`, `EN_RUTA`, `ENTREGADO` y `ENTREGA_NO_COMPLETADA`.
+Los estados públicos vigentes son BORRADOR, RECIBIDO, PEDIDO_CONFIRMADO (Aprobado), EN_PREPARACION, DISPONIBLE_PARA_PREPARAR, PREPARADO, ASIGNADO, EN_RUTA, ENTREGADO, ENTREGA_PARCIAL, ENTREGA_NO_COMPLETADA y CANCELADO.
 
 ## LimiteAPI
 
@@ -123,8 +123,14 @@ Se incorpora en **Seguimiento y mensajería → Plantillas** un check por evento
 - Para mantener compatibilidad, los eventos sin configuración explícita conservan el envío habilitado; sigue siendo necesaria una plantilla válida y el resto de condiciones del canal.
 - Se aplica a mensajes de ciclo comercial, seguimiento y cobros. No modifica el historial, los enlaces, el estado del pedido, las notificaciones ya en cola, el diagnóstico manual del canal ni el reenvío manual autorizado.
 - Deshabilitar no genera mensajes pendientes de recuperar: volver a habilitar afecta únicamente a eventos futuros.
-- Las nuevas etapas definidas en [Flujo del pedido y seguimiento](./flujo-pedido-seguimiento-definicion.md) aún requieren implementar sus eventos específicos. Actualmente Cambios relevantes agrupa los cambios operativos sin evento propio; no equivale a un check independiente por cada nueva etapa.
+- La integración agrega eventos específicos para En preparación, Disponible para preparar, Preparado, Asignado y Entrega parcial, cada uno con su propio check.
 
 Verificación: backend compilado y cinco pruebas unitarias de preferencias aprobadas en `notification-event-settings.spec.ts`. La aplicación de la migración y la verificación visual/integrada quedan pendientes; no se enviaron WhatsApp reales.
 
 Validación adicional: compilador Angular (`ngc -p tsconfig.app.json --noEmit`) aprobado; seis pruebas unitarias aprobadas al incluir el diagnóstico de canal. El empaquetado `ng build` terminó con código 134 sin diagnóstico adicional en este entorno. Docker no fue accesible por permisos, por lo que no se aplicó la migración ni se verificó la interfaz en ejecución.
+
+## Integración del flujo unificado — 29 de octubre de 2026
+
+El historial pertenece al pedido desde borrador, el enlace muestra el turno incluyendo la entrega propia y existen checks por cada nuevo estado/evento. La implementación vigente, las migraciones, las reglas que sustituyen el comportamiento anterior y la evidencia se describen en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md) y [Pruebas de aceptación](./pruebas-aceptacion-flujo-unificado-pedidos.md).
+
+La integración definitiva se compiló en Docker y se verificó sobre una base aislada. Sustituye las limitaciones del registro de verificación inicial: véase la [evidencia actualizada](./pruebas-aceptacion-flujo-unificado-pedidos.md). Los avisos opcionales de próxima entrega y cambios relevantes de ruta se conservan bajo sus propios checks; por defecto permanecen desactivados.

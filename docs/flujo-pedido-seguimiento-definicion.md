@@ -2,7 +2,7 @@
 
 Fecha: 29 de octubre de 2026.
 
-Estado: requisitos acordados y propuesta de implementación; no constituye evidencia de funcionalidades implementadas ni de pruebas ejecutadas. La documentación de todo desarrollo se mantiene en `docs`.
+Estado: definición funcional acordada. La implementación y sus diferencias técnicas se detallan en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md), y su evidencia en [Pruebas del flujo unificado](./pruebas-aceptacion-flujo-unificado-pedidos.md). Las secciones de diferencias de este documento conservan el diagnóstico previo. La documentación de todo desarrollo se mantiene en `docs`.
 
 ## Flujo acordado
 
@@ -63,7 +63,7 @@ La asignación se muestra en el historial; el mensaje «en camino» se dispara a
 
 Cada estado debe disponer de un check para decidir si envía WhatsApp. Desactivar el envío no suprime la transición ni su historial en el enlace. La preferencia es independiente de la plantilla del mensaje.
 
-Implementación inicial: control global por los eventos existentes en Plantillas; persistencia mediante `1720000049000-add-notification-event-settings.ts`. Faltan eventos específicos para las nuevas etapas todavía no implementadas. El alcance y verificación están descritos en `iteracion-5.md`.
+Implementación integrada: controles globales por estado/evento en Plantillas, incluyendo las nuevas etapas; migraciones `1720000049000` y `1720000050000`. El alcance y verificación están descritos en `iteracion-5.md`.
 
 Cada actualización del turno debe reflejarse en el enlace; no se ha solicitado un WhatsApp por cada visita. Debe revisarse la política existente de mensajes de recibido, cambios relevantes y próxima entrega para que no agregue envíos automáticos fuera de estos momentos sin una decisión explícita. Se conservan idempotencia, cola, reintentos y trazabilidad de envío.
 
@@ -73,7 +73,7 @@ Una entrega parcial o fallida no debe generar un texto que afirme entrega comple
 
 El cliente debe tener una vía para solicitar cambios antes de confirmar y para solicitar modificación o cambio de productos por disconformidad después de recibirlos. La solicitud no modifica automáticamente el pedido confirmado, las existencias, una venta ni un cobro; requiere resolución comercial y trazabilidad.
 
-Pendiente de definir: canal de solicitud (respuesta WhatsApp, formulario del enlace o ambos), responsables de atención, aprobación, resolución y efectos sobre devoluciones, reposición y documentos comerciales.
+Canal implementado: formulario en el enlace y bandeja de atención comercial para registrar la resolución. El historial conserva la respuesta; devoluciones, reposiciones y cambios comerciales no se aplican automáticamente. No se interpreta automáticamente una respuesta de WhatsApp como solicitud.
 
 ## Diferencias con la implementación revisada
 

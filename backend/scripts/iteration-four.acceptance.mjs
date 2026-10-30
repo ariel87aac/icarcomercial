@@ -408,7 +408,10 @@ try {
   await expectStatus(`/api/preparations/${shortagePreparation.id}/confirm`, { method: 'POST', jar: adminJar, body: {} }, 422, 'CP-143');
   passed('CP-143', 'impide confirmar una cantidad mayor que la existencia física realmente separable');
   shortagePreparation = (await expectStatus(`/api/preparations/${shortagePreparation.id}/progress`, { method: 'POST', jar: adminJar, body: { details: [{ preparationDetailId: shortagePreparation.details[0].id, preparedQuantity: physicalBeforeShortage, verified: true, observation: `Faltan ${expectedShortage} unidades pendientes de Producción` }] } }, 201, 'avance ajustado')).payload;
-  shortagePreparation = (await expectStatus(`/api/preparations/${shortagePreparation.id}/confirm`, { method: 'POST', jar: adminJar, body: {} }, 201, 'confirmar preparación ajustada')).payload;
+  await expectStatus(`/api/preparations/${shortagePreparation.id}/confirm`, { method: 'POST', jar: adminJar, body: {} }, 422, 'rechazar preparación incompleta');
+  await expectStatus('/api/inventario/movimientos', { method: 'POST', jar: adminJar, body: { presentationId: presentation.id, type: 'INGRESO', quantity: expectedShortage, reason: marker } }, 201, 'reponer faltante completo');
+  shortagePreparation = (await expectStatus(`/api/preparations/${shortagePreparation.id}/progress`, { method: 'POST', jar: adminJar, body: { details: [{ preparationDetailId: shortagePreparation.details[0].id, preparedQuantity: 45, verified: true }] } }, 201, 'verificar pedido completo')).payload;
+  shortagePreparation = (await expectStatus(`/api/preparations/${shortagePreparation.id}/confirm`, { method: 'POST', jar: adminJar, body: {} }, 201, 'confirmar preparación completa')).payload;
   shortagePreparation = (await expectStatus(`/api/preparations/${shortagePreparation.id}/handoff`, { method: 'POST', jar: adminJar, body: {} }, 201, 'entregar preparación ajustada a Distribución')).payload;
 
   const alternateRouteDate = isoDate(15);

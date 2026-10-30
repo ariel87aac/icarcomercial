@@ -1,3 +1,4 @@
+import { TrackingModule } from '../tracking/tracking.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuditEvent } from '../audit/entities/audit-event.entity';
@@ -23,7 +24,7 @@ import { StockReplenishmentRequest } from '../inventory/entities/stock-replenish
 import { StockReplenishmentRequestDetail } from '../inventory/entities/stock-replenishment-request-detail.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([
+  imports: [TrackingModule, TypeOrmModule.forFeature([
     ProductionConsolidation,
     ProductionConsolidationDetail,
     ProductionConsolidationSource,

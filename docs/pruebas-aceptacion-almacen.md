@@ -73,3 +73,7 @@ La comprobación CP-121 valida que `onlyWithStock=true` excluya únicamente regi
 ## Criterio de aprobación
 
 El cambio se acepta cuando CP-121A a CP-121F cumplen su resultado esperado, backend y frontend compilan sin errores y los servicios Docker permanecen saludables.
+
+## Actualización: flujo unificado de pedidos — 29 de octubre de 2026
+
+La prioridad por fecha de creación, cobertura por detalle, preparación completa, traspaso, historial desde borrador, turno dinámico y checks por estado se documentan en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md). La evidencia ejecutada y las reglas que sustituyen los casos anteriores están en [Pruebas del flujo unificado](./pruebas-aceptacion-flujo-unificado-pedidos.md).

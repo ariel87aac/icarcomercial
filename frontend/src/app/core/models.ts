@@ -12,8 +12,8 @@ export type ProductionDetailStage = 'PENDIENTE' | 'EN_PROCESO' | 'PENDIENTE_RECE
 export type PreparationStatus = 'PENDIENTE' | 'EN_PREPARACION' | 'OBSERVADA' | 'PREPARADA' | 'ASIGNADA' | 'DESPACHADA' | 'CANCELADA';
 export type DistributionRouteStatus = 'BORRADOR' | 'PLANIFICADA' | 'EN_REPARTO' | 'FINALIZADA' | 'LIQUIDADA' | 'CANCELADA';
 export type VisitResultType = 'ENTREGADA' | 'ENTREGA_PARCIAL' | 'NO_ENTREGADA';
-export type PublicTrackingStatus = 'PEDIDO_CONFIRMADO' | 'EN_PREPARACION' | 'PREPARADO' | 'EN_RUTA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA';
-export type NotificationEvent = 'PEDIDO_BORRADOR' | 'PEDIDO_RECIBIDO' | 'PEDIDO_CONFIRMADO' | 'PEDIDO_CANCELADO' | 'CAMBIO_RELEVANTE' | 'SALIDA_RUTA' | 'PROXIMA_ENTREGA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA' | 'PAGO_RECIBIDO';
+export type PublicTrackingStatus = 'BORRADOR' | 'RECIBIDO' | 'CANCELADO' | 'DISPONIBLE_PARA_PREPARAR' | 'ASIGNADO' | 'ENTREGA_PARCIAL' | 'PEDIDO_CONFIRMADO' | 'EN_PREPARACION' | 'PREPARADO' | 'EN_RUTA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA';
+export type NotificationEvent = 'EN_PREPARACION' | 'DISPONIBLE_PARA_PREPARAR' | 'PREPARADO' | 'ASIGNADO' | 'ENTREGA_PARCIAL' | 'PEDIDO_BORRADOR' | 'PEDIDO_RECIBIDO' | 'PEDIDO_CONFIRMADO' | 'PEDIDO_CANCELADO' | 'CAMBIO_RELEVANTE' | 'SALIDA_RUTA' | 'PROXIMA_ENTREGA' | 'ENTREGADO' | 'ENTREGA_NO_COMPLETADA' | 'PAGO_RECIBIDO';
 export type NotificationStatus = 'PENDIENTE' | 'PROCESANDO' | 'ENVIADO' | 'ENTREGADO' | 'REINTENTO' | 'FALLIDO';
 
 export interface SessionUser {
@@ -345,6 +345,9 @@ export interface StockReplenishmentPlan {
 }
 
 export interface OrderDetail {
+  coveredQuantity?: string;
+  shortageQuantity?: string;
+  availability?: string;
   id: string;
   orderId: string;
   presentationId: string;
@@ -372,6 +375,7 @@ export interface OrderHistory {
 }
 
 export interface Order {
+  operationalStatus?: PublicTrackingStatus;
   id: string;
   code: string;
   customerId: string;
@@ -412,6 +416,8 @@ export interface TrackingHistoryItem {
 }
 
 export interface TrackingSnapshot {
+  deliveryTurn: number | null;
+  changeRequests: Array<{id:string;message:string;status:string;response:string|null;createdAt:string;resolvedAt:string|null}>;
   protectedReference: string;
   status: PublicTrackingStatus;
   pendingPriorStops: number;
@@ -437,6 +443,7 @@ export interface OrderTrackingResponse {
 }
 
 export interface PublicOrderConfirmation {
+  trackingUrl?: string;
   orderReference: string;
   customerName: string;
   requestedDate: string;
@@ -650,6 +657,20 @@ export interface ProductionConsolidation {
   details: ProductionConsolidationDetail[];
   detailCount?: number;
   createdAt: string;
+}
+
+export interface ProductionTrackingSummary {
+  productCount: number;
+  completedCount: number;
+  incidentCount: number;
+  canceledCount: number;
+  pendingReceiptCount: number;
+  producedPercent: number | null;
+  receivedPercent: number | null;
+}
+
+export interface ProductionTrackingOrder extends ProductionConsolidation {
+  tracking: ProductionTrackingSummary;
 }
 
 export interface ProductionHistory {

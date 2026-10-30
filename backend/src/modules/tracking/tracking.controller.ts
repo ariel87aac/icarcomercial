@@ -5,7 +5,7 @@ import { RequirePermissions } from '../../common/decorators/permissions.decorato
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
-import { SaveNotificationEventSettingDto, CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
+import { RequestOrderChangeDto, ResolveOrderChangeDto, SaveNotificationEventSettingDto, CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
 import { NotificationService } from './notification.service';
 import { TrackingService } from './tracking.service';
 
@@ -39,10 +39,27 @@ export class TrackingController {
     return this.tracking.publicTracking(token, request.ip || request.socket.remoteAddress || 'unknown');
   }
 
+  @Post('public/tracking/:token/change-requests')
+  @Public()
+  requestChange(@Param('token') token: string, @Body() dto: RequestOrderChangeDto, @Req() req: Request) {
+    return this.tracking.requestChange(token, dto.message, req.ip || req.socket.remoteAddress || 'unknown');
+  }
+
+  @Get('order-change-requests')
+  @RequirePermissions('tracking.links.read')
+  requests() { return this.tracking.changeRequests(); }
+
+  @Post('order-change-requests/:id/resolve')
+  @RequirePermissions('tracking.links.manage')
+  resolveRequest(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ResolveOrderChangeDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.tracking.resolveChangeRequest(id, dto.response, actor);
+  }
+
   @Post('tracking-events')
   @RequirePermissions('tracking.links.manage')
   async capture(@Body() dto: TrackingEventDto) {
     await this.tracking.safeCaptureOrder(dto.orderId, dto.sourceEvent);
+    await this.tracking.flushPendingUpdates();
     return { accepted: true };
   }
 

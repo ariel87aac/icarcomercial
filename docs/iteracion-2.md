@@ -221,3 +221,7 @@ docker compose exec -T backend npm run test:acceptance
 ## Fuera de alcance
 
 Esta iteración no implementa reprogramación manual a una fecha arbitraria. La única reprogramación admitida es la corrección automática por cierre vencido hacia la siguiente fecha abierta de la zona. La consolidación para producción, preparación, despacho, rutas, entrega, notificaciones, ventas, pagos y saldos por cobrar corresponden a iteraciones posteriores.
+
+## Integración del flujo unificado — 29 de octubre de 2026
+
+La cobertura actual se consulta por detalle y respeta la fecha de creación del pedido, conservando las instantáneas usadas en Producción. La implementación vigente, las migraciones, las reglas que sustituyen el comportamiento anterior y la evidencia se describen en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md) y [Pruebas de aceptación](./pruebas-aceptacion-flujo-unificado-pedidos.md).

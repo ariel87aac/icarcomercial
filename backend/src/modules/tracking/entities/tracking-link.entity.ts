@@ -10,6 +10,8 @@ export class TrackingLink extends AuditableEntity {
   @Column({ name: 'pedido_id', type: 'uuid' }) orderId: string;
   @ManyToOne(() => Order, { onDelete: 'RESTRICT' }) @JoinColumn({ name: 'pedido_id' }) order: Order;
   @Column({ name: 'token_hash', type: 'varchar', length: 64, unique: true }) tokenHash: string;
+  @Column({ name: 'token_hash_anterior', type: 'varchar', length: 64, nullable: true, select: false }) legacyTokenHash: string | null;
+  @Column({ name: 'token_cifrado', type: 'text', nullable: true, select: false }) encryptedToken: string | null;
   @Column({ name: 'estado', type: 'enum', enum: TrackingLinkStatus, enumName: 'estado_enlace_seguimiento_enum', default: TrackingLinkStatus.ACTIVE }) status: TrackingLinkStatus;
   @Column({ name: 'expira_at', type: 'timestamptz' }) expiresAt: Date;
   @Column({ name: 'creado_por', type: 'uuid' }) createdById: string;

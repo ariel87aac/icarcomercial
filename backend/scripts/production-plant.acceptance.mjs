@@ -98,6 +98,19 @@ try {
   assert.equal(stockRequest.status, 'ENVIADA');
 
   let order = await expectStatus('/api/production-consolidations', { method: 'POST', jar, body: { deliveryDate: requiredDate } }, 201, 'generar orden desde solicitud de stock');
+  async function checkTracking(target, producedPercent, receivedPercent, pendingReceiptCount = 0) {
+    const response = await expectStatus(`/api/production-consolidations/tracking?code=${target.code}&limit=1`, { jar }, 200, 'seguimiento por código');
+    assert.equal(response.meta.total, 1);
+    assert.equal(response.data[0].id, target.id);
+    assert.equal(response.data[0].status, target.status);
+    assert.equal(response.data[0].tracking.producedPercent, producedPercent);
+    assert.equal(response.data[0].tracking.receivedPercent, receivedPercent);
+    assert.equal(response.data[0].tracking.pendingReceiptCount, pendingReceiptCount);
+    return response.data[0];
+  }
+  await checkTracking(order, 0, 0);
+  await expectStatus('/api/production-consolidations/tracking', {}, 401, 'seguimiento requiere sesión');
+  await expectStatus('/api/production-consolidations/tracking?code=-1', { jar }, 400, 'código inválido');
   assert.equal(order.details.length, 1);
   assert.equal(Number(order.details[0].requestedQuantity), 0);
   assert.equal(Number(order.details[0].productionRequiredQuantity), 0);
@@ -115,6 +128,7 @@ try {
 
   order = await expectStatus(`/api/production-consolidations/${order.id}/emit`, { method: 'POST', jar, body: {} }, 201, 'emitir orden');
   assert.equal(order.details[0].stage, 'PENDIENTE');
+  await checkTracking(order, 0, 0);
   const plantBoard = await expectStatus(`/api/production-consolidations/plant?productionAreaId=${area.id}`, { jar }, 200, 'tablero directo de planta');
   const visiblePlantOrder = plantBoard.find((item) => item.id === order.id);
   assert(visiblePlantOrder);
@@ -122,6 +136,7 @@ try {
   assert(visiblePlantOrder.details.every((detail) => detail.productionAreaId === area.id));
   order = await expectStatus(`/api/production-consolidations/${order.id}/details/${order.details[0].id}/start`, { method: 'POST', jar, body: {} }, 201, 'iniciar producto');
   assert.equal(order.status, 'EN_PROCESO');
+  await checkTracking(order, 0, 0);
   assert.equal(order.details[0].stage, 'EN_PROCESO');
   await expectStatus(`/api/production-consolidations/${order.id}/details/${order.details[0].id}/deliveries`, { method: 'POST', jar, body: { quantity: 12, finalDelivery: true } }, 422, 'diferencia sin incidencia');
   process.stdout.write('✓ CP-P04 el tablero abre directamente por área, inicia cada producto y exige documentar diferencias reales\n');
@@ -132,6 +147,7 @@ try {
   order = await expectStatus(`/api/production-consolidations/${order.id}/details/${order.details[0].id}/deliveries`, { method: 'POST', jar, body: { quantity: 4, finalDelivery: false } }, 201, 'primera entrega parcial');
   assert.equal(order.details[0].stage, 'PENDIENTE_RECEPCION');
   assert.equal(order.details[0].completedAt, null);
+  await checkTracking(order, 40, 0, 1);
   assert.equal(order.details[0].deliveries.length, 1);
   assert(order.details[0].deliveries[0].deliveredAt);
   const stockStill = await expectStatus(`/api/inventario/existencias?limit=100&productId=${product.id}`, { jar }, 200, 'stock antes de recepción');
@@ -147,9 +163,11 @@ try {
   order = await expectStatus(`/api/production-consolidations/${order.id}`, { jar }, 200, 'orden después de recepción parcial');
   assert.equal(order.details[0].stage, 'RECIBIDO_PARCIAL');
   assert.equal(Number(order.details[0].receivedQuantity), 4);
+  await checkTracking(order, 40, 40);
   order = await expectStatus(`/api/production-consolidations/${order.id}/details/${order.details[0].id}/deliveries`, { method: 'POST', jar, body: { quantity: 8, finalDelivery: true, incident: 'El batch real produjo dos bolsas adicionales' } }, 201, 'entrega final');
   assert.equal(order.details[0].stage, 'PENDIENTE_RECEPCION');
   assert.equal(Number(order.details[0].difference), 2);
+  await checkTracking(order, 100, 40, 1);
   assert.equal(order.details[0].deliveries.length, 2);
   const finalRecorded = order.details[0].deliveries.find((item) => item.finalDelivery);
   assert(finalRecorded?.deliveredAt);
@@ -164,6 +182,12 @@ try {
   await expectStatus(`/api/production-deliveries/${delivery.id}/receive`, { method: 'POST', jar, body: { receivedQuantity: 7.5, observation: 'Media bolsa observada durante el conteo' } }, 201, 'aceptar recepción final');
   const finished = await expectStatus(`/api/production-consolidations/${order.id}`, { jar }, 200, 'orden final');
   assert.equal(finished.status, 'CERRADA');
+  const finishedTracking = await checkTracking(finished, 100, 100);
+  assert.equal(finishedTracking.tracking.incidentCount, 1);
+  const filteredTracking = await expectStatus(`/api/production-consolidations/tracking?code=${finished.code}&statuses=EMITIDA,EN_PROCESO`, { jar }, 200, 'filtrar estados activos');
+  assert.equal(filteredTracking.meta.total, 0);
+  const datedTracking = await expectStatus(`/api/production-consolidations/tracking?code=${finished.code}&deliveryDate=${requiredDate}`, { jar }, 200, 'filtrar fecha');
+  assert.equal(datedTracking.meta.total, 1);
   assert.equal(finished.details[0].stage, 'CERRADO_CON_INCIDENCIA');
   assert.equal(Number(finished.details[0].receivedQuantity), 11.5);
   assert.equal(new Date(finished.details[0].completedAt).getTime(), new Date(finalRecorded.deliveredAt).getTime());
@@ -176,6 +200,8 @@ try {
 
   const history = await expectStatus(`/api/production-consolidations/${order.id}/history`, { jar }, 200, 'historial');
   for (const event of ['GENERACION', 'EMISION', 'INICIO', 'ENTREGA_PRODUCCION', 'RECEPCION_ALMACEN', 'CIERRE']) assert(history.some((item) => item.event === event), `falta evento ${event}`);
+  assert.deepEqual(history.filter((event) => event.previousStatus !== event.newStatus).map((event) => event.newStatus), ['BORRADOR', 'EMITIDA', 'EN_PROCESO', 'CERRADA']);
+  assert(history.every((event) => event.user?.name && event.occurredAt));
   process.stdout.write('✓ CP-P07 la trazabilidad conserva todas las etapas por producto y orden\n');
 
   const flexibleDate = futureDate(2);
@@ -212,6 +238,7 @@ try {
   await expectStatus(`/api/production-consolidations/${flexibleOrder.id}/close-incomplete`, { method: 'POST', jar, body: { reason: '' } }, 400, 'exigir observación de cierre incompleto');
   flexibleOrder = await expectStatus(`/api/production-consolidations/${flexibleOrder.id}/close-incomplete`, { method: 'POST', jar, body: { reason: 'Falla de equipo impidió completar cinco bolsas' } }, 201, 'cerrar orden incompleta');
   assert.equal(flexibleOrder.status, 'CERRADA_INCOMPLETA');
+  await checkTracking(flexibleOrder, 58.3, 58.3);
   flexibleRequest = await expectStatus(`/api/inventario/solicitudes-abastecimiento/${flexibleRequest.id}`, { jar }, 200, 'solicitud cerrada incompleta');
   assert.equal(flexibleRequest.status, 'CERRADA_INCOMPLETA');
   assert.match(flexibleRequest.closeObservation, /Falla de equipo/);
@@ -224,12 +251,15 @@ try {
   let cancelOrder = await expectStatus('/api/production-consolidations', { method: 'POST', jar, body: { deliveryDate: cancelDate, stockRequestId: cancelRequest.id } }, 201, 'generar orden a cancelar');
   cancelOrder = await expectStatus(`/api/production-consolidations/${cancelOrder.id}/cancel`, { method: 'POST', jar, body: { reason: 'Solicitud retirada por el responsable comercial' } }, 201, 'cancelar orden');
   assert.equal(cancelOrder.status, 'CANCELADA');
+  const canceledTracking = await checkTracking(cancelOrder, 0, 0);
+  assert.equal(canceledTracking.tracking.canceledCount, 1);
   assert.equal(cancelOrder.details[0].stage, 'CANCELADO');
   cancelRequest = await expectStatus(`/api/inventario/solicitudes-abastecimiento/${cancelRequest.id}`, { jar }, 200, 'solicitud asociada cancelada');
   assert.equal(cancelRequest.status, 'CERRADA_INCOMPLETA');
   process.stdout.write('✓ CP-P10 una orden sin recepciones puede cancelarse y conserva el motivo\n');
 
-  process.stdout.write('\n11 pruebas de aceptación del flujo Producción–Almacén superadas.\n');
+  process.stdout.write('✓ CP-P12 seguimiento de estados, porcentajes, filtros, sesión e historial de responsables\n');
+  process.stdout.write('\n12 pruebas de aceptación del flujo Producción–Almacén superadas.\n');
 } catch (error) {
   process.stderr.write(`\nFallo de aceptación: ${error.stack ?? error}\n`);
   process.exitCode = 1;

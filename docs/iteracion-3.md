@@ -296,3 +296,11 @@ docker compose exec -T backend npm run test:acceptance:production-flow
 | Segunda: Productos, Almacén y pedidos | La reserva continúa siendo la fuente del faltante. Almacén recibe producción en la misma presentación mediante `INGRESO_PRODUCCION`. |
 | Tercera: Producción | Se separan **Solicitud para stock** y **Ajuste por batch/capacidad**; se habilitan órdenes sin pedidos cuando existe solicitud comercial, áreas configurables, ejecución por producto, diferencias y doble validación. |
 | Cuarta: preparación y distribución | Preparación usa las existencias ya aceptadas por Almacén y puede reducir la cantidad a entregar ante faltante de producción, conservando la diferencia y su observación. |
+
+## Integración del flujo unificado — 29 de octubre de 2026
+
+Aceptar una recepción actualiza la cobertura y las etapas de los pedidos por antigüedad, sin reescribir las fuentes de planes emitidos. La implementación vigente, las migraciones, las reglas que sustituyen el comportamiento anterior y la evidencia se describen en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md) y [Pruebas de aceptación](./pruebas-aceptacion-flujo-unificado-pedidos.md).
+
+## Seguimiento de órdenes — 29 de octubre de 2026
+
+Se agrega **Producción → Seguimiento** con filtros por código, fecha y estados, avance producido/recibido, pendientes de recepción y detalle cronológico de etapas, entregas y responsables. La consulta se actualiza cada 30 segundos y respeta las áreas autorizadas. Las reglas de cálculo, permisos, optimización y evidencia están documentadas en [Seguimiento de órdenes de producción](./seguimiento-ordenes-produccion.md).

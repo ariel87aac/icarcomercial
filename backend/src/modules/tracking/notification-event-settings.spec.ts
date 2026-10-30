@@ -7,8 +7,8 @@ import { Payment } from '../commercial/entities/payment.entity';
 function service(enabled: boolean) {
   const subject = Object.create(NotificationService.prototype) as NotificationService;
   const query = vi.fn().mockResolvedValue([{ event: NotificationEvent.ORDER_DRAFT, enabled }]);
-  const findOne = vi.fn().mockResolvedValue(null);
-  Object.assign(subject, { dataSource: { query }, templates: { findOne }, audit: { record: vi.fn() } });
+  const findOne = vi.fn().mockResolvedValue(enabled ? { id: 'template', body: '', allowedVariables: [] } : null);
+  Object.assign(subject, { dataSource: { query }, templates: { findOne }, audit: { record: vi.fn() }, enqueueWithTemplate: vi.fn().mockResolvedValue(null) });
   return { subject, query, findOne };
 }
 

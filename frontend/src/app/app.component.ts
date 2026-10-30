@@ -79,7 +79,7 @@ interface OperationalDashboardSummary {
   stages: {
     orders: { available: boolean; pending: number; breakdown: { draft: number; received: number } };
     production: { available: boolean; pending: number; breakdown: { draft: number; issued: number; inProgress: number } };
-    preparation: { available: boolean; pending: number; breakdown: { notStarted: number; inProgress: number; observed: number } };
+    preparation: { available: boolean; pending: number; breakdown: { waitingStock: number; readyToPrepare: number; verified: number } };
     distribution: { available: boolean; pending: number; breakdown: { readyForRoute: number; scheduled: number; inDelivery: number } };
   };
 }
@@ -90,7 +90,7 @@ const EMPTY_OPERATIONAL_SUMMARY: OperationalDashboardSummary = {
   stages: {
     orders: { available: false, pending: 0, breakdown: { draft: 0, received: 0 } },
     production: { available: false, pending: 0, breakdown: { draft: 0, issued: 0, inProgress: 0 } },
-    preparation: { available: false, pending: 0, breakdown: { notStarted: 0, inProgress: 0, observed: 0 } },
+    preparation: { available: false, pending: 0, breakdown: { waitingStock: 0, readyToPrepare: 0, verified: 0 } },
     distribution: { available: false, pending: 0, breakdown: { readyForRoute: 0, scheduled: 0, inDelivery: 0 } },
   },
 };

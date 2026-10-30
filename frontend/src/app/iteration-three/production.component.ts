@@ -13,6 +13,7 @@ import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
 import { TableLazyLoadEvent } from 'primeng/types/table';
 import { AuthService } from '../core/auth.service';
+import { ProductionTrackingComponent } from './production-tracking.component';
 import {
   Paginated,
   ProductCategory,
@@ -27,7 +28,7 @@ import {
   StockReplenishmentRequest,
 } from '../core/models';
 
-type ProductionView = 'requests' | 'planning' | 'plant' | 'areas' | 'summary';
+type ProductionView = 'requests' | 'planning' | 'tracking' | 'plant' | 'areas' | 'summary';
 type ReasonAction = 'detail' | 'order' | 'incomplete';
 interface PlantRow { order: ProductionConsolidation; detail: ProductionConsolidationDetail; }
 interface PlantGroup { key: string; area: string; rows: PlantRow[]; orderCount: number; }
@@ -36,7 +37,7 @@ const DEFAULT_PLANNING_STATUSES: ProductionConsolidationStatus[] = ['EMITIDA', '
 @Component({
   selector: 'app-production',
   standalone: true,
-  imports: [FormsModule, ReactiveFormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, MultiSelectModule, SelectModule, TableModule, TagModule, TextareaModule],
+  imports: [ProductionTrackingComponent, FormsModule, ReactiveFormsModule, ButtonModule, DialogModule, InputNumberModule, InputTextModule, MultiSelectModule, SelectModule, TableModule, TagModule, TextareaModule],
   template: `
     <div class="page-toolbar">
       <div><span class="eyebrow">Producción</span><h2>Órdenes de Producción</h2><p>Planifica por presentación, organiza las áreas y registra las entregas elaboradas.</p></div>
@@ -46,10 +47,13 @@ const DEFAULT_PLANNING_STATUSES: ProductionConsolidationStatus[] = ['EMITIDA', '
     <div class="view-tabs">
       @if (auth.can('production.consolidations.create')) { <button type="button" [class.active]="view()==='requests'" (click)="setView('requests')"><i class="pi pi-inbox"></i> Solicitudes pendientes <span class="count-badge">{{ stockRequests().length }}</span></button> }
       @if (auth.can('production.consolidations.read')) { <button type="button" [class.active]="view()==='planning'" (click)="setView('planning')"><i class="pi pi-calendar"></i> Planificación <span class="count-badge">{{ planningCount() }}</span></button> }
+      @if (auth.can('production.consolidations.read')) { <button type="button" [class.active]="view()==='tracking'" (click)="setView('tracking')"><i class="pi pi-history"></i> Seguimiento</button> }
       @if (auth.can('production.execution.manage')) { <button type="button" [class.active]="view()==='plant'" (click)="setView('plant')"><i class="pi pi-cog"></i> Producción en planta</button> }
       @if (auth.can('production.areas.read')) { <button type="button" [class.active]="view()==='areas'" (click)="setView('areas')"><i class="pi pi-sitemap"></i> Áreas</button> }
       @if (auth.can('production.summary.read')) { <button type="button" [class.active]="view()==='summary'" (click)="setView('summary')"><i class="pi pi-chart-bar"></i> Resumen</button> }
     </div>
+
+    @if (view()==='tracking') { @defer (on immediate) { <app-production-tracking /> } @placeholder { <p>Cargando seguimiento…</p> } }
 
     @if (view()==='requests') {
       <div class="section-heading"><div><span class="eyebrow">Almacén → Producción</span><h3>Solicitudes de abastecimiento pendientes</h3><p>Desde aquí el responsable de Producción genera la orden y luego programa cada producto por área y fecha.</p></div><p-button label="Actualizar" icon="pi pi-refresh" [outlined]="true" (onClick)="loadStockRequests()" /></div>
@@ -197,7 +201,7 @@ export class ProductionComponent implements OnInit {
   protected readonly areaForm = this.fb.nonNullable.group({ name: ['', Validators.required], status: ['ACTIVO'], categoryIds: this.fb.nonNullable.control<string[]>([]) });
 
   ngOnInit(): void { if (this.auth.can('production.areas.read')) { this.loadAreas(); this.loadCategories(); } if (this.auth.can('production.consolidations.create')) this.loadStockRequests(false); if (this.auth.can('production.consolidations.read')) this.loadConsolidations(); }
-  protected setView(view: ProductionView): void { this.view.set(view); this.reload(); }
+  protected setView(view: ProductionView): void { this.view.set(view); if (view !== 'tracking') this.reload(); }
   protected reload(): void { if (this.view() === 'requests') this.loadStockRequests(); else if (this.view() === 'plant') this.loadPlantBoard(); else if (this.view() === 'summary') this.loadSummary(); else if (this.view() === 'areas') { this.loadAreas(); this.loadCategories(); } else this.loadConsolidations(); }
   private params(): HttpParams { const planning = this.view() === 'planning'; let params = new HttpParams().set('page', planning ? this.planningPage() : 1).set('limit', planning ? this.planningPageSize() : 100); if (!planning && this.dateFilter()) params = params.set('deliveryDate', this.dateFilter()); if (!planning && this.areaFilter()) params = params.set('productionAreaId', this.areaFilter()!); if (!planning && this.categoryFilter()) params = params.set('categoryId', this.categoryFilter()!); if (planning && this.statusFilter().length) params = params.set('statuses', this.statusFilter().join(',')); return params; }
   private loadConsolidations(): void { this.loading.set(true); const requirementsOnly = this.auth.can('production.requirements.read') && !this.auth.can('production.consolidations.create') && !this.auth.can('production.plan.adjust'); const endpoint = requirementsOnly ? '/api/production-requirements' : '/api/production-consolidations'; this.http.get<Paginated<ProductionConsolidation>>(endpoint, { params: this.params() }).subscribe({ next: (response) => { this.consolidations.set(response.data); if (this.view() === 'planning') { this.planningPage.set(response.meta.page); this.planningPageSize.set(response.meta.limit); this.planningTotal.set(response.meta.total); } this.loading.set(false); this.loadPlanningCount(endpoint); }, error: (error) => this.fail(error) }); }

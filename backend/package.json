@@ -21,7 +21,8 @@
     "test:acceptance:iteration5": "node scripts/iteration-five.acceptance.mjs",
     "test:acceptance:iteration6": "node scripts/iteration-six.acceptance.mjs",
     "test:acceptance:production-flow": "node scripts/production-plant.acceptance.mjs",
-    "test:acceptance:stock-requests": "node scripts/stock-replenishment.acceptance.mjs"
+    "test:acceptance:stock-requests": "node scripts/stock-replenishment.acceptance.mjs",
+    "test:acceptance:workflow": "node scripts/order-workflow.acceptance.mjs"
   },
   "dependencies": {
     "@nestjs/common": "12.0.1",

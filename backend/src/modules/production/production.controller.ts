@@ -48,6 +48,12 @@ export class ProductionConsolidationsController {
     return this.production.plantBoard(query.productionAreaId, actor);
   }
 
+  @Get('tracking')
+  @RequirePermissions('production.consolidations.read')
+  tracking(@Query() query: ProductionConsolidationQueryDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.production.tracking(query, actor);
+  }
+
   @Get(':id')
   @RequirePermissions('production.consolidations.read')
   findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {

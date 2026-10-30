@@ -72,3 +72,7 @@ Validar la primera ampliación del flujo de Pedidos: cabecera operativa, correla
 ## Criterio de aprobación
 
 La modificación se acepta cuando PED-WA-01 a PED-WA-11 cumplen el resultado esperado en un entorno de prueba con un número autorizado. No debe usarse un cliente real para la aceptación sin su consentimiento.
+
+## Actualización: flujo unificado de pedidos — 29 de octubre de 2026
+
+La prioridad por fecha de creación, cobertura por detalle, preparación completa, traspaso, historial desde borrador, turno dinámico y checks por estado se documentan en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md). La evidencia ejecutada y las reglas que sustituyen los casos anteriores están en [Pruebas del flujo unificado](./pruebas-aceptacion-flujo-unificado-pedidos.md).

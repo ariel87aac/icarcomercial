@@ -9,6 +9,7 @@ const marker = `I5-${Date.now().toString(36)}`.toUpperCase();
 const db = new pg.Client({ host: process.env.DATABASE_HOST, port: Number(process.env.DATABASE_PORT ?? 5432), database: process.env.DATABASE_NAME, user: process.env.DATABASE_USER, password: process.env.DATABASE_PASSWORD });
 const cookies = new Map();
 let orderId = null;
+let orderCode = null;
 let testChannelId = null;
 
 function cookieHeader() { return [...cookies].map(([name, value]) => `${name}=${value}`).join('; '); }
@@ -27,7 +28,8 @@ try {
   const source = await db.query(`SELECT p.cliente_id, p.domicilio_id, p.creado_por, p.fecha_solicitada, p.fecha_cierre_pedido, p.fecha_preparacion FROM pedidos p WHERE p.estado='CONFIRMADO' ORDER BY p.created_at LIMIT 1`);
   assert(source.rowCount, 'Se requiere al menos un pedido confirmado de referencia');
   orderId = randomUUID();
-  await db.query(`INSERT INTO pedidos (id,codigo,cliente_id,domicilio_id,fecha_solicitada,fecha_cierre_pedido,fecha_preparacion,estado,origen,total,creado_por,confirmado_por,confirmado_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'CONFIRMADO','INTERNO',0,$8,$8,now())`, [orderId, marker, source.rows[0].cliente_id, source.rows[0].domicilio_id, source.rows[0].fecha_solicitada, source.rows[0].fecha_cierre_pedido, source.rows[0].fecha_preparacion, source.rows[0].creado_por]);
+  orderCode = (await db.query("SELECT nextval('pedidos_codigo_seq')::text AS code")).rows[0].code;
+  await db.query(`INSERT INTO pedidos (id,codigo,cliente_id,domicilio_id,fecha_solicitada,fecha_cierre_pedido,fecha_preparacion,estado,origen,total,creado_por,confirmado_por,confirmado_at) VALUES ($1,$2,$3,$4,$5,$6,$7,'CONFIRMADO','INTERNO',0,$8,$8,now())`, [orderId, orderCode, source.rows[0].cliente_id, source.rows[0].domicilio_id, source.rows[0].fecha_solicitada, source.rows[0].fecha_cierre_pedido, source.rows[0].fecha_preparacion, source.rows[0].creado_por]);
 
   await expect('/api/auth/login', { method:'POST', body:{ identifier:adminIdentifier, password:adminPassword } }, 200);
   const permissions = await expect('/api/permissions', {}, 200);
@@ -46,10 +48,10 @@ try {
   const stored = await db.query(`SELECT token_hash FROM enlaces_seguimiento WHERE id=$1`, [first.id]);
   assert.equal(stored.rows[0].token_hash.length, 64);
   assert(!stored.rows[0].token_hash.includes(firstToken));
-  passed('CP-82', 'el token se muestra una sola vez y PostgreSQL conserva solo el hash');
+  passed('CP-82', 'el token se muestra una sola vez y PostgreSQL conserva el hash y nunca expone el token en consultas autenticadas');
 
   const publicState = await expect(`/api/public/tracking/${firstToken}`, {}, 200);
-  assert.equal(publicState.protectedReference, marker);
+  assert.equal(publicState.protectedReference, orderCode);
   assert.equal(publicState.status, 'PEDIDO_CONFIRMADO');
   assert(!('customer' in publicState) && !('total' in publicState) && !('address' in publicState));
   passed('CP-84', 'la vista pública expone solo referencia, estado, estimación e historial autorizados');
@@ -63,7 +65,7 @@ try {
   passed('CP-85', 'renovar revoca el enlace anterior y deja exactamente uno activo');
 
   const privateState = await expect(`/api/orders/${orderId}/tracking-link`, {}, 200);
-  assert.equal(privateState.tracking.protectedReference, marker);
+  assert.equal(privateState.tracking.protectedReference, orderCode);
   assert(!privateState.link.url);
   passed('CP-86', 'la consulta autenticada reutiliza el seguimiento sin volver a revelar el token');
 

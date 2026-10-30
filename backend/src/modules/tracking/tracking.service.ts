@@ -13,6 +13,7 @@ import { OrderStatus } from '../orders/entities/order.enums';
 import { OrderPreparation } from '../preparation/entities/order-preparation.entity';
 import { PreparationStatus } from '../preparation/entities/preparation.enums';
 import { UserType } from '../users/entities/user-type.enum';
+import { ChannelTokenCipherService } from './channel-token-cipher.service';
 import { NotificationService } from './notification.service';
 import { NotificationEvent, PublicTrackingStatus, TrackingLinkStatus } from './entities/tracking.enums';
 import { TrackingLink } from './entities/tracking-link.entity';
@@ -22,9 +23,11 @@ export interface TrackingSnapshot {
   protectedReference: string;
   status: PublicTrackingStatus;
   pendingPriorStops: number;
+  deliveryTurn: number | null;
   estimatedFrom: Date | null;
   estimatedUntil: Date | null;
   lastUpdatedAt: Date;
+  changeRequests: Array<{id:string;message:string;status:string;response:string|null;createdAt:Date;resolvedAt:Date|null}>;
   history: Array<{
     status: PublicTrackingStatus;
     pendingPriorStops: number;
@@ -49,16 +52,18 @@ export class TrackingService {
     private readonly notifications: NotificationService,
     private readonly audit: AuditService,
     private readonly config: ConfigService,
+    private readonly tokenCipher: ChannelTokenCipherService,
   ) {}
 
   async generate(orderId: string, expiresAtValue: string, actor: AuthenticatedUser) {
     const expiresAt = new Date(expiresAtValue);
     if (Number.isNaN(expiresAt.getTime()) || expiresAt <= new Date()) throw new BadRequestException('La fecha de expiración debe ser futura');
     const order = await this.loadOrder(orderId);
-    if (order.status !== OrderStatus.CONFIRMED) throw new ConflictException('El seguimiento solo puede habilitarse para un pedido confirmado');
+    if (order.deletedAt) throw new NotFoundException('Pedido no encontrado');
     const rawToken = randomBytes(32).toString('base64url');
     const tokenHash = this.hash(rawToken);
     const id = await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`tracking-link:${orderId}`]);
       const repository = manager.getRepository(TrackingLink);
       const active = await repository.findOne({ where: { orderId, status: TrackingLinkStatus.ACTIVE } });
       if (active) {
@@ -67,12 +72,12 @@ export class TrackingService {
         active.revokedAt = new Date();
         await repository.save(active);
       }
-      const created = await repository.save(repository.create({ orderId, tokenHash, status: TrackingLinkStatus.ACTIVE, expiresAt, createdById: actor.id, revokedById: null, revokedAt: null }));
+      const created = await repository.save(repository.create({ orderId, tokenHash, encryptedToken: this.tokenCipher.encrypt(rawToken), status: TrackingLinkStatus.ACTIVE, expiresAt, createdById: actor.id, revokedById: null, revokedAt: null }));
       return created.id;
     });
     await this.audit.record({ userId: actor.id, module: 'tracking', action: 'GENERAR_ENLACE', entity: 'enlaces_seguimiento', entityId: id, result: 'EXITOSO', metadata: { orderId, expiresAt } });
     const publicUrl = `${this.publicBaseUrl()}/seguimiento/${rawToken}`;
-    await this.safeCaptureOrder(orderId, `link.generated:${id}`);
+    await this.safeCaptureOrder(orderId, `link.generated:${id}`, false);
     return {
       id,
       orderId,
@@ -111,8 +116,8 @@ export class TrackingService {
 
   async publicTracking(token: string, clientKey: string): Promise<TrackingSnapshot> {
     this.rateLimit(clientKey);
-    const link = await this.links.findOne({ where: { tokenHash: this.hash(token), status: TrackingLinkStatus.ACTIVE }, relations: { order: { customer: true, address: { zone: true } } } });
-    if (!link || link.expiresAt <= new Date()) {
+    const link = await this.links.findOne({ where: [{ tokenHash: this.hash(token), status: TrackingLinkStatus.ACTIVE }, { legacyTokenHash: this.hash(token), status: TrackingLinkStatus.ACTIVE }], relations: { order: { customer: true, address: { zone: true } } } });
+    if (!link || !link.order || link.expiresAt <= new Date()) {
       if (link && link.expiresAt <= new Date()) {
         link.status = TrackingLinkStatus.EXPIRED;
         await this.links.save(link);
@@ -122,9 +127,37 @@ export class TrackingService {
     return this.snapshot(link, link.order);
   }
 
-  async safeCaptureOrder(orderId: string, sourceEvent: string): Promise<void> {
+  async ensureOrderLink(order: Order): Promise<string> {
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`tracking-link:${order.id}`]);
+      const repository = manager.getRepository(TrackingLink);
+      const existing = await repository.createQueryBuilder('link').addSelect('link.encryptedToken')
+        .where('link.orderId = :orderId', { orderId: order.id }).orderBy('link.createdAt', 'DESC').getOne();
+      if (existing) {
+        // Never silently renew a revoked/expired link.
+        if (existing.status !== TrackingLinkStatus.ACTIVE || existing.expiresAt <= new Date()) return '';
+        if (!existing.encryptedToken) {
+          // Upgrade hash-only legacy links without breaking the URL already held by the customer.
+          const token = randomBytes(32).toString('base64url');
+          existing.legacyTokenHash = existing.tokenHash;
+          existing.tokenHash = this.hash(token);
+          existing.encryptedToken = this.tokenCipher.encrypt(token);
+          await repository.save(existing);
+        }
+        return `${this.publicBaseUrl()}/seguimiento/${this.tokenCipher.decrypt(existing.encryptedToken)}`;
+      }
+      const token = randomBytes(32).toString('base64url');
+      const expiresAt = new Date(Math.max(Date.now(), new Date(order.requestedDate).getTime()) + 90 * 86400000);
+      await repository.save(repository.create({ orderId: order.id, tokenHash: this.hash(token),
+        encryptedToken: this.tokenCipher.encrypt(token), status: TrackingLinkStatus.ACTIVE, expiresAt,
+        createdById: order.createdById, revokedById: null, revokedAt: null }));
+      return `${this.publicBaseUrl()}/seguimiento/${token}`;
+    });
+  }
+
+  async safeCaptureOrder(orderId: string, sourceEvent: string, notify = true): Promise<void> {
     try {
-      await this.captureOrder(orderId, sourceEvent);
+      await this.captureOrder(orderId, sourceEvent, notify);
     } catch (error) {
       await this.audit.record({ module: 'tracking', action: 'PROYECTAR_EVENTO', entity: 'pedidos', entityId: orderId, result: 'ERROR', metadata: { sourceEvent, message: error instanceof Error ? error.message : 'Error no identificado' } }).catch(() => undefined);
     }
@@ -133,71 +166,127 @@ export class TrackingService {
   async safeCaptureRoute(routeId: string, sourceEvent: string): Promise<void> {
     try {
       const rows = await this.deliveries.find({ where: { routeId }, select: { id: true, orderId: true } });
-      await Promise.all(rows.map((row) => this.safeCaptureOrder(row.orderId, `${sourceEvent}:${row.orderId}`)));
+      for (const row of rows) {
+        await this.safeCaptureOrder(row.orderId, `${sourceEvent}:${row.orderId}`);
+        // Optional legacy alerts remain opt-in; normal turn updates only change the tracking page.
+        const event = sourceEvent.startsWith('route.visit:') ? NotificationEvent.NEXT_DELIVERY
+          : /^(route.rescheduled|route.sequence):/.test(sourceEvent) ? NotificationEvent.RELEVANT_CHANGE : null;
+        if (!event || !await this.notifications.eventEnabled(event)) continue;
+        const order = await this.loadOrder(row.orderId);
+        const current = await this.project(order);
+        if (event === NotificationEvent.NEXT_DELIVERY) {
+          const setting = await this.notifications.activeSetting(order.address.zoneId);
+          if (current.status !== PublicTrackingStatus.IN_ROUTE || !setting || current.pendingPriorStops > setting.nextDeliveryThreshold) continue;
+        }
+        await this.notifications.enqueue(order, null, event, this.eventVersion(`${sourceEvent}:${row.orderId}`), {
+          orderReference: order.code, publicStatus: current.status, pendingStops: String(current.pendingPriorStops),
+          trackingUrl: await this.ensureOrderLink(order), customerName: order.customer.businessName,
+          estimatedFrom: current.estimatedFrom?.toISOString() ?? '', estimatedUntil: current.estimatedUntil?.toISOString() ?? '',
+        });
+      }
     } catch (error) {
-      await this.audit.record({ module: 'tracking', action: 'PROYECTAR_RUTA', entity: 'rutas_distribucion', entityId: routeId, result: 'ERROR', metadata: { sourceEvent, message: error instanceof Error ? error.message : 'Error no identificado' } }).catch(() => undefined);
+      await this.audit.record({ module: 'tracking', action: 'PROYECTAR_RUTA', entity: 'rutas_distribucion', entityId: routeId,
+        result: 'ERROR', metadata: { sourceEvent, message: error instanceof Error ? error.message : 'Error no identificado' } }).catch(() => undefined);
     }
   }
 
-  async captureOrder(orderId: string, sourceEvent: string): Promise<TrackingUpdate | null> {
-    const link = await this.links.findOne({ where: { orderId, status: TrackingLinkStatus.ACTIVE } });
-    if (!link || link.expiresAt <= new Date()) return null;
-    const duplicate = await this.updates.findOne({ where: { sourceEvent } });
-    if (duplicate) return duplicate;
-    const order = await this.loadOrder(orderId);
-    const projection = await this.project(order);
-    let update: TrackingUpdate;
-    try {
-      update = await this.updates.save(this.updates.create({ linkId: link.id, orderId, visibleStatus: projection.status, sourceEvent, pendingPriorStops: projection.pendingPriorStops, estimatedFrom: projection.estimatedFrom, estimatedUntil: projection.estimatedUntil }));
-    } catch (error) {
-      const existing = await this.updates.findOne({ where: { sourceEvent } });
-      if (existing) return existing;
-      throw error;
-    }
-    const event = await this.notificationEvent(sourceEvent, projection.status, projection.pendingPriorStops, order.address.zoneId);
-    await this.notifications.enqueue(order, link, event, this.eventVersion(sourceEvent), {
-      orderReference: order.code,
-      publicStatus: projection.status,
-      pendingStops: String(projection.pendingPriorStops),
-      estimatedFrom: projection.estimatedFrom?.toISOString() ?? '',
-      estimatedUntil: projection.estimatedUntil?.toISOString() ?? '',
-      customerName: order.customer.businessName,
+  async refreshStock(sourceEvent: string): Promise<void> {
+    const rows: Array<{ id: string }> = await this.dataSource.query(
+      "SELECT id FROM pedidos WHERE estado = 'CONFIRMADO' AND eliminado_at IS NULL ORDER BY created_at, id",
+    );
+    for (const row of rows) await this.safeCaptureOrder(row.id, `${sourceEvent}:${row.id}`);
+  }
+
+  async captureOrder(orderId: string, sourceEvent: string, notify = true): Promise<TrackingUpdate | null> {
+    const update = await this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(741001)');
+      // Import genuine commercial transitions, including returns to draft. Link rotation never resets history.
+      await manager.query(`INSERT INTO actualizaciones_seguimiento (pedido_id, estado_visible, evento_origen, fecha_hora)
+        SELECT pedido_id, CASE estado_nuevo::text WHEN 'CONFIRMADO' THEN 'PEDIDO_CONFIRMADO' ELSE estado_nuevo::text END,
+          'order.history:' || id, fecha_hora FROM pedidos_estados_historial WHERE pedido_id = $1
+        ON CONFLICT (evento_origen) DO NOTHING`, [orderId]);
+      const order = await this.loadOrder(orderId);
+      const projection = await this.project(order);
+      const repository = manager.getRepository(TrackingUpdate);
+      const previous = await repository.findOne({ where: { orderId }, order: { occurredAt: 'DESC', id: 'DESC' } });
+      if (previous?.visibleStatus === projection.status && previous.pendingPriorStops === projection.pendingPriorStops) return null;
+      const existing = await repository.findOne({ where: { sourceEvent } });
+      if (existing) return null;
+      const stateChanged = previous?.visibleStatus !== projection.status;
+      const event = this.statusEvent(projection.status);
+      const enabled = event ? await this.notifications.eventEnabled(event) : false;
+      return repository.save(repository.create({ linkId: null, orderId, visibleStatus: projection.status, sourceEvent,
+        pendingPriorStops: projection.pendingPriorStops, estimatedFrom: projection.estimatedFrom, estimatedUntil: projection.estimatedUntil,
+        notificationHandled: !notify || !stateChanged || !enabled }));
     });
+    if (update && !update.notificationHandled) await this.sendUpdate(update);
     return update;
   }
 
-  private async snapshot(link: TrackingLink, order: Order): Promise<TrackingSnapshot> {
-    let history = await this.updates.find({ where: { linkId: link.id }, order: { occurredAt: 'ASC' } });
-    if (!history.length) {
-      await this.safeCaptureOrder(order.id, `tracking.read:${link.id}`);
-      history = await this.updates.find({ where: { linkId: link.id }, order: { occurredAt: 'ASC' } });
+  async flushPendingUpdates(): Promise<void> {
+    const pending = await this.updates.find({ where: { notificationHandled: false }, order: { occurredAt: 'ASC' }, take: 100 });
+    for (const update of pending) await this.sendUpdate(update);
+  }
+
+  private async sendUpdate(update: TrackingUpdate): Promise<void> {
+    const event = this.statusEvent(update.visibleStatus);
+    if (event && await this.notifications.eventEnabled(event)) {
+      const order = await this.loadOrder(update.orderId);
+      const trackingUrl = await this.ensureOrderLink(order);
+      await this.notifications.enqueue(order, null, event, this.eventVersion(update.id), {
+        orderReference: order.code, publicStatus: update.visibleStatus,
+        pendingStops: String(update.pendingPriorStops), trackingUrl,
+        estimatedFrom: update.estimatedFrom?.toISOString() ?? '', estimatedUntil: update.estimatedUntil?.toISOString() ?? '',
+        customerName: order.customer.businessName,
+      }, update.id);
     }
-    const current = history.at(-1) ?? await this.project(order);
-    return {
-      protectedReference: order.code,
-      status: current instanceof TrackingUpdate ? current.visibleStatus : current.status,
-      pendingPriorStops: current.pendingPriorStops,
-      estimatedFrom: current.estimatedFrom,
-      estimatedUntil: current.estimatedUntil,
-      lastUpdatedAt: current instanceof TrackingUpdate ? current.occurredAt : new Date(),
-      history: history.map((item) => ({ status: item.visibleStatus, pendingPriorStops: item.pendingPriorStops, estimatedFrom: item.estimatedFrom, estimatedUntil: item.estimatedUntil, occurredAt: item.occurredAt })),
+    await this.updates.update(update.id, { notificationHandled: true });
+  }
+
+  private statusEvent(status: PublicTrackingStatus): NotificationEvent | null {
+    const events: Partial<Record<PublicTrackingStatus, NotificationEvent>> = {
+      [PublicTrackingStatus.IN_PREPARATION]: NotificationEvent.IN_PREPARATION,
+      [PublicTrackingStatus.STOCK_READY]: NotificationEvent.STOCK_READY,
+      [PublicTrackingStatus.PREPARED]: NotificationEvent.PREPARED,
+      [PublicTrackingStatus.ASSIGNED]: NotificationEvent.ASSIGNED,
+      [PublicTrackingStatus.IN_ROUTE]: NotificationEvent.ROUTE_DEPARTURE,
+      [PublicTrackingStatus.DELIVERED]: NotificationEvent.DELIVERED,
+      [PublicTrackingStatus.PARTIAL]: NotificationEvent.PARTIAL,
+      [PublicTrackingStatus.DELIVERY_NOT_COMPLETED]: NotificationEvent.DELIVERY_NOT_COMPLETED,
     };
+    return events[status] ?? null;
+  }
+
+  async orderSnapshot(orderId: string): Promise<TrackingSnapshot> {
+    return this.currentWithoutLink(await this.loadOrder(orderId));
+  }
+
+  private async snapshot(_link: TrackingLink, order: Order): Promise<TrackingSnapshot> {
+    return this.currentWithoutLink(order);
   }
 
   private async currentWithoutLink(order: Order): Promise<TrackingSnapshot> {
-    const current = await this.project(order);
-    return { protectedReference: order.code, status: current.status, pendingPriorStops: current.pendingPriorStops, estimatedFrom: current.estimatedFrom, estimatedUntil: current.estimatedUntil, lastUpdatedAt: new Date(), history: [] };
+    await this.safeCaptureOrder(order.id, `tracking.read:${randomBytes(12).toString('hex')}`, false);
+    const [current, history] = await Promise.all([
+      this.project(order), this.updates.find({ where: { orderId: order.id }, order: { occurredAt: 'ASC', id: 'ASC' } }),
+    ]);
+    const changeRequests = await this.dataSource.query(`SELECT id, mensaje AS message, estado AS status,
+      respuesta AS response, created_at AS "createdAt", resuelto_at AS "resolvedAt" FROM solicitudes_cambio_pedido
+      WHERE pedido_id = $1 ORDER BY created_at DESC LIMIT 100`, [order.id]);
+    return { protectedReference: order.code, ...current, changeRequests,
+      deliveryTurn: current.status === PublicTrackingStatus.IN_ROUTE ? current.pendingPriorStops + 1 : null,
+      lastUpdatedAt: history.at(-1)?.occurredAt ?? order.updatedAt,
+      history: history.map((item) => ({ status: item.visibleStatus, pendingPriorStops: item.pendingPriorStops,
+        estimatedFrom: item.estimatedFrom, estimatedUntil: item.estimatedUntil, occurredAt: item.occurredAt })),
+    };
   }
 
   private async project(order: Order) {
+    const rows: Array<{ estado: PublicTrackingStatus }> = await this.dataSource.query('SELECT estado FROM pedido_flujo_actual WHERE pedido_id = $1', [order.id]);
+    const status = rows[0]?.estado ?? PublicTrackingStatus.ORDER_CONFIRMED;
     const delivery = await this.deliveries.findOne({ where: { orderId: order.id }, relations: { route: true, result: true }, order: { createdAt: 'DESC' } });
-    const preparation = await this.preparations.findOne({ where: { orderId: order.id }, order: { createdAt: 'DESC' } });
-    let status = PublicTrackingStatus.ORDER_CONFIRMED;
-    if (preparation && [PreparationStatus.PENDING, PreparationStatus.IN_PROGRESS, PreparationStatus.OBSERVED].includes(preparation.status)) status = PublicTrackingStatus.IN_PREPARATION;
-    if (preparation && [PreparationStatus.PREPARED, PreparationStatus.ASSIGNED, PreparationStatus.DISPATCHED].includes(preparation.status)) status = PublicTrackingStatus.PREPARED;
-    if (delivery?.route?.status === DistributionRouteStatus.IN_DELIVERY && !delivery.result) status = PublicTrackingStatus.IN_ROUTE;
-    if (delivery?.result) status = delivery.result.result === VisitResultType.DELIVERED ? PublicTrackingStatus.DELIVERED : PublicTrackingStatus.DELIVERY_NOT_COMPLETED;
-    const estimate = await this.estimate(delivery, order.address.zoneId);
+    const estimate = status === PublicTrackingStatus.IN_ROUTE ? await this.estimate(delivery, order.address.zoneId)
+      : { pendingPriorStops: 0, estimatedFrom: null, estimatedUntil: null };
     return { status, ...estimate };
   }
 
@@ -224,14 +313,40 @@ export class TrackingService {
     return { pendingPriorStops, estimatedFrom: new Date(center - tolerance), estimatedUntil: new Date(center + tolerance) };
   }
 
-  private async notificationEvent(sourceEvent: string, status: PublicTrackingStatus, pendingStops: number, zoneId: string | null): Promise<NotificationEvent> {
-    if (sourceEvent.startsWith('order.confirmed')) return NotificationEvent.ORDER_CONFIRMED;
-    if (sourceEvent.startsWith('route.departure')) return NotificationEvent.ROUTE_DEPARTURE;
-    if (status === PublicTrackingStatus.DELIVERED) return NotificationEvent.DELIVERED;
-    if (status === PublicTrackingStatus.DELIVERY_NOT_COMPLETED) return NotificationEvent.DELIVERY_NOT_COMPLETED;
-    const setting = await this.notifications.activeSetting(zoneId);
-    if (status === PublicTrackingStatus.IN_ROUTE && setting && pendingStops <= setting.nextDeliveryThreshold) return NotificationEvent.NEXT_DELIVERY;
-    return NotificationEvent.RELEVANT_CHANGE;
+  async requestChange(token: string, message: string, clientKey: string) {
+    this.rateLimit(`request:${clientKey}`);
+    if (message.trim().length < 5) throw new BadRequestException('Describe la solicitud con al menos cinco caracteres');
+    const link = await this.links.findOne({ where: [{ tokenHash: this.hash(token), status: TrackingLinkStatus.ACTIVE }, { legacyTokenHash: this.hash(token), status: TrackingLinkStatus.ACTIVE }] });
+    if (!link || link.expiresAt <= new Date()) throw new NotFoundException('El enlace de seguimiento no está disponible');
+    const order = await this.loadOrder(link.orderId);
+    if (order.status === OrderStatus.CANCELED) throw new ConflictException('El pedido está cancelado');
+    return this.dataSource.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 0))', [`request:${order.id}`]);
+      const existing = await manager.query(`SELECT id, estado FROM solicitudes_cambio_pedido
+        WHERE pedido_id = $1 AND estado = 'PENDIENTE' AND mensaje = $2 LIMIT 1`, [order.id, message.trim()]);
+      if (existing.length) return existing[0];
+      const rows = await manager.query(`INSERT INTO solicitudes_cambio_pedido (pedido_id, mensaje) VALUES ($1, $2)
+        RETURNING id, estado`, [order.id, message.trim()]);
+      return rows[0];
+    });
+  }
+
+  async changeRequests() {
+    return this.dataSource.query(`SELECT r.id, r.pedido_id AS "orderId", o.codigo AS "orderCode",
+      c.nombre_razon_social AS "customerName", r.mensaje AS message, r.estado AS status, r.respuesta AS response,
+      r.created_at AS "createdAt", r.resuelto_at AS "resolvedAt"
+      FROM solicitudes_cambio_pedido r JOIN pedidos o ON o.id = r.pedido_id JOIN clientes c ON c.id = o.cliente_id
+      ORDER BY (r.estado = 'PENDIENTE') DESC, r.created_at DESC LIMIT 200`);
+  }
+
+  async resolveChangeRequest(id: string, response: string, actor: AuthenticatedUser) {
+    if (response.trim().length < 5) throw new BadRequestException('Describe la resolución con al menos cinco caracteres');
+    const rows = await this.dataSource.query(`UPDATE solicitudes_cambio_pedido SET estado = 'RESUELTA', respuesta = $2,
+      resuelto_por = $3, resuelto_at = now() WHERE id = $1 AND estado = 'PENDIENTE' RETURNING id`, [id, response.trim(), actor.id]);
+    if (!rows.length) throw new ConflictException('La solicitud no existe o ya fue resuelta');
+    await this.audit.record({ userId: actor.id, module: 'orders', action: 'RESOLVER_SOLICITUD_CAMBIO',
+      entity: 'solicitudes_cambio_pedido', entityId: id, result: 'EXITOSO', metadata: { response: response.trim() } });
+    return { resolved: true };
   }
 
   private eventVersion(sourceEvent: string): number {

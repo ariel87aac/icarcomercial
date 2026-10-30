@@ -140,9 +140,9 @@ Las operaciones críticas bloquean los registros involucrados y se ejecutan en t
 
 La tercera iteración separa la demanda cubierta por reservas, el faltante, la **Solicitud para stock** de Comercial y el **Ajuste por batch/capacidad** de Producción. Tanto la orden como la entrega de Producción y la recepción de Almacén operan sobre la misma presentación. Preparación sólo utiliza el saldo después de que Almacén acepta la entrega y registra `INGRESO_PRODUCCION`.
 
-Si la cantidad recibida no alcanza para completar un pedido, el preparador puede reducir **Cantidad a entregar** respecto de la cantidad solicitada. Nunca puede superarla. Toda diferencia requiere una observación que explique el faltante de producción y queda visible en el detalle de preparación, historial y auditoría antes de confirmar.
+Actualización del 29 de octubre de 2026: si falta cobertura, el pedido permanece **En preparación**. Puede consultarse y registrarse una observación, pero no se confirma ni se entrega a Distribución una preparación incompleta. La confirmación exige todas las cantidades y verificaciones; la cobertura actual respeta la prioridad por fecha de creación del pedido.
 
-Esta modificación no asigna automáticamente un producto recibido a un pedido particular: el ingreso aumenta el saldo de su presentación y la preparación lo consume respetando las reservas y las reglas transaccionales existentes.
+La cobertura actual asigna el físico por fecha de creación del pedido, conservando lo ya separado. Esta asignación dinámica no sobrescribe las fuentes históricas de Producción. La etapa pública **Preparado** corresponde al traspaso a Distribución; el estado interno PREPARADA conserva la verificación y protección de unidades. Véase [Flujo unificado](./implementacion-flujo-unificado-pedidos.md).
 
 ## Interfaz
 

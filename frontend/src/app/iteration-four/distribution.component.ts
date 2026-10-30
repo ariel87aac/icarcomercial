@@ -1,3 +1,4 @@
+import { workflowLabel } from '../core/order-workflow';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, OnDestroy, OnInit, inject, input, signal } from '@angular/core';
 import { FormArray, FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
@@ -94,7 +95,7 @@ type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'r
           <td data-label="Seleccionar" class="selection-cell"><p-checkbox [binary]="true" [ngModel]="isPendingSelected(item.id)" (ngModelChange)="togglePendingPreparation(item,$event)" /></td>
           <td data-label="Pedido"><strong>{{ item.order.code }}</strong></td><td data-label="Cliente">{{ item.order.customerNameSnapshot || item.order.customer.businessName }}</td><td data-label="Compromiso">{{ formatDate(item.order.requestedDate) }}</td><td data-label="Zona">{{ item.order.address.zone?.name || 'Sin zona' }}</td>
           <td data-label="Productos">{{ item.detailCount }}</td><td data-label="Peso"><div class="stack" [class.negative]="item.missingWeightPresentations.length"><strong>{{ number(item.loadWeightKg) }} kg</strong><small>{{ item.missingWeightPresentations.length ? 'Peso incompleto' : 'Calculado' }}</small></div></td>
-          <td data-label="Recibido">{{ item.handedOffAt ? formatDateTime(item.handedOffAt) : '—' }}</td><td data-label="Estado"><p-tag value="LISTO PARA ENTREGA" severity="success" /></td>
+          <td data-label="Recibido">{{ item.handedOffAt ? formatDateTime(item.handedOffAt) : '—' }}</td><td data-label="Estado"><p-tag value="PREPARADO" severity="success" /></td>
         </tr></ng-template>
         <ng-template #emptymessage><tr><td colspan="9" class="empty-row">No existen pedidos entregados por Almacén pendientes de distribución.</td></tr></ng-template>
       </p-table><p-paginator [first]="(pendingMeta().page-1)*pendingMeta().limit" [rows]="pendingMeta().limit" [totalRecords]="pendingMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changePendingPage($event)" /></div>
@@ -109,7 +110,7 @@ type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'r
 
       @if (auth.can('preparations.create')) {
         <section class="section-block">
-          <div class="section-heading"><div><span>Trabajo pendiente</span><h3>Preparar</h3><p>Pedidos confirmados por iniciar o continuar.</p></div><small>{{ eligibleMeta().total }} pedido(s)</small></div>
+          <div class="section-heading"><div><span>Trabajo pendiente</span><h3>Preparar</h3><p>Atención por fecha del pedido, del más antiguo al más reciente. Los faltantes permanecen En preparación.</p></div><small>{{ eligibleMeta().total }} pedido(s)</small></div>
           <div class="table-card">
             <p-table styleClass="mobile-data-table" [value]="workOrders()" [loading]="loading()" responsiveLayout="scroll">
               <ng-template #header><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Zona</th><th>Productos</th><th>Estado</th><th>Acción</th></tr></ng-template>
@@ -117,9 +118,9 @@ type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'r
                 <td data-label="Pedido"><strong>{{ order.code }}</strong></td>
                 <td data-label="Cliente">{{ order.customerNameSnapshot || order.customer.businessName }}</td>
                 <td data-label="Entrega">{{ formatDate(order.requestedDate) }}</td><td data-label="Zona">{{ order.address.zone?.name || 'Sin zona' }}</td>
-                <td data-label="Productos"><div class="stack"><strong>{{ order.details.length }}</strong><small [class.negative]="availableTotalNumber(order)<0">Disponible {{ availableTotal(order) }}</small></div></td>
-                <td data-label="Estado"><p-tag [value]="order.preparation ? statusLabel(order.preparation.status) : 'POR INICIAR'" [severity]="order.preparation ? preparationSeverity(order.preparation.status) : 'secondary'" /></td>
-                <td data-label="Acción"><p-button label="Preparar" icon="pi pi-box" size="small" [loading]="saving()" (onClick)="prepareWorkOrder(order)" /></td>
+                <td data-label="Productos"><div class="stack"><strong>{{ order.details.length }}</strong><small>{{ availableLines(order) }} / {{ order.details.length }} disponibles</small></div></td>
+                <td data-label="Estado"><p-tag [value]="workflowLabel(order.operationalStatus)" [severity]="order.preparation ? preparationSeverity(order.preparation.status) : 'secondary'" /></td>
+                <td data-label="Acción"><p-button [label]="order.operationalStatus==='DISPONIBLE_PARA_PREPARAR' ? 'Preparar' : 'Ver faltantes'" icon="pi pi-box" size="small" [loading]="saving()" (onClick)="prepareWorkOrder(order)" /></td>
               </tr></ng-template>
               <ng-template #emptymessage><tr><td colspan="7" class="empty-row">No existen pedidos pendientes de preparación.</td></tr></ng-template>
             </p-table>
@@ -129,7 +130,7 @@ type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'r
       }
 
       <section class="section-block">
-        <div class="section-heading"><div><span>Pedidos preparados</span><h3>Despachar</h3><p>Pedidos verificados y listos para entregar a Distribución.</p></div><small>{{ preparationMeta().total }} listo(s)</small></div>
+        <div class="section-heading"><div><span>Verificación terminada</span><h3>Entregar a Distribución</h3><p>Pedidos verificados y listos para entregar a Distribución.</p></div><small>{{ preparationMeta().total }} listo(s)</small></div>
         <div class="table-card">
           <p-table styleClass="mobile-data-table" [value]="preparations()" [loading]="loading()" responsiveLayout="scroll">
             <ng-template #header><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Zona</th><th>Productos</th><th>Responsable</th><th>Acciones</th></tr></ng-template>
@@ -206,10 +207,10 @@ type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'r
     <p-dialog [visible]="preparationDialog()" (visibleChange)="preparationDialog.set($event)" [modal]="true" [style]="{width:'min(980px,100vw)'}" [header]="preparationTitle()" [draggable]="false" styleClass="preparation-dialog">
       @if (selectedPreparation(); as preparation) {
         <div class="detail-summary"><div><span>Pedido</span><strong>{{ preparation.order.code }}</strong></div><div><span>Cliente</span><strong>{{ preparation.order.customerNameSnapshot || preparation.order.customer.businessName }}</strong></div><div><span>Entrega</span><strong>{{ formatDate(preparation.order.requestedDate) }}</strong></div><div><span>Estado</span><strong>{{ statusLabel(preparation.status) }}</strong></div></div>
-        <p class="operational-note"><i class="pi pi-info-circle"></i> La cantidad a entregar inicia con la cantidad solicitada. Si el stock no alcanza, ajústela y registre la observación.</p>
+        <p class="operational-note"><i class="pi pi-info-circle"></i> La cantidad debe cubrir el pedido completo. Si falta stock, el pedido permanece En preparación hasta completar todos sus productos.</p>
         <form [formGroup]="preparationForm" (ngSubmit)="prepareCurrent()">
-          <div class="detail-table preparation-detail-table" formArrayName="details"><table><thead><tr><th>Cod-Producto</th><th>Nombre</th><th>Stock disponible</th><th>Solicitado</th><th>Cantidad a entregar</th><th>Diferencia</th><th>Verificado</th><th>Observación</th></tr></thead><tbody>
-            @for (control of preparationDetails.controls; track control; let index=$index) { <tr [formGroupName]="index"><td data-label="Cod-Producto"><strong>{{ preparation.details[index].orderDetail.presentation.product?.code || '—' }}</strong></td><td data-label="Nombre"><strong>{{ preparation.details[index].orderDetail.productDescriptionSnapshot }}</strong><small>{{ preparation.details[index].orderDetail.presentationDescriptionSnapshot }}</small></td><td data-label="Stock disponible" [class.negative]="numberValue(preparation.details[index].pickableQuantityCurrent)<numberValue(preparation.details[index].requestedQuantity)"><strong>{{ number(preparation.details[index].pickableQuantityCurrent) }}</strong></td><td data-label="Solicitado">{{ number(preparation.details[index].requestedQuantity) }}</td><td data-label="Cantidad a entregar"><p-inputnumber formControlName="preparedQuantity" [min]="0" [max]="preparationQuantityLimit(preparation.details[index])" [maxFractionDigits]="3" [showButtons]="true" buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" /></td><td data-label="Diferencia" [class.negative]="detailDifference(index)<0">{{ number(detailDifference(index)) }}</td><td data-label="Verificado"><p-checkbox formControlName="verified" [binary]="true" /></td><td data-label="Observación"><input pInputText formControlName="observation" placeholder="Obligatoria si hay diferencia" /></td></tr> }
+          <div class="detail-table preparation-detail-table" formArrayName="details"><table><thead><tr><th>Cod-Producto</th><th>Nombre</th><th>Cubierto para este pedido</th><th>Solicitado</th><th>Cantidad a entregar</th><th>Diferencia</th><th>Verificado</th><th>Observación</th></tr></thead><tbody>
+            @for (control of preparationDetails.controls; track control; let index=$index) { <tr [formGroupName]="index"><td data-label="Cod-Producto"><strong>{{ preparation.details[index].orderDetail.presentation.product?.code || '—' }}</strong></td><td data-label="Nombre"><strong>{{ preparation.details[index].orderDetail.productDescriptionSnapshot }}</strong><small>{{ preparation.details[index].orderDetail.presentationDescriptionSnapshot }}</small></td><td data-label="Stock disponible" [class.negative]="numberValue(preparation.details[index].pickableQuantityCurrent)<numberValue(preparation.details[index].requestedQuantity)"><strong>{{ number(preparation.details[index].pickableQuantityCurrent) }}</strong><small>{{ numberValue(preparation.details[index].pickableQuantityCurrent)>=numberValue(preparation.details[index].requestedQuantity) ? 'Disponible' : numberValue(preparation.details[index].pickableQuantityCurrent)>0 ? 'Stock parcial' : 'Pendiente de stock' }}</small></td><td data-label="Solicitado">{{ number(preparation.details[index].requestedQuantity) }}</td><td data-label="Cantidad a entregar"><p-inputnumber formControlName="preparedQuantity" [min]="0" [max]="preparationQuantityLimit(preparation.details[index])" [maxFractionDigits]="3" [showButtons]="true" buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" /></td><td data-label="Diferencia" [class.negative]="detailDifference(index)<0">{{ number(detailDifference(index)) }}</td><td data-label="Verificado"><p-checkbox formControlName="verified" [binary]="true" /></td><td data-label="Observación"><input pInputText formControlName="observation" placeholder="Obligatoria si hay diferencia" /></td></tr> }
           </tbody></table></div>
           <div class="dialog-footer preparation-actions">
             @if (auth.can('preparations.confirm') && canEditPreparation(preparation.status)) { <p-button type="submit" label="Preparar" icon="pi pi-check" severity="success" [loading]="saving()" [disabled]="!canSubmitPreparation()" /> }
@@ -608,7 +609,7 @@ export class DistributionComponent implements OnInit, OnDestroy {
     const preparation = this.selectedPreparation();
     if (!preparation || this.preparationForm.invalid || !this.canEditPreparation(preparation.status)) return false;
     const details = this.preparationDetails.getRawValue();
-    return details.length > 0 && details.every((detail) => detail.verified && (detail.preparedQuantity === Number(preparation.details.find((item) => item.id === detail.id)?.requestedQuantity) || Boolean(detail.observation.trim())));
+    return details.length > 0 && details.every((detail) => detail.verified && detail.preparedQuantity === Number(preparation.details.find((item) => item.id === detail.id)?.requestedQuantity) && Number(preparation.details.find((item) => item.id === detail.id)?.pickableQuantityCurrent ?? 0) >= detail.preparedQuantity);
   }
 
   protected prepareCurrent(): void {
@@ -618,7 +619,7 @@ export class DistributionComponent implements OnInit, OnDestroy {
     this.saving.set(true);
     const savePayload = { details: details.map((detail) => ({ preparationDetailId: detail.id, preparedQuantity: detail.preparedQuantity, verified: detail.verified, observation: detail.observation || undefined })) };
     this.http.post<OrderPreparation>(`/api/preparations/${preparation.id}/progress`, savePayload).subscribe({
-      next: () => this.http.post<OrderPreparation>(`/api/preparations/${preparation.id}/confirm`, {}).subscribe({ next: (value) => { this.saving.set(false); this.preparationDialog.set(false); this.selectedPreparation.set(value); this.saved('Pedido preparado', preparation.order.code); this.loadPreparations(); }, error: (error) => this.failSave(error) }),
+      next: () => this.http.post<OrderPreparation>(`/api/preparations/${preparation.id}/confirm`, {}).subscribe({ next: (value) => { this.saving.set(false); this.preparationDialog.set(false); this.selectedPreparation.set(value); this.saved('Verificación terminada; pendiente de entregar a Distribución', preparation.order.code); this.loadPreparations(); }, error: (error) => this.failSave(error) }),
       error: (error) => this.failSave(error),
     });
   }
@@ -853,6 +854,7 @@ export class DistributionComponent implements OnInit, OnDestroy {
 
   protected hasCoordinates(delivery: RouteDelivery): boolean { const lat = Number(delivery.address.latitude); const lng = Number(delivery.address.longitude); return delivery.address.latitude !== null && delivery.address.longitude !== null && Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180; }
   protected canEditPreparation(status: PreparationStatus): boolean { return ['PENDIENTE','EN_PREPARACION','OBSERVADA'].includes(status); }
+  protected readonly workflowLabel=workflowLabel;
   protected canConfirmPreparation(status: PreparationStatus): boolean { return ['EN_PREPARACION','OBSERVADA'].includes(status); }
   protected canCancelPreparation(status: PreparationStatus): boolean { return ['PENDIENTE','EN_PREPARACION','OBSERVADA','PREPARADA'].includes(status); }
   protected detailDifference(index: number): number { const preparation = this.selectedPreparation(); return Number(this.preparationDetails.at(index).get('preparedQuantity')?.value ?? 0) - Number(preparation?.details[index].requestedQuantity ?? 0); }
@@ -863,6 +865,7 @@ export class DistributionComponent implements OnInit, OnDestroy {
   protected principal(route: DistributionRoute): string { return route.responsibles.find((item) => item.isPrincipal)?.user.name ?? 'Sin principal'; }
   protected controlsAllDeliveries(): boolean { return this.auth.user()?.roles.some((role) => role === 'ADMINISTRADOR' || role === 'COMERCIALIZACION') ?? false; }
   protected orderTotal(order: EligibleOrder, key: 'reservedQuantity'): string { return this.number(order.details.reduce((sum, detail) => sum + Number(detail[key]), 0)); }
+  protected availableLines(order:EligibleOrder):number{return order.details.filter(detail=>detail.availability==='DISPONIBLE').length;}
   protected availableTotal(order: EligibleOrder): string { return this.number(order.details.reduce((sum, detail) => sum + Number(detail.availableQuantity), 0)); }
   protected availableTotalNumber(order: EligibleOrder): number { return order.details.reduce((sum, detail) => sum + Number(detail.availableQuantity), 0); }
   protected summaryTotal(key: 'complete'|'partial'|'notDelivered'): number { return this.summaryRoutes().reduce((sum, route) => sum + Number(route.metrics?.[key] ?? 0), 0); }

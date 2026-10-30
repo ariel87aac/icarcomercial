@@ -103,6 +103,12 @@ export class OrdersController {
     return this.orders.remove(id, dto, actor);
   }
 
+  @Get(':id/workflow')
+  @RequirePermissions('orders.history.read')
+  workflow(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.orders.workflow(id, actor);
+  }
+
   @Get([':id/history', ':id/historial'])
   @RequirePermissions('orders.history.read')
   history(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {

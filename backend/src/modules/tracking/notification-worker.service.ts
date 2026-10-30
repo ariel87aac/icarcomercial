@@ -1,5 +1,7 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { randomUUID } from 'node:crypto';
+import { TrackingService } from './tracking.service';
 import { NotificationService } from './notification.service';
 
 @Injectable()
@@ -11,9 +13,11 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
   constructor(
     private readonly notifications: NotificationService,
     private readonly config: ConfigService,
+    private readonly tracking: TrackingService,
   ) {}
 
   onModuleInit(): void {
+    if (String(this.config.get('NOTIFICATION_WORKER_ENABLED', 'true')) === 'false') return;
     const interval = this.config.get<number>('NOTIFICATION_WORKER_POLL_MS', 5000);
     this.timer = setInterval(() => void this.drain(), interval);
     this.timer.unref();
@@ -28,6 +32,8 @@ export class NotificationWorkerService implements OnModuleInit, OnModuleDestroy 
     if (this.running) return;
     this.running = true;
     try {
+      await this.tracking.refreshStock(`workflow.reconcile:${randomUUID()}`);
+      await this.tracking.flushPendingUpdates();
       for (let processed = 0; processed < 20; processed += 1) {
         if (!(await this.notifications.processNext())) break;
       }

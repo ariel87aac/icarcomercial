@@ -24,7 +24,7 @@ export interface OperationalDashboardSummary {
   stages: {
     orders: OperationalStage<{ draft: number; received: number }>;
     production: OperationalStage<{ draft: number; issued: number; inProgress: number }>;
-    preparation: OperationalStage<{ notStarted: number; inProgress: number; observed: number }>;
+    preparation: OperationalStage<{ waitingStock: number; readyToPrepare: number; verified: number }>;
     distribution: OperationalStage<{ readyForRoute: number; scheduled: number; inDelivery: number }>;
   };
 }
@@ -96,38 +96,23 @@ export class DashboardService {
   }
 
   private async preparationStage(actor: AuthenticatedUser): Promise<OperationalDashboardSummary['stages']['preparation']> {
-    const breakdown = { notStarted: 0, inProgress: 0, observed: 0 };
+    const breakdown = { waitingStock: 0, readyToPrepare: 0, verified: 0 };
     if (!this.can(actor, 'preparations.read')) return { available: false, pending: 0, breakdown };
-    const notStarted = this.orderRepository.createQueryBuilder('customer_order')
-      .where('customer_order.status = :confirmed', { confirmed: OrderStatus.CONFIRMED })
-      .andWhere(`NOT EXISTS (
-        SELECT 1 FROM preparaciones_pedido dashboard_preparation
-        WHERE dashboard_preparation.pedido_id = customer_order.id
-          AND dashboard_preparation.estado <> :cancelled
-      )`, { cancelled: PreparationStatus.CANCELED });
-    this.applyCustomerScope(notStarted, actor, 'customer_order');
-    breakdown.notStarted = await notStarted.getCount();
-
-    const active = this.preparationRepository.createQueryBuilder('preparation')
-      .innerJoin('preparation.order', 'customer_order')
-      .select('preparation.status', 'status')
-      .addSelect('COUNT(preparation.id)::integer', 'count')
-      .where('customer_order.status = :confirmed', { confirmed: OrderStatus.CONFIRMED })
-      .andWhere('preparation.status IN (:...statuses)', {
-        statuses: [PreparationStatus.PENDING, PreparationStatus.IN_PROGRESS, PreparationStatus.OBSERVED],
-      })
-      .groupBy('preparation.status');
-    this.applyCustomerScope(active, actor, 'customer_order');
-    const rows = await active.getRawMany<{ status: PreparationStatus; count: number | string }>();
+    const builder = this.orderRepository.createQueryBuilder('customer_order')
+      .innerJoin('pedido_flujo_actual', 'flow', 'flow.pedido_id = customer_order.id')
+      .leftJoin('preparaciones_pedido', 'prep', "prep.pedido_id = customer_order.id AND prep.estado = 'PREPARADA' AND prep.entregado_distribucion_at IS NULL")
+      .select('flow.estado', 'status').addSelect('prep.id IS NOT NULL', 'verified')
+      .addSelect('COUNT(customer_order.id)::integer', 'count')
+      .where("flow.estado IN ('EN_PREPARACION', 'DISPONIBLE_PARA_PREPARAR')")
+      .groupBy('flow.estado').addGroupBy('prep.id IS NOT NULL');
+    this.applyCustomerScope(builder, actor, 'customer_order');
+    const rows = await builder.getRawMany<{ status: string; verified: boolean; count: number }>();
     for (const row of rows) {
-      if (row.status === PreparationStatus.PENDING || row.status === PreparationStatus.IN_PROGRESS) breakdown.inProgress += Number(row.count);
-      if (row.status === PreparationStatus.OBSERVED) breakdown.observed = Number(row.count);
+      if (row.verified) breakdown.verified += Number(row.count);
+      else if (row.status === 'EN_PREPARACION') breakdown.waitingStock += Number(row.count);
+      else breakdown.readyToPrepare += Number(row.count);
     }
-    return {
-      available: true,
-      pending: breakdown.notStarted + breakdown.inProgress + breakdown.observed,
-      breakdown,
-    };
+    return { available: true, pending: breakdown.waitingStock + breakdown.readyToPrepare + breakdown.verified, breakdown };
   }
 
   private async distributionStage(actor: AuthenticatedUser): Promise<OperationalDashboardSummary['stages']['distribution']> {

@@ -47,3 +47,7 @@ La entrega efectiva a WhatsApp debe comprobarse manualmente con un token y un n�
 | Evento deshabilitado con seguimiento activo | Cambia estado e historial sin WhatsApp | Pendiente de integración |
 
 Comando ejecutado: `cd backend && npm test -- src/modules/tracking/notification-event-settings.spec.ts` (5 pruebas aprobadas). No se enviaron mensajes reales.
+
+## Actualización: flujo unificado de pedidos — 29 de octubre de 2026
+
+La prioridad por fecha de creación, cobertura por detalle, preparación completa, traspaso, historial desde borrador, turno dinámico y checks por estado se documentan en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md). La evidencia ejecutada y las reglas que sustituyen los casos anteriores están en [Pruebas del flujo unificado](./pruebas-aceptacion-flujo-unificado-pedidos.md).

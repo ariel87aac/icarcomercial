@@ -476,3 +476,9 @@ El sistema se considera aceptado para el alcance implementado cuando:
 - las alertas y rechazos no dejan cambios parciales;
 - la auditoría identifica usuario, acción, entidad y fecha sin guardar secretos; y
 - cualquier nueva modificación incorpora o actualiza su caso de aceptación y mantiene la regresión completa aprobada.
+
+## Actualización: flujo unificado de pedidos — 29 de octubre de 2026
+
+La prioridad por fecha de creación, cobertura por detalle, preparación completa, traspaso, historial desde borrador, turno dinámico y checks por estado se documentan en [Implementación del flujo unificado](./implementacion-flujo-unificado-pedidos.md). La evidencia ejecutada y las reglas que sustituyen los casos anteriores están en [Pruebas del flujo unificado](./pruebas-aceptacion-flujo-unificado-pedidos.md).
+
+Resultado de esta intervención: 135 comprobaciones de aceptación (22 del flujo integrado y 113 de regresión) y 21 pruebas unitarias aprobadas. Los casos de regresión corresponden a las suites históricas ya descritas. Las dos migraciones se aplicaron y los tres servicios locales quedaron saludables.

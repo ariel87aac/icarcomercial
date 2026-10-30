@@ -59,6 +59,12 @@ export class ProductionReasonDto {
 
 export class ProductionConsolidationQueryDto extends PaginationQueryDto {
   @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  code?: number;
+
+  @IsOptional()
   @IsDateString()
   deliveryDate?: string;
 

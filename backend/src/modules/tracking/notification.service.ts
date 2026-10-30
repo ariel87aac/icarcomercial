@@ -31,6 +31,7 @@ import { LimiteApiAdapter } from './limite-api.adapter';
 import { Payment } from '../commercial/entities/payment.entity';
 
 export const AUTHORIZED_TEMPLATE_VARIABLES = [
+  'trackingUrl',
   'orderReference',
   'publicStatus',
   'pendingStops',
@@ -53,6 +54,11 @@ interface SystemTemplateDefinition {
 }
 
 const SYSTEM_NOTIFICATION_TEMPLATES: Record<NotificationEvent, SystemTemplateDefinition> = {
+  [NotificationEvent.IN_PREPARATION]: { reference: 'EN_PREPARACION_SISTEMA', body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está en preparación; estamos completando sus productos.', variables: ['customerName','orderReference'] },
+  [NotificationEvent.STOCK_READY]: { reference: 'DISPONIBLE_PREPARAR_SISTEMA', body: 'Hola {{customerName}}, todos los productos de tu pedido N° {{orderReference}} están disponibles para preparar.', variables: ['customerName','orderReference'] },
+  [NotificationEvent.PREPARED]: { reference: 'PREPARADO_SISTEMA', body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está preparado y fue entregado a Distribución.', variables: ['customerName','orderReference'] },
+  [NotificationEvent.ASSIGNED]: { reference: 'ASIGNADO_SISTEMA', body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue asignado a una ruta. Te avisaremos cuando esté en camino.', variables: ['customerName','orderReference'] },
+  [NotificationEvent.PARTIAL]: { reference: 'ENTREGA_PARCIAL_SISTEMA', body: 'Hola {{customerName}}, registramos una entrega parcial de tu pedido N° {{orderReference}}. Puedes solicitar atención desde el seguimiento.', variables: ['customerName','orderReference'] },
   [NotificationEvent.ORDER_DRAFT]: {
     reference: 'PEDIDO_BORRADOR_SISTEMA',
     body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue creado en estado borrador.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}\n\nConfirma tu pedido aquí: {{confirmationUrl}}',
@@ -80,7 +86,7 @@ const SYSTEM_NOTIFICATION_TEMPLATES: Record<NotificationEvent, SystemTemplateDef
   },
   [NotificationEvent.ROUTE_DEPARTURE]: {
     reference: 'SALIDA_RUTA_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} salió a distribución. Ventana estimada: {{estimatedFrom}} a {{estimatedUntil}}.',
+    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está en camino. Consulta tu turno actualizado en el enlace de seguimiento.',
     variables: ['customerName', 'orderReference', 'estimatedFrom', 'estimatedUntil'],
   },
   [NotificationEvent.NEXT_DELIVERY]: {
@@ -189,7 +195,7 @@ export class NotificationService {
     return { event, enabled };
   }
 
-  private async eventEnabled(event: NotificationEvent): Promise<boolean> {
+  async eventEnabled(event: NotificationEvent): Promise<boolean> {
     const rows: Array<{ enabled: boolean }> = await this.dataSource.query(
       'SELECT habilitado AS enabled FROM notificaciones_eventos_configuracion WHERE evento = $1', [event],
     );
@@ -336,11 +342,10 @@ export class NotificationService {
     }
   }
 
-  async enqueue(order: Order, link: TrackingLink | null, event: NotificationEvent, version: number, variables: TemplateVariables): Promise<Notification | null> {
+  async enqueue(order: Order, link: TrackingLink | null, event: NotificationEvent, version: number, variables: TemplateVariables, eventKey?: string): Promise<Notification | null> {
     if (!await this.eventEnabled(event)) return null;
-    const template = await this.templates.findOne({ where: { event, active: true }, order: { version: 'DESC' } });
-    if (!template) return null;
-    return this.enqueueWithTemplate(order, link, template, event, version, variables, `${order.id}:${event}:${version}`);
+    const template = (await this.ensureSystemTemplate(event, order.createdById)).template;
+    return this.enqueueWithTemplate(order, link, template, event, version, variables, `${order.id}:${event}:${eventKey ?? version}`);
   }
 
   async safeEnqueueOrderLifecycle(
@@ -432,6 +437,7 @@ export class NotificationService {
     const existing = await this.notifications.findOne({ where: { idempotencyKey: key } });
     if (existing) return existing;
     const renderedBody = this.render(template, {
+      trackingUrl: '',
       orderReference: order.code,
       publicStatus: '',
       pendingStops: '',
@@ -659,6 +665,8 @@ export class NotificationService {
     variables: TemplateVariables,
   ): string {
     const additions: string[] = [];
+    if (variables.trackingUrl && !body.includes(variables.trackingUrl)) additions.push(`Seguimiento de tu pedido: ${variables.trackingUrl}`);
+    if (event === NotificationEvent.DELIVERED) additions.push('Si no estás conforme, puedes solicitar una modificación o cambio de productos desde el enlace de seguimiento.');
     if (
       [NotificationEvent.ORDER_DRAFT, NotificationEvent.ORDER_RECEIVED, NotificationEvent.ORDER_CONFIRMED].includes(event)
       && variables.productList
@@ -685,6 +693,7 @@ export class NotificationService {
 
   private completeVariables(order: Order, variables: Partial<TemplateVariables>): TemplateVariables {
     return {
+      trackingUrl: '',
       orderReference: order.code,
       publicStatus: order.status,
       pendingStops: '',
