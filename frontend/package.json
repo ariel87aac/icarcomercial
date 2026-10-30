@@ -6,7 +6,9 @@
   "scripts": {
     "start": "ng serve --host 0.0.0.0 --port 4200",
     "build": "ng build",
-    "build:development": "ng build --configuration development"
+    "build:development": "ng build --configuration development",
+    "verificar:tamano": "node ../scripts/verificar-tamano-archivos.mjs",
+    "calidad": "npm run verificar:tamano && npm run build"
   },
   "dependencies": {
     "@angular/animations": "21.2.22",

@@ -1,0 +1,65 @@
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query } from '@nestjs/common';
+import { CurrentUser } from '../../compartido/decoradores/current-user.decorator';
+import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
+import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
+import { CancelPreparationDto, ConfirmPreparationDto, CreatePreparationDto, PreparationQueryDto, RegisterPreparationProgressDto } from './dto/preparation.dto';
+import { PreparationService } from './preparation.service';
+
+@Controller('preparations')
+export class PreparationController {
+  constructor(private readonly preparations: PreparationService) {}
+
+  @Get('eligible')
+  @RequirePermissions('preparations.read')
+  eligible(@Query() query: PreparationQueryDto) { return this.preparations.eligible(query); }
+
+  @Get('work-queue')
+  @RequirePermissions('preparations.read')
+  workQueue(@Query() query: PreparationQueryDto) { return this.preparations.workQueue(query); }
+
+  @Get()
+  @RequirePermissions('preparations.read')
+  findAll(@Query() query: PreparationQueryDto) { return this.preparations.findAll(query); }
+
+  @Post()
+  @RequirePermissions('preparations.create')
+  create(@Body() dto: CreatePreparationDto, @CurrentUser() actor: AuthenticatedUser) { return this.preparations.create(dto, actor); }
+
+  @Get(':id')
+  @RequirePermissions('preparations.read')
+  findOne(@Param('id', ParseUUIDPipe) id: string) { return this.preparations.findOne(id); }
+
+  @Post(':id/progress')
+  @RequirePermissions('preparations.progress')
+  progress(@Param('id', ParseUUIDPipe) id: string, @Body() dto: RegisterPreparationProgressDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.progress(id, dto, actor);
+  }
+
+  @Post(':id/confirm')
+  @RequirePermissions('preparations.confirm')
+  confirm(@Param('id', ParseUUIDPipe) id: string, @Body() dto: ConfirmPreparationDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.confirm(id, dto, actor);
+  }
+
+  @Post(':id/reopen')
+  @RequirePermissions('preparations.progress')
+  reopen(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.reopen(id, actor);
+  }
+
+  @Post(':id/handoff')
+  @RequirePermissions('preparations.handoff')
+  handoff(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.handoff(id, actor);
+  }
+
+  @Post(':id/cancel')
+  @RequirePermissions('preparations.cancel')
+  cancel(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CancelPreparationDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.preparations.cancel(id, dto, actor);
+  }
+
+  @Get(':id/history')
+  @RequirePermissions('preparations.read')
+  history(@Param('id', ParseUUIDPipe) id: string) { return this.preparations.history(id); }
+}

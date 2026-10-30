@@ -2,12 +2,14 @@
 
 Base tecnológica del sistema web para la gestión integral del proceso de comercialización y distribución de ICAR Industrias Cárnicas Arancibia.
 
-## Arquitectura inicial
+## Arquitectura
 
 - `frontend/`: Angular 21 LTS + PrimeNG 21, compilado y servido por Nginx.
 - `backend/`: API REST con NestJS 12 y TypeScript, organizada como monolito modular.
 - `database/`: PostgreSQL 18, scripts de inicialización, migraciones y volumen persistente.
 - `compose.yaml`: orquesta todo el stack y publica únicamente Nginx en el puerto configurado.
+
+Frontend y backend se agrupan por los mismos dominios de negocio en carpetas con nombres en español. La estructura y las reglas de mantenimiento están documentadas en [`docs/arquitectura-organizacion-codigo.md`](docs/arquitectura-organizacion-codigo.md).
 
 El navegador se comunica con Nginx. Las rutas `/api/*` se envían al backend y PostgreSQL permanece en una red interna sin puertos publicados.
 
@@ -68,6 +70,10 @@ docker compose exec backend npm run migration:revert
 
 # Reconstruir un servicio después de cambios
 docker compose up --build -d backend
+
+# Verificar el límite de 300 líneas, compilar y ejecutar pruebas
+cd backend && npm run calidad
+cd ../frontend && npm run calidad
 ```
 
 # ACTUALIZAR REPOSITORIO

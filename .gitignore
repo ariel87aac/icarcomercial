@@ -23,4 +23,4 @@ tmp/
 /backend/scripts/local-demo-seed.mjs
 
 # Migración local generada desde la lista comercial 2026 (no versionar)
-/backend/src/database/migrations/1720000007000-import-product-list-2026.local.ts
+/backend/src/base-datos/migraciones/1720000007000-import-product-list-2026.local.ts

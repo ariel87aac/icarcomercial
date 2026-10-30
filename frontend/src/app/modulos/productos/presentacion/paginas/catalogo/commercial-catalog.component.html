@@ -1,0 +1,153 @@
+<div class="page-toolbar">
+      <div>
+        <span class="eyebrow">Catálogo comercial</span>
+        <h2>Elige tus productos</h2>
+        <p>Explora el catálogo, selecciona una presentación y prepara tu pedido.</p>
+      </div>
+      <div class="toolbar-actions">
+        @if (auth.can('orders.scheduling.manage')) { <button type="button" class="schedule-button" (click)="openScheduleSettings()"><i class="pi pi-clock"></i> Configurar cierres</button> }
+        <button type="button" class="cart-button" [disabled]="!customerId()" (click)="openCart()">
+          <span class="cart-icon"><i class="pi pi-shopping-cart"></i>@if (cart.itemCount()) { <b>{{ cart.itemCount() }}</b> }</span>
+          <span><small>Tu carrito</small><strong>Bs {{ money(cart.total()) }}</strong></span>
+          <i class="pi pi-chevron-right"></i>
+        </button>
+      </div>
+    </div>
+
+    <div class="catalog-filters">
+      <label class="filter-field search-filter"><span>Buscar</span><div class="search-field"><i class="pi pi-search"></i><input pInputText [ngModel]="search()" (ngModelChange)="search.set($event)" placeholder="Nombre, código o presentación" /></div></label>
+      <label class="filter-field"><span><b>1</b> Categoría</span><p-select [options]="categoryOptions()" optionLabel="label" optionValue="value" [ngModel]="categoryId()" (ngModelChange)="changeCategory($event)" placeholder="Todas las categorías" [showClear]="true" /></label>
+      <label class="filter-field"><span><b>2</b> Línea</span><p-select [options]="lineOptions()" optionLabel="label" optionValue="value" [ngModel]="productLineId()" (ngModelChange)="changeLine($event)" placeholder="Selecciona una línea" [showClear]="true" [disabled]="!categoryId()" /></label>
+      <label class="filter-field"><span><b>3</b> Producto</span><p-select [options]="productOptions()" optionLabel="label" optionValue="value" [ngModel]="productId()" (ngModelChange)="productId.set($event)" placeholder="Selecciona un producto" [showClear]="true" [filter]="true" [disabled]="!productLineId()" /></label>
+      @if (auth.user()?.type === 'INTERNO' && customers().length) {
+        <label class="filter-field customer-filter"><span>Cliente del pedido *</span><p-select #customerPicker [options]="customers()" optionLabel="businessName" optionValue="id" [ngModel]="customerId()" (ngModelChange)="changeCustomer($event, customerPicker)" placeholder="Selecciona el cliente antes de comprar" [filter]="true" [showClear]="true" />@if (cart.items().length) { <small class="customer-lock"><i class="pi pi-lock"></i> Cliente bloqueado mientras el carrito tenga productos.</small> }</label>
+      }
+      <button type="button" class="clear-filters" (click)="clearFilters()"><i class="pi pi-filter-slash"></i> Limpiar filtros</button>
+    </div>
+
+    @if (currentCustomer(); as customer) {
+      <div class="customer-note"><i class="pi pi-user"></i><span>Precios para <strong>{{ customer.businessName }}</strong></span></div>
+    }
+
+    @if (loading()) {
+      <div class="catalog-empty"><i class="pi pi-spin pi-spinner"></i><span>Cargando catálogo…</span></div>
+    } @else {
+      <div class="catalog-grid">
+        @for (product of filteredProducts(); track product.id) {
+          <article class="product-card" role="button" tabindex="0" (click)="openProduct(product)" (keydown.enter)="openProduct(product)">
+            <div class="product-media">
+              <img [src]="product.imageUrl || '/assets/icar-logo.jpg'" [alt]="product.imageUrl ? product.name : 'ICAR'" />
+              <div class="product-tags"><span><i class="pi pi-tag"></i> {{ product.category.name }}</span><span><i class="pi pi-sitemap"></i> {{ product.productLine.name }}</span></div>
+            </div>
+            <div class="product-body">
+              <span class="product-code">{{ product.code }}</span>
+              <h3>{{ product.name }}</h3>
+              <div class="product-price">
+                @if (lowestPrice(product); as price) { <span>Desde</span><strong>Bs {{ money(price) }}</strong> }
+                @else { <em>Precio según cliente</em> }
+              </div>
+              <div class="presentation-list">
+                @for (presentation of product.presentations; track presentation.id) {
+                  <div>
+                    <span><strong>{{ presentation.description }}</strong><small>{{ presentation.unit.abbreviation }} · factor {{ presentation.conversionFactor }}</small></span>
+                    @if (presentation.price) {
+                      <button type="button" class="quick-add" title="Agregar al carrito" (click)="quickAdd(product, presentation, $event)"><span>Bs {{ presentation.price.amount }}</span><i class="pi pi-plus"></i></button>
+                    } @else { <em>Sin precio aplicable</em> }
+                  </div>
+                }
+              </div>
+              <button type="button" class="select-product" (click)="$event.stopPropagation(); openProduct(product)">Elegir presentación <i class="pi pi-arrow-right"></i></button>
+            </div>
+          </article>
+        } @empty {
+          <div class="catalog-empty"><i class="pi pi-shopping-bag"></i><strong>No hay productos aplicables</strong><span>@if (auth.user()?.type === 'INTERNO' && !customerId()) { Selecciona un cliente para resolver sus precios. } @else { Revisa los productos activos y sus vigencias de precio. }</span></div>
+        }
+      </div>
+    }
+
+    <p-dialog [visible]="productDialog()" (visibleChange)="productDialog.set($event)" [modal]="true" [style]="{width:'min(780px,96vw)'}" [header]="selectedProduct()?.name || 'Producto'" [draggable]="false">
+      @if (selectedProduct(); as product) {
+        <div class="product-detail">
+          <div class="detail-media">
+            <img [src]="product.imageUrl || '/assets/icar-logo.jpg'" [alt]="product.imageUrl ? product.name : 'ICAR'" />
+          </div>
+          <div class="detail-copy">
+            <span class="product-code">{{ product.code }}</span>
+            <div class="detail-tags"><span><i class="pi pi-tag"></i> Categoría: {{ product.category.name }}</span><span><i class="pi pi-sitemap"></i> Línea: {{ product.productLine.name }}</span></div>
+            <h3>{{ product.name }}</h3>
+            <label><span>Presentación *</span><p-select [options]="pricedPresentations(product)" optionLabel="label" optionValue="value" [ngModel]="selectedPresentationId()" (ngModelChange)="selectedPresentationId.set($event)" /></label>
+            @if (selectedPresentation(product); as presentation) {
+              <div class="selected-price"><span>{{ presentation.unit.abbreviation }} · factor {{ presentation.conversionFactor }}</span><strong>Bs {{ presentation.price?.amount }}</strong></div>
+            }
+            <label><span>Cantidad *</span><p-inputnumber [ngModel]="productQuantity()" (ngModelChange)="productQuantity.set($event || 1)" [min]="0.001" [step]="1" [maxFractionDigits]="3" [showButtons]="true" buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" /></label>
+            <p class="price-note"><i class="pi pi-info-circle"></i> El precio será validado nuevamente al procesar el pedido.</p>
+          </div>
+        </div>
+        <div class="dialog-footer"><p-button label="Cancelar" [text]="true" severity="secondary" (onClick)="productDialog.set(false)" /><p-button label="Agregar al carrito" icon="pi pi-shopping-cart" [disabled]="!selectedPresentation(product)" (onClick)="addSelected()" /></div>
+      }
+    </p-dialog>
+
+    <p-dialog [visible]="cartDialog()" (visibleChange)="cartDialog.set($event)" [modal]="true" [style]="{width:'min(940px,98vw)'}" header="Tu carrito de compras" [draggable]="false">
+      @if (cart.items().length) {
+        <div class="cart-layout">
+          <div class="cart-lines">
+            @for (item of cart.items(); track item.presentationId) {
+              <article class="cart-line">
+                <div class="cart-image">@if (item.imageUrl) { <img [src]="item.imageUrl" [alt]="item.productName" /> } @else { <img src="/assets/icar-logo.jpg" alt="ICAR" /> }</div>
+                <div class="cart-description"><span>{{ item.productCode }}</span><strong>{{ item.productName }}</strong><small>{{ item.presentationDescription }} · {{ item.unitAbbreviation }}</small><em>Bs {{ money(item.unitPrice) }} por unidad</em></div>
+                <p-inputnumber [ngModel]="item.quantity" (ngModelChange)="cart.changeQuantity(item.presentationId, $event)" [ngModelOptions]="{standalone:true}" [min]="0.001" [step]="1" [maxFractionDigits]="3" [showButtons]="true" buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" />
+                <strong class="line-total">Bs {{ money(item.unitPrice * item.quantity) }}</strong>
+                <p-button icon="pi pi-trash" [text]="true" [rounded]="true" severity="danger" title="Quitar" (onClick)="cart.remove(item.presentationId)" />
+              </article>
+            }
+            <button type="button" class="continue-shopping" (click)="cartDialog.set(false)"><i class="pi pi-arrow-left"></i> Seguir comprando</button>
+          </div>
+          <form class="checkout" [formGroup]="checkoutForm" (ngSubmit)="checkout()">
+            <span class="eyebrow">Resumen del pedido</span>
+            @if (currentCustomer(); as customer) { <h3>{{ customer.businessName }}</h3> }
+            <label><span>Domicilio de entrega *</span><p-select formControlName="addressId" [options]="addressOptions()" optionLabel="label" optionValue="value" (onChange)="onAddressChange()" /></label>
+            <label><span>Fecha de entrega *</span><p-select formControlName="requestedDate" [options]="deliveryOptionItems()" optionLabel="label" optionValue="value" placeholder="Selecciona una fecha habilitada" [loading]="loadingDates()" /></label>
+            @if (currentDeliveryOption(); as option) {
+              <div class="schedule-summary">
+                <div><i class="pi pi-calendar-plus"></i><span>Fecha del pedido</span><strong>{{ formatDateTime(now()) }}</strong></div>
+                <div><i class="pi pi-lock"></i><span>Cierre para cambios</span><strong>{{ formatDateTime(option.orderCutoffAt) }}</strong></div>
+                <div><i class="pi pi-box"></i><span>Preparación / consolidado</span><strong>{{ formatDateTime(option.preparationAt) }}</strong></div>
+                <div><i class="pi pi-truck"></i><span>Entrega</span><strong>{{ formatDate(option.deliveryDate) }}</strong></div>
+              </div>
+            }
+            <label><span>Observaciones</span><textarea pTextarea formControlName="observations" rows="3" placeholder="Indicaciones para el pedido"></textarea></label>
+            <div class="checkout-total"><span>Total referencial</span><strong>Bs {{ money(cart.total()) }}</strong></div>
+            <p class="price-note"><i class="pi pi-shield"></i> Precios y disponibilidad se validan en el servidor. El pedido se guardará como borrador.</p>
+            <p-button type="submit" label="Crear pedido borrador" icon="pi pi-check" [loading]="saving()" [disabled]="!auth.can('orders.create')" styleClass="checkout-button" />
+          </form>
+        </div>
+      } @else {
+        <div class="cart-empty"><span class="empty-bag"><i class="pi pi-shopping-cart"></i></span><h3>Tu carrito está vacío</h3><p>Agrega productos del catálogo para preparar tu pedido.</p><p-button label="Explorar productos" icon="pi pi-arrow-left" (onClick)="cartDialog.set(false)" /></div>
+      }
+    </p-dialog>
+
+    <p-dialog [visible]="cutoffDialog()" (visibleChange)="cutoffDialog.set($event)" [modal]="true" [closable]="false" [style]="{width:'min(590px,96vw)'}" header="Cierre de pedido finalizado" [draggable]="false">
+      <div class="cutoff-warning"><i class="pi pi-clock"></i><div><strong>La fecha seleccionada para el pedido ya se cerró.</strong>@if (closedDeliveryDate()) { <p>La entrega elegida era el {{ formatDate(closedDeliveryDate()) }}.</p> }</div></div>
+      @if (currentDeliveryOption(); as option) {
+        <p class="cutoff-copy">Puedes conservar todos los productos y preparar el pedido para la siguiente fecha disponible: <strong>{{ formatDate(option.deliveryDate) }}</strong>. El nuevo cierre será el {{ formatDateTime(option.orderCutoffAt) }}.</p>
+      } @else if (loadingDates()) {
+        <p class="cutoff-copy">Estamos consultando la siguiente fecha disponible para la zona.</p>
+      } @else {
+        <p class="cutoff-copy">No se encontró otra fecha disponible. Puedes cancelar este carrito y volver a intentarlo cuando exista una fecha habilitada.</p>
+      }
+      <div class="dialog-footer"><p-button label="Cancelar pedido" icon="pi pi-trash" [outlined]="true" severity="danger" (onClick)="cancelClosedCart()" /><p-button label="Preparar para siguiente fecha" icon="pi pi-calendar-plus" [disabled]="!currentDeliveryOption() || loadingDates()" (onClick)="useNextAvailableDate()" /></div>
+    </p-dialog>
+
+    <p-dialog [visible]="settingsDialog()" (visibleChange)="settingsDialog.set($event)" [modal]="true" [style]="{width:'min(620px,96vw)'}" header="Configuración de cierres" [draggable]="false">
+      <form [formGroup]="settingsForm" (ngSubmit)="saveScheduleSettings()">
+        <p class="settings-help">Los horarios se aplican a las nuevas fechas elegidas. Cada pedido conserva sus fechas de cierre y preparación.</p>
+        <div class="settings-grid">
+          <label><span>Días antes de la entrega para cerrar *</span><p-inputnumber formControlName="orderCutoffLeadDays" [min]="0" [max]="30" [showButtons]="true" /></label>
+          <label><span>Hora de cierre de pedidos *</span><input pInputText type="time" formControlName="orderCutoffTime" /></label>
+          <label><span>Días antes para preparación *</span><p-inputnumber formControlName="preparationLeadDays" [min]="0" [max]="30" [showButtons]="true" /></label>
+          <label><span>Hora límite del consolidado *</span><input pInputText type="time" formControlName="consolidationDeadlineTime" /></label>
+        </div>
+        <div class="example-note"><i class="pi pi-info-circle"></i> Ejemplo: entrega mañana, 1 día de anticipación, cierre 13:00 y consolidado 18:00 generan ambos hitos para hoy.</div>
+        <div class="dialog-footer"><p-button type="button" label="Cancelar" [text]="true" severity="secondary" (onClick)="settingsDialog.set(false)" /><p-button type="submit" label="Guardar configuración" icon="pi pi-save" [loading]="savingSettings()" /></div>
+      </form>
+    </p-dialog>

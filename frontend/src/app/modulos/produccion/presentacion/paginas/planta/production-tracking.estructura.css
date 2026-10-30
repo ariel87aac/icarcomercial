@@ -1,0 +1,178 @@
+:host {
+  display: block;
+}
+
+.tracking-heading,
+.detail-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.tracking-heading h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.tracking-heading p,
+.refresh-note,
+.scope-note,
+.muted {
+  color: var(--text-muted, #64748b);
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.tracking-heading p {
+  margin: 0.35rem 0 1rem;
+}
+
+.tracking-filters {
+  display: grid;
+  grid-template-columns: minmax(9rem, 1fr) minmax(10rem, 1fr) minmax(
+      16rem,
+      2fr
+    ) auto;
+  gap: 0.8rem;
+  align-items: end;
+  margin: 0.5rem 0 1rem;
+}
+
+.tracking-filters label {
+  display: grid;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
+.tracking-filters label > span {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.tracking-filters input,
+.tracking-filters p-multiselect {
+  width: 100%;
+  min-width: 0;
+}
+
+.refresh-note i {
+  margin-right: 0.3rem;
+}
+
+.table-card {
+  border: 1px solid var(--surface-border, #dbe3eb);
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.table-card ::ng-deep .p-datatable-table {
+  min-width: 54rem;
+}
+
+.table-card ::ng-deep .p-datatable-thead > tr > th,
+.table-card ::ng-deep .p-datatable-tbody > tr > td {
+  padding: .75rem .65rem;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.stack small {
+  color: var(--text-muted, #64748b);
+  font-size: 0.72rem;
+}
+
+.order-code {
+  color: var(--brand-700, #174b62);
+}
+
+.progress-cell {
+  display: grid;
+  gap: 0.6rem;
+  min-width: 11rem;
+}
+
+.progress-cell label {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.progress-cell label > span {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.7rem;
+}
+
+.progress-cell progress {
+  width: 100%;
+  height: 0.4rem;
+  border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #e6edf3;
+}
+
+.progress-cell progress::-webkit-progress-bar {
+  background: #e6edf3;
+}
+
+.progress-cell progress::-webkit-progress-value {
+  background: #4388aa;
+}
+
+.progress-cell progress.received::-webkit-progress-value {
+  background: #278466;
+}
+
+.progress-cell progress::-moz-progress-bar {
+  background: #4388aa;
+}
+
+.progress-cell progress.received::-moz-progress-bar {
+  background: #278466;
+}
+
+.next-action {
+  max-width: 17rem;
+  font-size: 0.75rem;
+}
+
+.empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.6rem;
+  padding: 2rem;
+  color: #64748b;
+}
+
+.empty i {
+  font-size: 1.4rem;
+}
+
+.scope-note {
+  margin: 0.8rem 0;
+}
+
+.error-note,
+.incident-note {
+  padding: 0.8rem 1rem;
+  border-radius: 0.5rem;
+  line-height: 1.5;
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.error-note {
+  background: #fff0ef;
+  color: #a3322a;
+}
+
+.incident-note {
+  background: #fff6df;
+  color: #845714;
+}

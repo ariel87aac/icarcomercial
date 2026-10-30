@@ -31,4 +31,4 @@ COPY scripts ./scripts
 USER node
 EXPOSE 3000
 
-CMD ["sh", "-c", "npm run migration:run && node dist/main.js"]
+CMD ["sh", "-c", "npm run migration:run && node dist/principal.js"]

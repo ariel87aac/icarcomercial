@@ -1,0 +1,54 @@
+import { Column, CreateDateColumn, Entity, JoinColumn, ManyToOne, PrimaryGeneratedColumn } from 'typeorm';
+import { User } from '../../seguridad/usuarios/entidades/user.entity';
+import { InventoryMovementType } from './inventory.enums';
+import { Stock } from './stock.entity';
+
+@Entity({ name: 'movimientos_inventario' })
+export class InventoryMovement {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column({ name: 'existencia_id', type: 'uuid' })
+  stockId: string;
+
+  @ManyToOne(() => Stock, (stock) => stock.movements, { onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'existencia_id' })
+  stock: Stock;
+
+  @Column({ name: 'tipo', type: 'enum', enum: InventoryMovementType })
+  type: InventoryMovementType;
+
+  @Column({ name: 'cantidad', type: 'numeric', precision: 18, scale: 6 })
+  quantity: string;
+
+  @Column({ name: 'saldo_anterior', type: 'numeric', precision: 18, scale: 6 })
+  previousBalance: string;
+
+  @Column({ name: 'saldo_nuevo', type: 'numeric', precision: 18, scale: 6 })
+  newBalance: string;
+
+  @Column({ name: 'motivo', type: 'varchar', length: 255 })
+  reason: string;
+
+  @Column({ name: 'usuario_id', type: 'uuid' })
+  userId: string;
+
+  @ManyToOne(() => User, { eager: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'usuario_id' })
+  user: User;
+
+  @Column({ name: 'pedido_id', type: 'uuid', nullable: true })
+  orderId: string | null;
+
+  @Column({ name: 'detalle_pedido_id', type: 'uuid', nullable: true })
+  orderDetailId: string | null;
+
+  @Column({ name: 'ruta_entrega_id', type: 'uuid', nullable: true })
+  routeDeliveryId: string | null;
+
+  @Column({ name: 'entrega_produccion_id', type: 'uuid', nullable: true })
+  productionDeliveryId: string | null;
+
+  @CreateDateColumn({ name: 'fecha_hora', type: 'timestamptz' })
+  occurredAt: Date;
+}

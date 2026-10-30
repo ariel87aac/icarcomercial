@@ -1,0 +1,240 @@
+@if (mode()==='distribution') {
+      <header class="page-toolbar">
+        <div><span class="eyebrow">Operación de reparto</span><h2>Distribución</h2><p>Vehículos, pesos de carga, rutas, visitas y liquidación operativa.</p></div>
+        <p-button icon="pi pi-refresh" label="Actualizar" [outlined]="true" (onClick)="reload()" />
+      </header>
+      <nav class="view-tabs" aria-label="Vistas de distribución">
+        @if (auth.can('distribution.routes.read')) { <button type="button" [class.active]="view()==='pending'" (click)="setView('pending')"><i class="pi pi-inbox"></i> Pedidos pendientes @if (pendingMeta().total) { <span class="tab-count">{{ pendingMeta().total }}</span> }</button> }
+        @if (auth.can('vehicles.read')) { <button type="button" [class.active]="view()==='vehicles'" (click)="setView('vehicles')"><i class="pi pi-truck"></i> Vehículos</button> }
+        @if (auth.can('distribution.weights.read')) { <button type="button" [class.active]="view()==='weights'" (click)="setView('weights')"><i class="pi pi-gauge"></i> Pesos de carga</button> }
+        @if (auth.can('distribution.routes.read')) { <button type="button" [class.active]="view()==='routes'" (click)="setView('routes')"><i class="pi pi-map"></i> Rutas</button> }
+        @if (auth.can('distribution.routes.assigned.read')) { <button type="button" [class.active]="view()==='assigned'" (click)="setView('assigned')"><i class="pi pi-directions"></i> {{ controlsAllDeliveries() ? 'Repartos activos' : 'Mi reparto' }}</button> }
+        @if (auth.can('distribution.summary.read')) { <button type="button" [class.active]="view()==='summary'" (click)="setView('summary')"><i class="pi pi-chart-bar"></i> Resumen</button> }
+      </nav>
+    } @else {
+      <div class="embedded-toolbar"><div><span class="eyebrow">Almacén → Distribución</span><h3>Preparación de pedidos</h3><p>Separa existencias recibidas, identifica faltantes y entrega pedidos preparados a Distribución.</p></div><p-button icon="pi pi-refresh" label="Actualizar" [outlined]="true" (onClick)="reload()" /></div>
+    }
+
+    @if (view()==='pending') {
+      <section class="filters pending-filters">
+        <label><span>Buscar</span><input pInputText [ngModel]="searchFilter()" (ngModelChange)="onPendingSearch($event)" placeholder="Código de pedido o cliente" /></label>
+        <label><span>Fecha comprometida</span><input pInputText type="date" [ngModel]="dateFilter()" (ngModelChange)="dateFilter.set($event);pendingPage.set(1);clearPendingSelection();loadPendingDeliveries()" /></label>
+        <label><span>Zona</span><p-select [options]="zones()" optionLabel="name" optionValue="id" [showClear]="true" placeholder="Todas" [ngModel]="zoneFilter()" (ngModelChange)="zoneFilter.set($event);pendingPage.set(1);clearPendingSelection();loadPendingDeliveries()" /></label>
+      </section>
+      <section class="pending-overview">
+        <article><span>Recibidos de Almacén</span><strong>{{ pendingMeta().total }}</strong><small>Pendientes de modalidad de entrega</small></article>
+        <article><span>Seleccionados</span><strong>{{ selectedPendingPreparations().length }}</strong><small>{{ selectedPendingProductCount() }} producto(s)</small></article>
+        <article [class.warning]="selectedPendingMissingWeights().length>0"><span>Peso seleccionado</span><strong>{{ number(selectedPendingWeight()) }} kg</strong><small>{{ selectedPendingMissingWeights().length ? selectedPendingMissingWeights().length+' peso(s) pendiente(s)' : 'Carga calculada' }}</small></article>
+        <div class="pending-delivery-actions">
+          @if (auth.can('distribution.routes.create')) { <p-button label="Enviar a reparto" icon="pi pi-truck" [disabled]="!selectedPendingPreparations().length || selectedPendingZoneIds().length!==1" (onClick)="openRouteFromPending()" /> }
+          @if (auth.can('distribution.visits.create')) { <p-button label="Entrega en fábrica" icon="pi pi-building" severity="success" [outlined]="true" [disabled]="selectedPendingPreparations().length!==1" (onClick)="openFactoryDelivery()" /> }
+        </div>
+      </section>
+      @if (selectedPendingZoneIds().length>1) { <div class="capacity-alert warning"><i class="pi pi-exclamation-triangle"></i><div><strong>Seleccione pedidos de una sola zona</strong><span>Cada ruta pertenece a una zona. Quite los pedidos de otras zonas para continuar.</span></div></div> }
+      <div class="table-card"><p-table styleClass="mobile-data-table pending-table" [value]="pendingPreparations()" [loading]="loading()" responsiveLayout="scroll">
+        <ng-template #header><tr><th class="selection-cell"><p-checkbox [binary]="true" [ngModel]="allPendingPageSelected()" (ngModelChange)="togglePendingPage($event)" /></th><th>Pedido</th><th>Cliente</th><th>Fecha comprometida</th><th>Zona</th><th>Productos</th><th>Peso</th><th>Recibido de Almacén</th><th>Estado</th></tr></ng-template>
+        <ng-template #body let-item><tr>
+          <td data-label="Seleccionar" class="selection-cell"><p-checkbox [binary]="true" [ngModel]="isPendingSelected(item.id)" (ngModelChange)="togglePendingPreparation(item,$event)" /></td>
+          <td data-label="Pedido"><strong>{{ item.order.code }}</strong></td><td data-label="Cliente">{{ item.order.customerNameSnapshot || item.order.customer.businessName }}</td><td data-label="Compromiso">{{ formatDate(item.order.requestedDate) }}</td><td data-label="Zona">{{ item.order.address.zone?.name || 'Sin zona' }}</td>
+          <td data-label="Productos">{{ item.detailCount }}</td><td data-label="Peso"><div class="stack" [class.negative]="item.missingWeightPresentations.length"><strong>{{ number(item.loadWeightKg) }} kg</strong><small>{{ item.missingWeightPresentations.length ? 'Peso incompleto' : 'Calculado' }}</small></div></td>
+          <td data-label="Recibido">{{ item.handedOffAt ? formatDateTime(item.handedOffAt) : '—' }}</td><td data-label="Estado"><p-tag value="PREPARADO" severity="success" /></td>
+        </tr></ng-template>
+        <ng-template #emptymessage><tr><td colspan="9" class="empty-row">No existen pedidos entregados por Almacén pendientes de distribución.</td></tr></ng-template>
+      </p-table><p-paginator [first]="(pendingMeta().page-1)*pendingMeta().limit" [rows]="pendingMeta().limit" [totalRecords]="pendingMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changePendingPage($event)" /></div>
+    }
+
+    @if (view()==='preparations') {
+      <section class="filters preparation-filters">
+        <label><span>Buscar</span><input pInputText [ngModel]="searchFilter()" (ngModelChange)="onPreparationSearch($event)" placeholder="Pedido o cliente" /></label>
+        <label><span>Fecha de entrega</span><input pInputText type="date" [ngModel]="dateFilter()" (ngModelChange)="dateFilter.set($event);resetPreparationPages();loadPreparations()" /></label>
+        <label><span>Zona</span><p-select [options]="zones()" optionLabel="name" optionValue="id" [showClear]="true" placeholder="Todas" [ngModel]="zoneFilter()" (ngModelChange)="zoneFilter.set($event);resetPreparationPages();loadPreparations()" /></label>
+      </section>
+
+      @if (auth.can('preparations.create')) {
+        <section class="section-block">
+          <div class="section-heading"><div><span>Trabajo pendiente</span><h3>Preparar</h3><p>Atención por fecha del pedido, del más antiguo al más reciente. Los faltantes permanecen En preparación.</p></div><small>{{ eligibleMeta().total }} pedido(s)</small></div>
+          <div class="table-card">
+            <p-table styleClass="mobile-data-table" [value]="workOrders()" [loading]="loading()" responsiveLayout="scroll">
+              <ng-template #header><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Zona</th><th>Productos</th><th>Estado</th><th>Acción</th></tr></ng-template>
+              <ng-template #body let-order><tr>
+                <td data-label="Pedido"><strong>{{ order.code }}</strong></td>
+                <td data-label="Cliente">{{ order.customerNameSnapshot || order.customer.businessName }}</td>
+                <td data-label="Entrega">{{ formatDate(order.requestedDate) }}</td><td data-label="Zona">{{ order.address.zone?.name || 'Sin zona' }}</td>
+                <td data-label="Productos"><div class="stack"><strong>{{ order.details.length }}</strong><small>{{ availableLines(order) }} / {{ order.details.length }} disponibles</small></div></td>
+                <td data-label="Estado"><p-tag [value]="workflowLabel(order.operationalStatus)" [severity]="order.preparation ? preparationSeverity(order.preparation.status) : 'secondary'" /></td>
+                <td data-label="Acción"><p-button [label]="order.operationalStatus==='DISPONIBLE_PARA_PREPARAR' ? 'Preparar' : 'Ver faltantes'" icon="pi pi-box" size="small" [loading]="saving()" (onClick)="prepareWorkOrder(order)" /></td>
+              </tr></ng-template>
+              <ng-template #emptymessage><tr><td colspan="7" class="empty-row">No existen pedidos pendientes de preparación.</td></tr></ng-template>
+            </p-table>
+            <p-paginator [first]="(eligibleMeta().page-1)*eligibleMeta().limit" [rows]="eligibleMeta().limit" [totalRecords]="eligibleMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changeEligiblePage($event)" />
+          </div>
+        </section>
+      }
+
+      <section class="section-block">
+        <div class="section-heading"><div><span>Verificación terminada</span><h3>Entregar a Distribución</h3><p>Pedidos verificados y listos para entregar a Distribución.</p></div><small>{{ preparationMeta().total }} listo(s)</small></div>
+        <div class="table-card">
+          <p-table styleClass="mobile-data-table" [value]="preparations()" [loading]="loading()" responsiveLayout="scroll">
+            <ng-template #header><tr><th>Pedido</th><th>Cliente</th><th>Entrega</th><th>Zona</th><th>Productos</th><th>Responsable</th><th>Acciones</th></tr></ng-template>
+            <ng-template #body let-item><tr>
+              <td data-label="Pedido"><strong>{{ item.order.code }}</strong></td><td data-label="Cliente">{{ item.order.customerNameSnapshot || item.order.customer.businessName }}</td><td data-label="Entrega">{{ formatDate(item.order.requestedDate) }}</td>
+              <td data-label="Zona">{{ item.order.address.zone?.name || 'Sin zona' }}</td><td data-label="Productos">{{ item.detailCount || 0 }}</td><td data-label="Responsable">{{ item.responsible.name }}</td>
+              <td data-label="Acciones"><div class="dispatch-actions"><p-button label="Editar" icon="pi pi-pencil" size="small" [outlined]="true" (onClick)="editPrepared(item)" /><p-button label="Entregar" icon="pi pi-send" size="small" severity="success" (onClick)="handoffPreparation(item)" /><p-button label="Cancelar" icon="pi pi-times" size="small" severity="danger" [outlined]="true" (onClick)="requestPreparationCancellation(item)" /></div></td>
+            </tr></ng-template>
+            <ng-template #emptymessage><tr><td colspan="7" class="empty-row">No existen pedidos preparados pendientes de entrega.</td></tr></ng-template>
+          </p-table>
+          <p-paginator [first]="(preparationMeta().page-1)*preparationMeta().limit" [rows]="preparationMeta().limit" [totalRecords]="preparationMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changePreparationPage($event)" />
+        </div>
+      </section>
+    }
+
+    @if (view()==='vehicles') {
+      <div class="section-heading"><div><span>Recursos de distribución</span><h3>Vehículos</h3></div>@if (auth.can('vehicles.manage')) { <p-button label="Registrar vehículo" icon="pi pi-plus" (onClick)="openVehicle()" /> }</div>
+      <div class="table-card"><p-table [value]="vehicles()" [loading]="loading()" responsiveLayout="scroll">
+        <ng-template #header><tr><th>Placa</th><th>Descripción</th><th>Capacidad máxima</th><th>Estado</th><th>Acción</th></tr></ng-template>
+        <ng-template #body let-item><tr><td><strong>{{ item.plate }}</strong></td><td>{{ item.description }}</td><td><strong>{{ item.capacityKg ? number(item.capacityKg) + ' kg' : 'Sin configurar' }}</strong></td><td><p-tag [value]="item.status" [severity]="item.status==='ACTIVO'?'success':'secondary'" /></td><td>@if (auth.can('vehicles.manage')) { <p-button label="Editar" icon="pi pi-pencil" size="small" [outlined]="true" (onClick)="openVehicle(item)" /> }</td></tr></ng-template>
+        <ng-template #emptymessage><tr><td colspan="5" class="empty-row">No existen vehículos registrados.</td></tr></ng-template>
+      </p-table><p-paginator [first]="(vehicleMeta().page-1)*vehicleMeta().limit" [rows]="vehicleMeta().limit" [totalRecords]="vehicleMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changeVehiclePage($event)" /></div>
+    }
+
+    @if (view()==='weights') {
+      <div class="section-heading"><div><span>Integridad de carga</span><h3>Pesos de presentaciones</h3><p>Registre el peso real indicado en la ficha técnica; el sistema no asigna valores estimados.</p></div>@if (auth.can('distribution.weights.manage')) { <p-button label="Guardar pesos" icon="pi pi-save" [disabled]="!pendingWeightItems().length" [loading]="saving()" (onClick)="saveWeights()" /> }</div>
+      <section class="filters weight-filters"><label><span>Buscar</span><input pInputText [ngModel]="weightSearch()" (ngModelChange)="onWeightSearch($event)" placeholder="Código, producto o presentación" /></label><label class="checkbox-filter"><p-checkbox [binary]="true" [ngModel]="missingWeightsOnly()" (ngModelChange)="missingWeightsOnly.set($event);weightPage.set(1);loadWeights()" /><span>Mostrar solo pesos faltantes</span></label></section>
+      @if (weightMeta().total>0 && missingWeightsOnly()) { <div class="capacity-alert warning"><i class="pi pi-exclamation-triangle"></i><div><strong>{{ weightMeta().total }} presentación(es) sin peso</strong><span>Las rutas que las incluyan no podrán planificarse hasta registrar su peso real en kilogramos.</span></div></div> }
+      <div class="table-card"><p-table [value]="weightItems()" [loading]="loading()" responsiveLayout="scroll">
+        <ng-template #header><tr><th>Código</th><th>Producto</th><th>Categoría / línea</th><th>Presentación</th><th>Peso actual</th><th>Nuevo peso (kg)</th></tr></ng-template>
+        <ng-template #body let-item><tr><td><strong>{{ item.product?.code }}</strong></td><td>{{ item.product?.name }}</td><td><div class="stack"><strong>{{ item.product?.category?.name }}</strong><small>{{ item.product?.productLine?.name }}</small></div></td><td><div class="stack"><strong>{{ item.description }}</strong><small>{{ item.unit.abbreviation }}</small></div></td><td>{{ item.weightKg ? number(item.weightKg)+' kg' : 'Faltante' }}</td><td><p-inputnumber [ngModel]="weightDrafts()[item.id]" (ngModelChange)="setWeightDraft(item.id,$event)" [min]="0.000001" [maxFractionDigits]="6" suffix=" kg" [disabled]="!auth.can('distribution.weights.manage')" /></td></tr></ng-template>
+        <ng-template #emptymessage><tr><td colspan="6" class="empty-row">No existen presentaciones con el criterio seleccionado.</td></tr></ng-template>
+      </p-table><p-paginator [first]="(weightMeta().page-1)*weightMeta().limit" [rows]="weightMeta().limit" [totalRecords]="weightMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changeWeightPage($event)" /></div>
+    }
+
+    @if (view()==='routes' || view()==='summary') {
+      <section class="filters route-filters">
+        <label><span>Buscar</span><input pInputText [ngModel]="searchFilter()" (ngModelChange)="onRouteSearch($event)" placeholder="Ruta, zona o placa" /></label>
+        <label><span>Fecha</span><input pInputText type="date" [ngModel]="dateFilter()" (ngModelChange)="dateFilter.set($event);resetRoutePages();reload()" /></label>
+        <label><span>Zona</span><p-select [options]="zones()" optionLabel="name" optionValue="id" [showClear]="true" placeholder="Todas" [ngModel]="zoneFilter()" (ngModelChange)="zoneFilter.set($event);resetRoutePages();reload()" /></label>
+        <label><span>Estado</span><p-select [options]="routeStatuses" optionLabel="label" optionValue="value" [showClear]="true" placeholder="Todos" [ngModel]="routeStatusFilter()" (ngModelChange)="routeStatusFilter.set($event);resetRoutePages();reload()" /></label>
+      </section>
+
+      @if (view()==='routes') {
+        <div class="section-heading"><div><span>Planificación operativa</span><h3>Rutas de distribución</h3></div>@if (auth.can('distribution.routes.create')) { <p-button label="Crear ruta" icon="pi pi-plus" (onClick)="openRoute()" /> }</div>
+        <div class="table-card"><p-table [value]="routes()" [loading]="loading()" responsiveLayout="scroll">
+          <ng-template #header><tr><th>Ruta</th><th>Fecha / zona</th><th>Vehículo</th><th>Carga / capacidad</th><th>Responsable</th><th>Entregas</th><th>Estado</th><th>Acción</th></tr></ng-template>
+          <ng-template #body let-route><tr><td><strong>{{ route.code }}</strong></td><td><div class="stack"><strong>{{ formatDate(route.date) }}</strong><small>{{ route.zone.name }}</small></div></td><td>{{ route.vehicle.plate }}</td><td><div class="stack" [class.negative]="route.capacityExceeded"><strong>{{ number(route.loadWeightKg || 0) }} / {{ number(route.vehicle.capacityKg || 0) }} kg</strong><small>{{ route.capacityExceeded ? 'Capacidad excedida' : route.missingWeightPresentations?.length ? 'Peso incompleto' : 'Dentro de capacidad' }}</small></div></td><td>{{ principal(route) }}</td><td>{{ route.deliveryCount || 0 }}</td><td><p-tag [value]="statusLabel(route.status)" [severity]="routeSeverity(route.status)" /></td><td><p-button label="Gestionar" icon="pi pi-arrow-right" size="small" [outlined]="true" (onClick)="openRouteDetail(route)" /></td></tr></ng-template>
+          <ng-template #emptymessage><tr><td colspan="8" class="empty-row">No existen rutas registradas.</td></tr></ng-template>
+        </p-table><p-paginator [first]="(routeMeta().page-1)*routeMeta().limit" [rows]="routeMeta().limit" [totalRecords]="routeMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changeRoutePage($event)" /></div>
+      } @else {
+        <div class="metrics">
+          <article><span>Rutas consultadas</span><strong>{{ summaryMeta().total }}</strong></article>
+          <article><span>Entregas completas</span><strong>{{ summaryTotal('complete') }}</strong></article>
+          <article><span>Entregas parciales</span><strong>{{ summaryTotal('partial') }}</strong></article>
+          <article><span>No entregadas</span><strong>{{ summaryTotal('notDelivered') }}</strong></article>
+        </div>
+        <div class="table-card"><p-table [value]="summaryRoutes()" [loading]="loading()" responsiveLayout="scroll">
+          <ng-template #header><tr><th>Ruta</th><th>Fecha / zona</th><th>Estado</th><th>Visitas</th><th>Completas</th><th>Parciales</th><th>No entregadas</th><th>Devuelto</th><th>Aceptado</th></tr></ng-template>
+          <ng-template #body let-route><tr><td><strong>{{ route.code }}</strong></td><td>{{ formatDate(route.date) }} · {{ route.zone.name }}</td><td><p-tag [value]="statusLabel(route.status)" [severity]="routeSeverity(route.status)" /></td><td>{{ route.metrics?.total || 0 }}</td><td>{{ route.metrics?.complete || 0 }}</td><td>{{ route.metrics?.partial || 0 }}</td><td>{{ route.metrics?.notDelivered || 0 }}</td><td>{{ number(route.metrics?.returnedQuantity || 0) }}</td><td>{{ number(route.metrics?.acceptedReturnQuantity || 0) }}</td></tr></ng-template>
+        </p-table><p-paginator [first]="(summaryMeta().page-1)*summaryMeta().limit" [rows]="summaryMeta().limit" [totalRecords]="summaryMeta().total" [rowsPerPageOptions]="[25,50,100]" (onPageChange)="changeSummaryPage($event)" /></div>
+      }
+    }
+
+    @if (view()==='assigned') {
+      <div class="section-heading"><div><span>{{ controlsAllDeliveries() ? 'Control comercial de entregas' : 'Responsable de reparto' }}</span><h3>{{ controlsAllDeliveries() ? 'Todos los repartos activos' : 'Rutas asignadas' }}</h3></div><small>{{ controlsAllDeliveries() ? 'Seleccione una ruta y registre cada entrega' : 'Solo recorridos autorizados' }}</small></div>
+      <div class="assigned-grid">
+        @for (route of assignedRoutes(); track route.id) {
+          <article class="route-card"><header><div><span>{{ route.code }}</span><h3>{{ route.zone.name }}</h3></div><p-tag [value]="statusLabel(route.status)" [severity]="routeSeverity(route.status)" /></header><div class="route-card__facts"><span><i class="pi pi-calendar"></i>{{ formatDate(route.date) }}</span><span><i class="pi pi-truck"></i>{{ route.vehicle.plate }}</span><span><i class="pi pi-map-marker"></i>{{ route.deliveries.length }} paradas</span></div><p-button label="Abrir recorrido" icon="pi pi-directions" styleClass="route-card__button" (onClick)="openAssignedRoute(route)" /></article>
+        } @empty { <div class="empty"><i class="pi pi-map"></i><strong>{{ controlsAllDeliveries() ? 'No existen repartos activos.' : 'No tienes rutas activas asignadas.' }}</strong></div> }
+      </div>
+    }
+
+    <p-dialog [visible]="preparationDialog()" (visibleChange)="preparationDialog.set($event)" [modal]="true" [style]="{width:'min(980px,100vw)'}" [header]="preparationTitle()" [draggable]="false" styleClass="preparation-dialog">
+      @if (selectedPreparation(); as preparation) {
+        <div class="detail-summary"><div><span>Pedido</span><strong>{{ preparation.order.code }}</strong></div><div><span>Cliente</span><strong>{{ preparation.order.customerNameSnapshot || preparation.order.customer.businessName }}</strong></div><div><span>Entrega</span><strong>{{ formatDate(preparation.order.requestedDate) }}</strong></div><div><span>Estado</span><strong>{{ statusLabel(preparation.status) }}</strong></div></div>
+        <p class="operational-note"><i class="pi pi-info-circle"></i> La cantidad debe cubrir el pedido completo. Si falta stock, el pedido permanece En preparación hasta completar todos sus productos.</p>
+        <form [formGroup]="preparationForm" (ngSubmit)="prepareCurrent()">
+          <div class="detail-table preparation-detail-table" formArrayName="details"><table><thead><tr><th>Cod-Producto</th><th>Nombre</th><th>Cubierto para este pedido</th><th>Solicitado</th><th>Cantidad a entregar</th><th>Diferencia</th><th>Verificado</th><th>Observación</th></tr></thead><tbody>
+            @for (control of preparationDetails.controls; track control; let index=$index) { <tr [formGroupName]="index"><td data-label="Cod-Producto"><strong>{{ preparation.details[index].orderDetail.presentation.product?.code || '—' }}</strong></td><td data-label="Nombre"><strong>{{ preparation.details[index].orderDetail.productDescriptionSnapshot }}</strong><small>{{ preparation.details[index].orderDetail.presentationDescriptionSnapshot }}</small></td><td data-label="Stock disponible" [class.negative]="numberValue(preparation.details[index].pickableQuantityCurrent)<numberValue(preparation.details[index].requestedQuantity)"><strong>{{ number(preparation.details[index].pickableQuantityCurrent) }}</strong><small>{{ numberValue(preparation.details[index].pickableQuantityCurrent)>=numberValue(preparation.details[index].requestedQuantity) ? 'Disponible' : numberValue(preparation.details[index].pickableQuantityCurrent)>0 ? 'Stock parcial' : 'Pendiente de stock' }}</small></td><td data-label="Solicitado">{{ number(preparation.details[index].requestedQuantity) }}</td><td data-label="Cantidad a entregar"><p-inputnumber formControlName="preparedQuantity" [min]="0" [max]="preparationQuantityLimit(preparation.details[index])" [maxFractionDigits]="3" [showButtons]="true" buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" /></td><td data-label="Diferencia" [class.negative]="detailDifference(index)<0">{{ number(detailDifference(index)) }}</td><td data-label="Verificado"><p-checkbox formControlName="verified" [binary]="true" /></td><td data-label="Observación"><input pInputText formControlName="observation" placeholder="Obligatoria si hay diferencia" /></td></tr> }
+          </tbody></table></div>
+          <div class="dialog-footer preparation-actions">
+            @if (auth.can('preparations.confirm') && canEditPreparation(preparation.status)) { <p-button type="submit" label="Preparar" icon="pi pi-check" severity="success" [loading]="saving()" [disabled]="!canSubmitPreparation()" /> }
+            @if (auth.can('preparations.cancel') && canCancelPreparation(preparation.status)) { <p-button type="button" label="Cancelar preparación" icon="pi pi-times" severity="danger" [outlined]="true" (onClick)="openPreparationCancellation()" /> }
+            <p-button type="button" label="Cerrar" [outlined]="true" severity="secondary" (onClick)="preparationDialog.set(false)" />
+          </div>
+        </form>
+        <details class="history-details"><summary>Ver historial</summary><div class="timeline compact">@for (event of preparation.history; track event.id) { <div><span class="dot"></span><article><header><strong>{{ event.event }}</strong><small>{{ formatDateTime(event.occurredAt) }}</small></header><p>{{ event.observation || 'Sin observación' }}</p><footer>{{ event.user.name }} · {{ event.previousStatus || 'INICIO' }} → {{ event.newStatus }}</footer></article></div> }</div></details>
+      }
+    </p-dialog>
+
+    <p-dialog [visible]="vehicleDialog()" (visibleChange)="vehicleDialog.set($event)" [modal]="true" [style]="{width:'min(520px,96vw)'}" [header]="editingVehicleId()?'Editar vehículo':'Registrar vehículo'" [draggable]="false">
+      <form [formGroup]="vehicleForm" (ngSubmit)="saveVehicle()"><div class="form-grid"><label><span>Placa *</span><input pInputText formControlName="plate" /></label><label><span>Capacidad máxima (kg) *</span><p-inputnumber formControlName="capacityKg" [min]="0.001" [maxFractionDigits]="3" suffix=" kg" /></label><label class="wide"><span>Descripción *</span><input pInputText formControlName="description" /></label>@if (editingVehicleId()) { <label><span>Estado</span><p-select formControlName="status" [options]="recordStatuses" optionLabel="label" optionValue="value" appendTo="body" /></label> }</div><p class="operational-note"><i class="pi pi-info-circle"></i> La capacidad es obligatoria y se comparará con el peso total de las presentaciones cargadas en la ruta.</p><div class="dialog-footer"><p-button type="button" label="Cancelar" [text]="true" severity="secondary" (onClick)="vehicleDialog.set(false)" /><p-button type="submit" label="Guardar vehículo" icon="pi pi-save" [loading]="saving()" /></div></form>
+    </p-dialog>
+
+    <p-dialog [visible]="routeDialog()" (visibleChange)="routeDialog.set($event)" [modal]="true" [style]="{width:'min(650px,96vw)'}" header="Crear ruta de distribución" [draggable]="false">
+      <form [formGroup]="routeForm" (ngSubmit)="createRoute()">
+        @if (routeDraftPreparations().length) { <div class="route-selection-summary"><div><span>Pedidos seleccionados</span><strong>{{ routeDraftPreparations().length }}</strong></div><div><span>Peso calculado</span><strong>{{ number(routeDraftWeight()) }} kg</strong></div><div [class.negative]="routeDraftMissingWeights().length"><span>Integridad del peso</span><strong>{{ routeDraftMissingWeights().length ? routeDraftMissingWeights().length+' pendiente(s)' : 'Completa' }}</strong></div><div [class.negative]="routeDraftCapacityExceeded()"><span>Capacidad del vehículo</span><strong>{{ routeDraftCapacityLabel() }}</strong></div></div> }
+        <div class="form-grid"><label><span>Fecha *</span><input pInputText type="date" formControlName="date" /></label><label><span>Zona *</span><p-select formControlName="zoneId" [options]="zones()" optionLabel="name" optionValue="id" placeholder="Seleccione" [disabled]="routeDraftPreparations().length>0" appendTo="body" /></label><label><span>Vehículo activo *</span><p-select formControlName="vehicleId" [options]="vehicleOptions()" optionLabel="label" optionValue="id" placeholder="Seleccione" appendTo="body" /></label><label><span>Responsable principal *</span><p-select formControlName="principalResponsibleId" [options]="responsibles()" optionLabel="name" optionValue="id" placeholder="Seleccione" appendTo="body" /></label><label class="wide"><span>Responsables asignados *</span><p-multiselect formControlName="responsibleIds" [options]="responsibles()" optionLabel="name" optionValue="id" placeholder="Seleccione uno o más" display="chip" appendTo="body" /></label><label class="wide"><span>Observación</span><textarea pTextarea formControlName="observation" rows="3"></textarea></label></div>
+        @if (routeDraftMissingWeights().length) { <div class="capacity-alert warning"><i class="pi pi-exclamation-triangle"></i><div><strong>Hay presentaciones sin peso configurado</strong><span>La ruta podrá guardarse, pero no podrá planificarse hasta completar los pesos.</span></div></div> }
+        @if (routeDraftCapacityExceeded()) { <div class="capacity-alert danger"><i class="pi pi-exclamation-circle"></i><div><strong>La selección supera la capacidad del vehículo</strong><span>Elija un vehículo con mayor capacidad antes de crear la ruta.</span></div></div> }
+        <div class="dialog-footer"><p-button type="button" label="Cancelar" [text]="true" severity="secondary" (onClick)="routeDialog.set(false)" /><p-button type="submit" [label]="routeDraftPreparations().length?'Crear ruta y asignar':'Crear ruta'" icon="pi pi-plus" [disabled]="routeDraftCapacityExceeded()" [loading]="saving()" /></div>
+      </form>
+    </p-dialog>
+
+    <p-dialog [visible]="routeDetailDialog()" (visibleChange)="closeRouteDetail($event)" [modal]="true" [style]="{width:'min(1180px,99vw)'}" [header]="routeTitle()" [draggable]="false">
+      @if (selectedRoute(); as route) {
+        <div class="detail-summary route-summary"><div><span>Fecha</span><strong>{{ formatDate(route.date) }}</strong></div><div><span>Zona</span><strong>{{ route.zone.name }}</strong></div><div><span>Vehículo</span><strong>{{ route.vehicle.plate }}</strong></div><div><span>Carga / capacidad</span><strong>{{ number(route.loadWeightKg || 0) }} / {{ number(route.vehicle.capacityKg || 0) }} kg</strong></div><div><span>Estado</span><strong>{{ statusLabel(route.status) }}</strong></div><div><span>Principal</span><strong>{{ principal(route) }}</strong></div></div>
+        @if (route.missingWeightPresentations.length) { <div class="capacity-alert warning"><i class="pi pi-exclamation-triangle"></i><div><strong>No se puede completar el cálculo de carga</strong><span>Configure el peso en kg de: {{ route.missingWeightPresentations.join(', ') }}.</span></div></div> }
+        @if (route.capacityExceeded) { <div class="capacity-alert danger"><i class="pi pi-exclamation-circle"></i><div><strong>Capacidad del vehículo sobrepasada por {{ number(route.excessWeightKg) }} kg</strong><span>La carga es {{ number(route.loadWeightKg) }} kg y {{ route.vehicle.plate }} admite {{ number(route.vehicle.capacityKg || 0) }} kg. Cambie a un vehículo con mayor capacidad antes de planificar.</span></div></div> }
+        @if (!route.capacityExceeded && !route.missingWeightPresentations.length) { <div class="capacity-alert success"><i class="pi pi-check-circle"></i><div><strong>Carga dentro de capacidad</strong><span>Quedan {{ number(routeRemainingCapacity(route)) }} kg disponibles.</span></div></div> }
+        @if (route.status==='BORRADOR' && auth.can('distribution.routes.create')) { <div class="vehicle-change"><label><span>Cambiar vehículo</span><p-select [options]="vehicleOptions()" optionLabel="label" optionValue="id" [ngModel]="routeVehicleId()" (ngModelChange)="routeVehicleId.set($event)" appendTo="body" /></label><div [class.negative]="prospectiveExcess(route)>0"><span>Con el vehículo seleccionado</span><strong>{{ prospectiveCapacityLabel(route) }}</strong></div><p-button label="Aplicar cambio" icon="pi pi-truck" [outlined]="true" [disabled]="!routeVehicleId() || routeVehicleId()===route.vehicleId" [loading]="saving()" (onClick)="changeRouteVehicle()" /></div> }
+        <div class="route-layout">
+          <section><div class="map-heading"><div><span>Cartografía</span><strong>Puntos de entrega</strong></div><small>OpenStreetMap · Vista satélite disponible</small></div><div id="distribution-route-map" class="route-map" aria-label="Mapa de puntos de entrega"></div></section>
+          <section class="sequence-panel"><div class="section-heading small"><div><span>Orden manual</span><h3>Secuencia de visitas</h3></div></div>
+            @if (route.status==='BORRADOR' && auth.can('distribution.routes.create')) { <div class="add-deliveries"><p-multiselect [options]="preparedOptions()" optionLabel="label" optionValue="id" placeholder="Agregar pedidos preparados" [ngModel]="selectedPreparationIds()" (ngModelChange)="selectedPreparationIds.set($event)" /><p-button icon="pi pi-plus" label="Agregar" [disabled]="!selectedPreparationIds().length" (onClick)="addDeliveries()" /></div> }
+            <ol class="delivery-list">@for (delivery of route.deliveries; track delivery.id; let index=$index) { <li><span class="position">{{ index+1 }}</span><div><strong>{{ delivery.order.code }} · {{ delivery.order.customerNameSnapshot || delivery.order.customer.businessName }}</strong><small>Compromiso {{ formatDate(delivery.order.requestedDate) }} · {{ delivery.address.address }}</small>@if (!hasCoordinates(delivery)) { <em>Faltan coordenadas válidas</em> }</div>@if (route.status==='BORRADOR' && auth.can('distribution.routes.plan')) { <div class="order-actions"><button type="button" title="Subir" [disabled]="index===0" (click)="moveDelivery(index,-1)"><i class="pi pi-angle-up"></i></button><button type="button" title="Bajar" [disabled]="index===route.deliveries.length-1" (click)="moveDelivery(index,1)"><i class="pi pi-angle-down"></i></button>@if (auth.can('distribution.routes.create')) { <button type="button" title="Retirar de la ruta" class="danger-action" (click)="removeRouteDelivery(delivery)"><i class="pi pi-times"></i></button> }</div> }@if (delivery.result) { <p-tag [value]="statusLabel(delivery.result.result)" [severity]="visitSeverity(delivery.result.result)" /> }</li> } @empty { <li class="empty-row">Agregue preparaciones confirmadas de esta zona para construir la ruta.</li> }</ol>
+            @if (route.status==='BORRADOR' && auth.can('distribution.routes.plan') && route.deliveries.length) { <p-button label="Guardar secuencia" icon="pi pi-sort-alt" [outlined]="true" (onClick)="saveSequence()" /> }
+          </section>
+        </div>
+        <div class="route-actions">
+          @if ((route.status==='BORRADOR'||route.status==='PLANIFICADA') && auth.can('distribution.routes.reschedule')) { <p-button label="Reprogramar" icon="pi pi-calendar" [outlined]="true" (onClick)="openRouteReschedule()" /> }
+          @if ((route.status==='BORRADOR'||route.status==='PLANIFICADA') && auth.can('distribution.routes.cancel')) { <p-button label="Cancelar ruta" icon="pi pi-times" severity="danger" [outlined]="true" (onClick)="openRouteCancellation()" /> }
+          @if (route.status==='BORRADOR' && auth.can('distribution.routes.plan')) { <p-button label="Planificar ruta" icon="pi pi-check-circle" [disabled]="route.capacityExceeded || !!route.missingWeightPresentations.length" (onClick)="routeAction('plan')" /> }
+          @if (route.status==='PLANIFICADA' && auth.can('distribution.routes.departure')) { <p-button label="Registrar salida" icon="pi pi-send" severity="success" (onClick)="routeAction('departure')" /> }
+          @if (route.status==='EN_REPARTO' && auth.can('distribution.routes.finish')) { <p-button label="Finalizar recorrido" icon="pi pi-flag" (onClick)="routeAction('finish')" /> }
+          @if (route.status==='FINALIZADA' && routeHasReturns(route)) { <p-tag value="Retorno pendiente en Almacén" severity="warn" /> }
+          @if (route.status==='FINALIZADA' && !routeHasReturns(route) && auth.can('distribution.routes.settle')) { <p-button label="Liquidar ruta" icon="pi pi-verified" severity="success" (onClick)="openSettlement()" /> }
+        </div>
+        <div class="timeline compact">@for (event of route.history; track event.id) { <div><span class="dot"></span><article><header><strong>{{ event.event }}</strong><small>{{ formatDateTime(event.occurredAt) }}</small></header><p>{{ event.observation || 'Sin observación' }}</p><footer>{{ event.user.name }} · {{ event.previousStatus || 'INICIO' }} → {{ event.newStatus }}</footer></article></div> }</div>
+      }
+    </p-dialog>
+
+    <p-dialog [visible]="assignedDialog()" (visibleChange)="closeAssignedDialog($event)" [modal]="true" [style]="{width:'min(1050px,98vw)'}" [header]="routeTitle()" [draggable]="false">
+      @if (selectedRoute(); as route) { <div class="assigned-route"><div id="assigned-route-map" class="route-map assigned-map"></div><div class="delivery-cards">@for (delivery of route.deliveries; track delivery.id) { <article [class.done]="delivery.status==='VISITADA'"><span class="stop-number">{{ delivery.position }}</span><div><strong>{{ delivery.order.customerNameSnapshot || delivery.order.customer.businessName }}</strong><p>{{ delivery.address.address }}</p><small>{{ delivery.address.reference || 'Sin referencia' }}</small></div>@if (delivery.result) { <p-tag [value]="statusLabel(delivery.result.result)" [severity]="visitSeverity(delivery.result.result)" /> } @else if (route.status==='EN_REPARTO' && auth.can('distribution.visits.create')) { <p-button label="Registrar visita" icon="pi pi-map-marker" size="small" (onClick)="openVisit(delivery)" /> }</article> }</div></div> }
+    </p-dialog>
+
+    <p-dialog [visible]="visitDialog()" (visibleChange)="visitDialog.set($event)" [modal]="true" [style]="{width:'min(1040px,99vw)'}" [header]="selectedDelivery()?.deliveryType==='FABRICA' ? 'Nota de entrega en fábrica' : 'Nota de entrega'" [draggable]="false" styleClass="delivery-note-dialog">
+      @if (selectedDelivery(); as delivery) {
+        <div class="delivery-note-head"><div><span>Pedido</span><strong>{{ delivery.order.code }}</strong></div><div><span>Cliente</span><strong>{{ delivery.order.customerNameSnapshot || delivery.order.customer.businessName }}</strong></div><div><span>{{ delivery.deliveryType==='FABRICA' ? 'Modalidad' : 'Dirección' }}</span><strong>{{ delivery.deliveryType==='FABRICA' ? 'Entrega directa en planta ICAR' : delivery.address.address }}</strong></div><div><span>Fecha de entrega</span><strong>{{ formatDate(delivery.order.requestedDate) }}</strong></div><div><span>Condición</span><strong>{{ delivery.order.customer.paymentCondition }}{{ delivery.order.customer.paymentCondition==='CREDITO' ? ' · '+delivery.order.customer.creditDays+' días' : ' · vencimiento inmediato' }}</strong></div></div>
+        <p class="operational-note"><i class="pi pi-info-circle"></i> {{ delivery.deliveryType==='FABRICA' ? 'El pedido se entrega en planta y no se asigna a vehículo ni recorrido. Solo se descuenta lo efectivamente retirado; cualquier diferencia permanece disponible en Almacén.' : 'Revise la nota completa. Puede confirmar las cantidades preparadas o reducir la cantidad entregada; la diferencia quedará en la orden de retorno a Almacén.' }}</p>
+        <form [formGroup]="visitForm" (ngSubmit)="registerVisit(false)">
+          <div class="detail-table visit-table" formArrayName="details"><table><thead><tr><th>Cod-Producto</th><th>Producto / presentación</th><th>Solicitado</th><th>Preparado</th><th>Precio</th><th>A entregar</th><th>{{ delivery.deliveryType==='FABRICA' ? 'No retirado' : 'Retorna' }}</th><th>Subtotal entrega</th></tr></thead><tbody>@for (control of visitDetails.controls; track $index; let index=$index) { <tr [formGroupName]="index"><td data-label="Cod-Producto"><strong>{{ delivery.preparation.details[index].orderDetail.presentation.product?.code || '—' }}</strong></td><td data-label="Producto"><strong>{{ delivery.preparation.details[index].orderDetail.productDescriptionSnapshot }}</strong><small>{{ delivery.preparation.details[index].orderDetail.presentationDescriptionSnapshot }}</small></td><td data-label="Solicitado">{{ number(delivery.preparation.details[index].requestedQuantity) }}</td><td data-label="Preparado">{{ number(delivery.preparation.details[index].preparedQuantity) }}</td><td data-label="Precio">Bs {{ number(delivery.preparation.details[index].orderDetail.unitPrice) }}</td><td data-label="A entregar"><p-inputnumber formControlName="deliveredQuantity" [min]="0" [max]="numberValue(delivery.preparation.details[index].preparedQuantity)" [maxFractionDigits]="3" [showButtons]="true" buttonLayout="horizontal" incrementButtonIcon="pi pi-plus" decrementButtonIcon="pi pi-minus" /></td><td [attr.data-label]="delivery.deliveryType==='FABRICA' ? 'No retirado' : 'Retorna'"><strong [class.negative]="returnedFor(index)>0">{{ number(returnedFor(index)) }}</strong></td><td data-label="Subtotal"><strong>Bs {{ money(deliveryLineTotal(index)) }}</strong></td></tr> }</tbody></table></div>
+          <div class="delivery-note-totals"><div><span>Cantidad preparada</span><strong>{{ number(preparedVisitTotal()) }}</strong></div><div><span>Cantidad entregada</span><strong>{{ number(deliveredVisitTotal()) }}</strong></div><div><span>Cantidad de retorno</span><strong>{{ number(returnedVisitTotal()) }}</strong></div><div><span>Nota de venta</span><strong>Bs {{ money(deliveredVisitAmount()) }}</strong></div></div>
+          <label class="single-field"><span>Observación {{ deliveredVisitTotal() < preparedVisitTotal() ? '(obligatoria)' : '' }}</span><textarea pTextarea formControlName="observation" rows="3" placeholder="Motivo de diferencia o rechazo del cliente"></textarea></label>
+          <div class="dialog-footer delivery-note-actions"><p-button type="button" label="Cerrar" [text]="true" severity="secondary" (onClick)="visitDialog.set(false)" /><p-button type="button" label="Rechazar pedido" icon="pi pi-times-circle" severity="danger" [outlined]="true" [loading]="saving()" (onClick)="registerVisit(true)" /><p-button type="submit" label="Confirmar entrega" icon="pi pi-check" severity="success" [loading]="saving()" /></div>
+        </form>
+      }
+    </p-dialog>
+
+    <p-dialog [visible]="settlementDialog()" (visibleChange)="settlementDialog.set($event)" [modal]="true" [style]="{width:'min(720px,96vw)'}" header="Liquidación operativa" [draggable]="false">
+      <p class="intro">Registre únicamente devoluciones aceptadas por Almacén. Esta liquidación no incluye cobros, pagos ni saldos.</p><form [formGroup]="settlementForm" (ngSubmit)="settleRoute()"><div class="detail-table settlement-table" formArrayName="returns"><table><thead><tr><th>Pedido / producto</th><th>Devuelto</th><th>Aceptado</th></tr></thead><tbody>@for (control of settlementReturns.controls; track $index; let index=$index) { <tr [formGroupName]="index"><td>{{ settlementLabels()[index] }}</td><td>{{ number(settlementMaximums()[index]) }}</td><td><p-inputnumber formControlName="quantity" [min]="0" [max]="settlementMaximums()[index]" [maxFractionDigits]="3" /></td></tr> } @empty { <tr><td colspan="3" class="empty-row">No existen cantidades devueltas.</td></tr> }</tbody></table></div><label class="single-field"><span>Observación</span><textarea pTextarea formControlName="observation" rows="3"></textarea></label><div class="dialog-footer"><p-button type="button" label="Cancelar" [text]="true" severity="secondary" (onClick)="settlementDialog.set(false)" /><p-button type="submit" label="Liquidar operativamente" icon="pi pi-verified" severity="success" [loading]="saving()" /></div></form>
+    </p-dialog>
+
+    <p-dialog [visible]="preparationCancelDialog()" (visibleChange)="preparationCancelDialog.set($event)" [modal]="true" [style]="{width:'min(520px,96vw)'}" header="Cancelar preparación" [draggable]="false">
+      <form [formGroup]="reasonForm" (ngSubmit)="cancelPreparation()"><p class="operational-note"><i class="pi pi-info-circle"></i> La reserva del pedido se conserva. El pedido volverá a la cola para iniciar una nueva preparación.</p><label class="single-field"><span>Motivo obligatorio</span><textarea pTextarea formControlName="reason" rows="4"></textarea></label><div class="dialog-footer"><p-button type="button" label="Volver" [text]="true" (onClick)="preparationCancelDialog.set(false)" /><p-button type="submit" label="Cancelar preparación" icon="pi pi-times" severity="danger" [loading]="saving()" /></div></form>
+    </p-dialog>
+
+    <p-dialog [visible]="routeRescheduleDialog()" (visibleChange)="routeRescheduleDialog.set($event)" [modal]="true" [style]="{width:'min(520px,96vw)'}" header="Reprogramar ruta" [draggable]="false">
+      <form [formGroup]="rescheduleForm" (ngSubmit)="rescheduleRoute()"><div class="form-grid"><label><span>Nueva fecha operativa *</span><input pInputText type="date" formControlName="date" /></label><label class="wide"><span>Motivo obligatorio</span><textarea pTextarea formControlName="reason" rows="4"></textarea></label></div><p class="operational-note"><i class="pi pi-info-circle"></i> La fecha comprometida de cada pedido no se altera y continuará visible para comparar la demora o el adelanto.</p><div class="dialog-footer"><p-button type="button" label="Volver" [text]="true" (onClick)="routeRescheduleDialog.set(false)" /><p-button type="submit" label="Guardar reprogramación" icon="pi pi-calendar" [loading]="saving()" /></div></form>
+    </p-dialog>
+
+    <p-dialog [visible]="routeCancelDialog()" (visibleChange)="routeCancelDialog.set($event)" [modal]="true" [style]="{width:'min(520px,96vw)'}" header="Cancelar ruta" [draggable]="false">
+      <form [formGroup]="reasonForm" (ngSubmit)="cancelRoute()"><p class="operational-note"><i class="pi pi-info-circle"></i> Las preparaciones regresarán a estado Preparada y podrán asignarse a otra ruta. Se conservará el motivo en historial y auditoría.</p><label class="single-field"><span>Motivo obligatorio</span><textarea pTextarea formControlName="reason" rows="4"></textarea></label><div class="dialog-footer"><p-button type="button" label="Volver" [text]="true" (onClick)="routeCancelDialog.set(false)" /><p-button type="submit" label="Cancelar ruta" icon="pi pi-times" severity="danger" [loading]="saving()" /></div></form>
+    </p-dialog>

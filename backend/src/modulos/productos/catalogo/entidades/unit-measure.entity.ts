@@ -1,0 +1,31 @@
+import { BeforeInsert, BeforeUpdate, Column, Entity } from 'typeorm';
+import { AuditableEntity } from '../../../../compartido/entidades/auditable.entity';
+import { RecordStatus } from '../../../../compartido/enumeraciones/record-status.enum';
+
+@Entity({ name: 'unidades_medida' })
+export class UnitMeasure extends AuditableEntity {
+  @Column({ name: 'codigo', type: 'integer', unique: true, generated: 'increment' })
+  code: number;
+
+  @Column({ name: 'nombre', type: 'varchar', length: 80, unique: true })
+  name: string;
+
+  @Column({ name: 'abreviatura', type: 'varchar', length: 20, unique: true })
+  abbreviation: string;
+
+  @Column({ name: 'precision_decimal', type: 'smallint', default: 3 })
+  decimalScale: number;
+
+  @Column({ name: 'factor_kg', type: 'numeric', precision: 14, scale: 6, nullable: true })
+  kilogramFactor: string | null;
+
+  @Column({ type: 'enum', enum: RecordStatus, default: RecordStatus.ACTIVE })
+  status: RecordStatus;
+
+  @BeforeInsert()
+  @BeforeUpdate()
+  normalize(): void {
+    if (this.name !== undefined) this.name = this.name.trim();
+    if (this.abbreviation !== undefined) this.abbreviation = this.abbreviation.trim();
+  }
+}

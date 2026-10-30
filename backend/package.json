@@ -9,9 +9,9 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
-    "start:prod": "node dist/main.js",
-    "migration:run": "node ./node_modules/typeorm/cli.js migration:run -d dist/database/data-source.js",
-    "migration:revert": "node ./node_modules/typeorm/cli.js migration:revert -d dist/database/data-source.js",
+    "start:prod": "node dist/principal.js",
+    "migration:run": "node ./node_modules/typeorm/cli.js migration:run -d dist/base-datos/data-source.js",
+    "migration:revert": "node ./node_modules/typeorm/cli.js migration:revert -d dist/base-datos/data-source.js",
     "test": "vitest run",
     "test:cov": "vitest run --coverage",
     "test:acceptance": "node scripts/iteration-one.acceptance.mjs",
@@ -22,7 +22,9 @@
     "test:acceptance:iteration6": "node scripts/iteration-six.acceptance.mjs",
     "test:acceptance:production-flow": "node scripts/production-plant.acceptance.mjs",
     "test:acceptance:stock-requests": "node scripts/stock-replenishment.acceptance.mjs",
-    "test:acceptance:workflow": "node scripts/order-workflow.acceptance.mjs"
+    "test:acceptance:workflow": "node scripts/order-workflow.acceptance.mjs",
+    "verificar:tamano": "node ../scripts/verificar-tamano-archivos.mjs",
+    "calidad": "npm run verificar:tamano && npm run build && npm test"
   },
   "dependencies": {
     "@nestjs/common": "12.0.1",
