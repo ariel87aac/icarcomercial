@@ -48,4 +48,22 @@ describe('Preferencias de envío por evento', () => {
     await subject.enqueue({} as Order, null, NotificationEvent.DELIVERED, 1, {});
     expect(findOne).toHaveBeenCalled();
   });
+
+  it('incluye el enlace de aprobación al enviar aunque la plantilla recibida sea anterior', () => {
+    const { subject } = service(true);
+    const body = (subject as unknown as {
+      renderLifecycleRequirements(
+        body: string,
+        template: { allowedVariables: string[] },
+        event: NotificationEvent,
+        variables: { confirmationUrl: string },
+      ): string;
+    }).renderLifecycleRequirements(
+      'Recibimos tu pedido.',
+      { allowedVariables: [] },
+      NotificationEvent.ORDER_RECEIVED,
+      { confirmationUrl: 'https://icar.test/confirmar-pedido/token' },
+    );
+    expect(body).toContain('Aprueba tu pedido aquí: https://icar.test/confirmar-pedido/token');
+  });
 });

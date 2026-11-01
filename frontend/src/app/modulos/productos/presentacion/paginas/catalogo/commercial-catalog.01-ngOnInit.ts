@@ -48,17 +48,7 @@ export abstract class CommercialCatalogParte01 extends CommercialCatalogParte02 
       this.load();
     }
 
-  protected override changeCustomer(id: string | null, picker?: { writeValue(value: string | null): void }): void {
-      const currentId = this.customerId();
-      if (this.cart.items().length && id !== currentId) {
-        picker?.writeValue(currentId);
-        this.messages.add({
-          severity: 'warn',
-          summary: 'Pedido en proceso',
-          detail: 'Debes concluir el pedido o eliminar todos los productos del carrito antes de seleccionar otro cliente.',
-        });
-        return;
-      }
+  protected override changeCustomer(id: string | null): void {
       if (id) this.activateCustomer(id);
       else {
         this.customerId.set(null);
@@ -199,7 +189,7 @@ export abstract class CommercialCatalogParte01 extends CommercialCatalogParte02 
 
   protected override deliveryOptionItems(): {label: string; value: string}[] {
       return this.deliveryOptions().map((option) => ({
-        label: `${this.formatDate(option.deliveryDate)} · cierre ${this.formatDateTime(option.orderCutoffAt)}`,
+        label: this.formatDate(option.deliveryDate),
         value: option.deliveryDate,
       }));
     }
@@ -247,30 +237,4 @@ export abstract class CommercialCatalogParte01 extends CommercialCatalogParte02 
       });
     }
 
-  protected override checkout(): void {
-      if (this.checkoutForm.invalid || !this.cart.items().length || !this.customerId()) {
-        this.checkoutForm.markAllAsTouched();
-        this.messages.add({ severity: 'warn', summary: 'Pedido incompleto', detail: 'Selecciona un domicilio, una fecha y agrega al menos un producto.' });
-        return;
-      }
-      const raw = this.checkoutForm.getRawValue();
-      const payload = {
-        ...(this.auth.user()?.type === 'INTERNO' ? { customerId: this.customerId()! } : {}),
-        addressId: raw.addressId,
-        requestedDate: raw.requestedDate,
-        observations: raw.observations.trim() || undefined,
-        details: this.cart.items().map((item) => ({ presentationId: item.presentationId, quantity: item.quantity })),
-      };
-      this.saving.set(true);
-      this.http.post<{code: string}>('/api/pedidos', payload).subscribe({
-        next: (order) => {
-          this.saving.set(false);
-          this.cart.clear();
-          this.cartDialog.set(false);
-          this.prepareCheckout();
-          this.messages.add({ severity: 'success', summary: 'Pedido borrador creado', detail: `${order.code} está listo para ser revisado y enviado.` });
-        },
-        error: (error) => this.handleCheckoutError(error),
-      });
-    }
 }

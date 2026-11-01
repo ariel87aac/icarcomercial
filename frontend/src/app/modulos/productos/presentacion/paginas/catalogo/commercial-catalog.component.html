@@ -6,9 +6,9 @@
       </div>
       <div class="toolbar-actions">
         @if (auth.can('orders.scheduling.manage')) { <button type="button" class="schedule-button" (click)="openScheduleSettings()"><i class="pi pi-clock"></i> Configurar cierres</button> }
-        <button type="button" class="cart-button" [disabled]="!customerId()" (click)="openCart()">
+        <button type="button" class="cart-button" [disabled]="!customerId() || draftLoading()" (click)="openCart()">
           <span class="cart-icon"><i class="pi pi-shopping-cart"></i>@if (cart.itemCount()) { <b>{{ cart.itemCount() }}</b> }</span>
-          <span><small>Tu carrito</small><strong>Bs {{ money(cart.total()) }}</strong></span>
+          <span><small>{{ cart.draftOrderCode() ? 'Borrador ' + cart.draftOrderCode() : 'Tu carrito' }}</small><strong>Bs {{ money(cart.total()) }}</strong></span>
           <i class="pi pi-chevron-right"></i>
         </button>
       </div>
@@ -20,13 +20,13 @@
       <label class="filter-field"><span><b>2</b> Línea</span><p-select [options]="lineOptions()" optionLabel="label" optionValue="value" [ngModel]="productLineId()" (ngModelChange)="changeLine($event)" placeholder="Selecciona una línea" [showClear]="true" [disabled]="!categoryId()" /></label>
       <label class="filter-field"><span><b>3</b> Producto</span><p-select [options]="productOptions()" optionLabel="label" optionValue="value" [ngModel]="productId()" (ngModelChange)="productId.set($event)" placeholder="Selecciona un producto" [showClear]="true" [filter]="true" [disabled]="!productLineId()" /></label>
       @if (auth.user()?.type === 'INTERNO' && customers().length) {
-        <label class="filter-field customer-filter"><span>Cliente del pedido *</span><p-select #customerPicker [options]="customers()" optionLabel="businessName" optionValue="id" [ngModel]="customerId()" (ngModelChange)="changeCustomer($event, customerPicker)" placeholder="Selecciona el cliente antes de comprar" [filter]="true" [showClear]="true" />@if (cart.items().length) { <small class="customer-lock"><i class="pi pi-lock"></i> Cliente bloqueado mientras el carrito tenga productos.</small> }</label>
+        <label class="filter-field customer-filter"><span>Cliente del pedido *</span><p-select [options]="customers()" optionLabel="businessName" optionValue="id" [ngModel]="customerId()" (ngModelChange)="changeCustomer($event)" placeholder="Selecciona el cliente antes de comprar" [filter]="true" [showClear]="true" /></label>
       }
       <button type="button" class="clear-filters" (click)="clearFilters()"><i class="pi pi-filter-slash"></i> Limpiar filtros</button>
     </div>
 
     @if (currentCustomer(); as customer) {
-      <div class="customer-note"><i class="pi pi-user"></i><span>Precios para <strong>{{ customer.businessName }}</strong></span></div>
+      <div class="customer-note"><i class="pi pi-user"></i><span>Precios para <strong>{{ customer.businessName }}</strong></span>@if (cart.draftOrderCode()) { <span class="draft-badge"><i class="pi pi-file-edit"></i> Continuando borrador {{ cart.draftOrderCode() }}</span> }</div>
     }
 
     @if (loading()) {
@@ -87,7 +87,7 @@
       }
     </p-dialog>
 
-    <p-dialog [visible]="cartDialog()" (visibleChange)="cartDialog.set($event)" [modal]="true" [style]="{width:'min(940px,98vw)'}" header="Tu carrito de compras" [draggable]="false">
+    <p-dialog [visible]="cartDialog()" (visibleChange)="changeCartVisibility($event)" [modal]="true" [closable]="!saving()" [closeOnEscape]="!saving()" [style]="{width:'min(880px,96vw)'}" [header]="cart.draftOrderCode() ? 'Pedido borrador ' + cart.draftOrderCode() : 'Tu carrito de compras'" [draggable]="false">
       @if (cart.items().length) {
         <div class="cart-layout">
           <div class="cart-lines">
@@ -100,13 +100,14 @@
                 <p-button icon="pi pi-trash" [text]="true" [rounded]="true" severity="danger" title="Quitar" (onClick)="cart.remove(item.presentationId)" />
               </article>
             }
-            <button type="button" class="continue-shopping" (click)="cartDialog.set(false)"><i class="pi pi-arrow-left"></i> Seguir comprando</button>
           </div>
           <form class="checkout" [formGroup]="checkoutForm" (ngSubmit)="checkout()">
-            <span class="eyebrow">Resumen del pedido</span>
+            <span class="eyebrow">{{ cart.draftOrderCode() ? 'Borrador en edición' : 'Resumen del pedido' }}</span>
             @if (currentCustomer(); as customer) { <h3>{{ customer.businessName }}</h3> }
-            <label><span>Domicilio de entrega *</span><p-select formControlName="addressId" [options]="addressOptions()" optionLabel="label" optionValue="value" (onChange)="onAddressChange()" /></label>
-            <label><span>Fecha de entrega *</span><p-select formControlName="requestedDate" [options]="deliveryOptionItems()" optionLabel="label" optionValue="value" placeholder="Selecciona una fecha habilitada" [loading]="loadingDates()" /></label>
+            <div class="checkout-fields">
+              <label><span>Domicilio de entrega *</span><p-select formControlName="addressId" [options]="addressOptions()" optionLabel="label" optionValue="value" (onChange)="onAddressChange()" /></label>
+              <label><span>Fecha de entrega *</span><p-select formControlName="requestedDate" [options]="deliveryOptionItems()" optionLabel="label" optionValue="value" placeholder="Selecciona una fecha" [loading]="loadingDates()" /></label>
+            </div>
             @if (currentDeliveryOption(); as option) {
               <div class="schedule-summary">
                 <div><i class="pi pi-calendar-plus"></i><span>Fecha del pedido</span><strong>{{ formatDateTime(now()) }}</strong></div>
@@ -117,8 +118,10 @@
             }
             <label><span>Observaciones</span><textarea pTextarea formControlName="observations" rows="3" placeholder="Indicaciones para el pedido"></textarea></label>
             <div class="checkout-total"><span>Total referencial</span><strong>Bs {{ money(cart.total()) }}</strong></div>
-            <p class="price-note"><i class="pi pi-shield"></i> Precios y disponibilidad se validan en el servidor. El pedido se guardará como borrador.</p>
-            <p-button type="submit" label="Crear pedido borrador" icon="pi pi-check" [loading]="saving()" [disabled]="!auth.can('orders.create')" styleClass="checkout-button" />
+            <div class="checkout-actions">
+              <p-button type="button" label="Seguir comprando" icon="pi pi-arrow-left" severity="secondary" [outlined]="true" [disabled]="saving()" (onClick)="closeCart()" />
+              <p-button type="submit" label="Enviar pedido" icon="pi pi-send" [loading]="saving()" [disabled]="!auth.can('orders.update') || (!cart.draftOrderId() && !auth.can('orders.create'))" />
+            </div>
           </form>
         </div>
       } @else {

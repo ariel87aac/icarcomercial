@@ -15,6 +15,20 @@ export interface CartItem {
   quantity: number;
 }
 
+export interface DraftCartOrder {
+  id: string;
+  code: string;
+  customerId: string;
+  addressId: string;
+  requestedDate: string;
+  orderCutoffAt: string;
+  preparationAt: string;
+  observations: string | null;
+  total: string;
+  updatedAt: string;
+  details: CartItem[];
+}
+
 export interface OrderScheduleSettings {
   id: number;
   orderCutoffTime: string;

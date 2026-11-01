@@ -3,7 +3,7 @@ import { CurrentUser } from '../../compartido/decoradores/current-user.decorator
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
 import { Public } from '../../compartido/decoradores/public.decorator';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { CancelOrderDto, CreateOrderDto, DeleteOrderDto, OrderQueryDto, ReturnOrderDto, TransitionOrderDto, UpdateOrderDto } from './dto/order.dto';
+import { CancelOrderDto, CreateOrderDto, DeleteOrderDto, DraftCartQueryDto, OrderQueryDto, ReturnOrderDto, TransitionOrderDto, UpdateOrderDto } from './dto/order.dto';
 import { OrdersService } from './orders.service';
 
 @Controller(['orders', 'pedidos'])
@@ -20,6 +20,12 @@ export class OrdersController {
   @RequirePermissions('orders.read')
   statusSummary(@CurrentUser() actor: AuthenticatedUser) {
     return this.orders.statusSummary(actor);
+  }
+
+  @Get(['draft-cart', 'borrador-carrito'])
+  @RequirePermissions('orders.read')
+  draftCart(@Query() query: DraftCartQueryDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.orders.draftCart(query.customerId, actor);
   }
 
   @Post()

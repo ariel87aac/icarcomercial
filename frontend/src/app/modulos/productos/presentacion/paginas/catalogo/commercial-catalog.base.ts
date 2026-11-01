@@ -55,6 +55,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly loadingDates = signal(false);
 
+  protected readonly draftLoading = signal(false);
+
   protected readonly deliveryOptions = signal<DeliveryOption[]>([]);
 
   protected readonly now = signal(new Date().toISOString());

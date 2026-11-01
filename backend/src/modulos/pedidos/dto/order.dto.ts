@@ -4,6 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsNumber,
   IsOptional,
   IsString,
@@ -116,10 +117,20 @@ export class OrderQueryDto extends PaginationQueryDto {
   status?: OrderStatus;
 
   @IsOptional()
+  @IsIn(['ACTIVE', 'ALL'])
+  view?: 'ACTIVE' | 'ALL';
+
+  @IsOptional()
   @IsDateString({ strict: true })
   from?: string;
 
   @IsOptional()
   @IsDateString({ strict: true })
   to?: string;
+}
+
+export class DraftCartQueryDto {
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
 }

@@ -237,11 +237,11 @@ export abstract class NotificationServiceParte04 extends NotificationServicePart
         additions.push(`${event === NotificationEvent.ORDER_CONFIRMED ? 'Productos confirmados' : 'Productos'}:\n${variables.productList}`);
       }
       if (
-        event === NotificationEvent.ORDER_DRAFT
+        [NotificationEvent.ORDER_DRAFT, NotificationEvent.ORDER_RECEIVED].includes(event)
         && variables.confirmationUrl
-        && !template.allowedVariables.includes('confirmationUrl')
+        && !body.includes(variables.confirmationUrl)
       ) {
-        additions.push(`Confirma tu pedido aquí: ${variables.confirmationUrl}`);
+        additions.push(`Aprueba tu pedido aquí: ${variables.confirmationUrl}`);
       }
       if (
         event === NotificationEvent.ORDER_CANCELED

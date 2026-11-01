@@ -179,7 +179,7 @@ export abstract class OrdersServiceParte06 extends OrdersServiceBase {
         orderCutoffAt: order.orderCutoffAt,
         status: order.status,
         total: order.total,
-        canConfirm: linkActive && [OrderStatus.DRAFT, OrderStatus.RECEIVED].includes(order.status),
+        canConfirm: linkActive && order.status === OrderStatus.RECEIVED,
         details: order.details.map((detail) => ({
           product: detail.productDescriptionSnapshot,
           presentation: detail.presentationDescriptionSnapshot,

@@ -125,6 +125,7 @@ export abstract class OrdersServiceParte02 extends OrdersServiceParte03 {
       const current = await this.findOne(id, actor);
       if (current.status !== OrderStatus.DRAFT) throw new ConflictException('Solo un pedido en Borrador puede enviarse');
       this.schedulingService.assertOrderOpen(current.orderCutoffAt);
+      const rawConfirmationToken = randomBytes(32).toString('base64url');
       const itemsDto = current.details.map((detail: OrderDetail) => ({ presentationId: detail.presentationId, quantity: Number(detail.requestedQuantity) }));
       const { items } = await this.validateOrder(current.customerId, current.addressId, current.requestedDate, itemsDto, undefined, false);
       const total = items.reduce((sum, item) => sum + item.subtotal, 0);
@@ -141,6 +142,19 @@ export abstract class OrdersServiceParte02 extends OrdersServiceParte03 {
             this.detailValues(item),
           );
         }
+        await manager.getRepository(OrderConfirmationLink).update(
+          { orderId: id, status: OrderConfirmationLinkStatus.ACTIVE },
+          { status: OrderConfirmationLinkStatus.REVOKED, revokedAt: new Date() },
+        );
+        await manager.getRepository(OrderConfirmationLink).save(manager.getRepository(OrderConfirmationLink).create({
+          orderId: id,
+          tokenHash: this.hashToken(rawConfirmationToken),
+          status: OrderConfirmationLinkStatus.ACTIVE,
+          expiresAt: current.orderCutoffAt,
+          createdById: actor.id,
+          usedAt: null,
+          revokedAt: null,
+        }));
         await manager.getRepository(OrderHistory).save(manager.getRepository(OrderHistory).create({
           orderId: id,
           previousStatus: OrderStatus.DRAFT,
@@ -157,7 +171,11 @@ export abstract class OrdersServiceParte02 extends OrdersServiceParte03 {
         received,
         NotificationEvent.ORDER_RECEIVED,
         actor.id,
-        { productList: this.productList(received), trackingUrl: await this.trackingService.ensureOrderLink(received) },
+        {
+          productList: this.productList(received),
+          trackingUrl: await this.trackingService.ensureOrderLink(received),
+          confirmationUrl: `${this.publicBaseUrl()}/confirmar-pedido/${rawConfirmationToken}`,
+        },
       );
       return received;
     }
@@ -172,6 +190,10 @@ export abstract class OrdersServiceParte02 extends OrdersServiceParte03 {
         if (order.status !== OrderStatus.RECEIVED) throw new ConflictException('El pedido ya cambió de estado');
         order.status = OrderStatus.DRAFT;
         await manager.getRepository(Order).save(order);
+        await manager.getRepository(OrderConfirmationLink).update(
+          { orderId: id, status: OrderConfirmationLinkStatus.ACTIVE },
+          { status: OrderConfirmationLinkStatus.REVOKED, revokedAt: new Date() },
+        );
         await manager.getRepository(OrderHistory).save(manager.getRepository(OrderHistory).create({
           orderId: id,
           previousStatus: OrderStatus.RECEIVED,
@@ -214,7 +236,7 @@ export abstract class OrdersServiceParte02 extends OrdersServiceParte03 {
       await this.confirmOrder(order.id, {
         actorId: null,
         reservationUserId: order.createdById,
-        allowedStatuses: [OrderStatus.DRAFT, OrderStatus.RECEIVED],
+        allowedStatuses: [OrderStatus.RECEIVED],
         origin: OrderOrigin.PORTAL,
         observation: 'Pedido confirmado por el cliente mediante enlace seguro',
         action: 'CONFIRMAR_PEDIDO_CLIENTE',

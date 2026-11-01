@@ -66,8 +66,8 @@ const SYSTEM_NOTIFICATION_TEMPLATES: Record<NotificationEvent, SystemTemplateDef
   },
   [NotificationEvent.ORDER_RECEIVED]: {
     reference: 'PEDIDO_RECIBIDO_SISTEMA',
-    body: 'Hola {{customerName}}, recibimos tu pedido N° {{orderReference}} y se encuentra en revisión.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}',
-    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate'],
+    body: 'Hola {{customerName}}, recibimos tu pedido N° {{orderReference}} y se encuentra en revisión.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}\n\nAprueba tu pedido aquí: {{confirmationUrl}}',
+    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate', 'confirmationUrl'],
   },
   [NotificationEvent.ORDER_CONFIRMED]: {
     reference: 'PEDIDO_CONFIRMADO_SISTEMA',

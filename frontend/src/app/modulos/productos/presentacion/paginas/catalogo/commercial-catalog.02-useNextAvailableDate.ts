@@ -16,15 +16,16 @@ import {
   Customer,
   CustomerAddress,
   DeliveryOption,
+  DraftCartOrder,
   OrderScheduleSettings,
   Paginated,
 } from '../../../../../compartido/modelos';
-import { CommercialCatalogBase } from './commercial-catalog.base';
+import { CommercialCatalogParte03 } from './commercial-catalog.03-draft-flow';
 
 import { Directive } from '@angular/core';
 
 @Directive()
-export abstract class CommercialCatalogParte02 extends CommercialCatalogBase {
+export abstract class CommercialCatalogParte02 extends CommercialCatalogParte03 {
   protected override useNextAvailableDate(): void {
       const option = this.currentDeliveryOption();
       if (!option) return;
@@ -48,6 +49,42 @@ export abstract class CommercialCatalogParte02 extends CommercialCatalogBase {
       this.prepareCheckout();
       this.clearFilters();
       this.load();
+      this.loadActiveDraft();
+    }
+
+  protected override loadActiveDraft(): void {
+      const customerId = this.customerId();
+      if (!customerId) return;
+      const storedDraftId = this.cart.draftOrderId();
+      this.draftLoading.set(true);
+      let params = new HttpParams();
+      if (this.auth.user()?.type === 'INTERNO') params = params.set('customerId', customerId);
+      this.http.get<DraftCartOrder | null>('/api/pedidos/borrador-carrito', { params }).subscribe({
+        next: (draft) => {
+          if (this.customerId() !== customerId) return;
+          this.draftLoading.set(false);
+          if (!draft) {
+            if (storedDraftId) {
+              this.cart.clear();
+              this.prepareCheckout();
+            }
+            return;
+          }
+          this.cart.loadDraft(draft.id, draft.code, draft.details);
+          this.checkoutForm.reset({
+            addressId: draft.addressId,
+            requestedDate: draft.requestedDate,
+            observations: draft.observations ?? '',
+          });
+          this.loadDeliveryOptions();
+          this.cartDialog.set(true);
+        },
+        error: (error) => {
+          if (this.customerId() !== customerId) return;
+          this.draftLoading.set(false);
+          this.fail(error);
+        },
+      });
     }
 
   protected override uniqueOptions(options: {label: string; value: string}[]): {label: string; value: string}[] {
@@ -69,7 +106,6 @@ export abstract class CommercialCatalogParte02 extends CommercialCatalogBase {
       const addressId = this.checkoutForm.controls.addressId.value;
       const customerId = this.customerId();
       this.deliveryOptions.set([]);
-      this.checkoutForm.controls.requestedDate.setValue('');
       if (!addressId || !customerId) return;
       this.loadingDates.set(true);
       let params = new HttpParams().set('addressId', addressId);
@@ -78,7 +114,11 @@ export abstract class CommercialCatalogParte02 extends CommercialCatalogBase {
         next: (options) => {
           this.loadingDates.set(false);
           this.deliveryOptions.set(options);
-          this.checkoutForm.controls.requestedDate.setValue(options[0]?.deliveryDate ?? '');
+          const selectedDate = this.checkoutForm.controls.requestedDate.value;
+          const availableDate = options.some((option) => option.deliveryDate === selectedDate)
+            ? selectedDate
+            : options[0]?.deliveryDate ?? '';
+          this.checkoutForm.controls.requestedDate.setValue(availableDate);
         },
         error: (error) => { this.loadingDates.set(false); this.fail(error); },
       });
@@ -104,7 +144,7 @@ export abstract class CommercialCatalogParte02 extends CommercialCatalogBase {
         this.loadDeliveryOptions();
         return;
       }
-      this.messages.add({ severity: 'error', summary: 'No se pudo crear el pedido', detail: this.error(error) });
+      this.messages.add({ severity: 'error', summary: 'No se pudo guardar o enviar el pedido', detail: this.error(error) });
     }
 
   protected override error(error: unknown): string {

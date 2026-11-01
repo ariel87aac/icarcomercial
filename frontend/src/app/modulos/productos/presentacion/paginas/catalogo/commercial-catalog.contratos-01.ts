@@ -26,9 +26,7 @@ import { Directive } from '@angular/core';
 export abstract class CommercialCatalogContratos01 {
   abstract ngOnInit(): void;
 
-  protected abstract changeCustomer(id: string | null, picker?: {
-      writeValue(value: string | null): void;
-  }): void;
+  protected abstract changeCustomer(id: string | null): void;
 
   protected abstract categoryOptions(): {
       label: string;
@@ -76,6 +74,10 @@ export abstract class CommercialCatalogContratos01 {
 
   protected abstract openCart(): void;
 
+  protected abstract closeCart(): void;
+
+  protected abstract changeCartVisibility(visible: boolean): void;
+
   protected abstract addressOptions(): {
       label: string;
       value: string;
@@ -105,6 +107,8 @@ export abstract class CommercialCatalogContratos01 {
   protected abstract cancelClosedCart(): void;
 
   protected abstract activateCustomer(id: string): void;
+
+  protected abstract loadActiveDraft(): void;
 
   protected abstract uniqueOptions(options: {
       label: string;

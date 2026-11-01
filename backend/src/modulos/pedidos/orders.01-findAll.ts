@@ -43,6 +43,7 @@ import { OrderHistory } from './entidades/order-history.entity';
 import { Order } from './entidades/order.entity';
 import { OrderConfirmationLinkStatus, OrderOrigin, OrderStatus } from './entidades/order.enums';
 import { OrderScheduleWindow, OrderSchedulingService } from './order-scheduling.service';
+import { DraftCartView, toDraftCartView } from './draft-cart.view';
 
 interface ResolvedItem {
   presentation: ProductPresentation;
@@ -94,6 +95,12 @@ export abstract class OrdersServiceParte01 extends OrdersServiceParte02 {
           .orWhere('unaccent(customer.businessName) ILIKE unaccent(:q)', { q: `%${query.q}%` })));
       }
       if (query.status) builder.andWhere('order.status = :status', { status: query.status });
+      if (query.view !== 'ALL' && query.status !== OrderStatus.CANCELED) {
+        builder.innerJoin('pedido_flujo_actual', 'workflow', 'workflow.pedido_id = "order"."id"')
+          .andWhere('workflow.estado NOT IN (:...finishedStatuses)', {
+            finishedStatuses: ['ENTREGADO', 'CANCELADO'],
+          });
+      }
       if (query.from) builder.andWhere('order.requestedDate >= :from', { from: query.from });
       if (query.to) builder.andWhere('order.requestedDate <= :to', { to: query.to });
       const [data, total] = await builder.getManyAndCount();
@@ -126,9 +133,34 @@ export abstract class OrdersServiceParte01 extends OrdersServiceParte02 {
       return order;
     }
 
+  async draftCart(requestedCustomerId: string | undefined, actor: AuthenticatedUser): Promise<DraftCartView | null> {
+      const customerId = actor.type === UserType.CUSTOMER ? actor.customerId : requestedCustomerId;
+      if (!customerId) throw new BadRequestException('Debe seleccionar un cliente');
+      const draft = await this.orderRepository.findOne({
+        where: { customerId, status: OrderStatus.DRAFT },
+        relations: {
+          details: { presentation: { product: true, unit: true } },
+        },
+        order: { updatedAt: 'DESC', details: { createdAt: 'ASC' } },
+      });
+      return draft ? toDraftCartView(draft) : null;
+    }
+
   async create(dto: CreateOrderDto, actor: AuthenticatedUser): Promise<Order> {
       const customerId = actor.type === UserType.CUSTOMER ? actor.customerId : dto.customerId;
       if (!customerId) throw new BadRequestException('Debe seleccionar un cliente');
+      const existingDraft = await this.orderRepository.findOne({
+        where: { customerId, status: OrderStatus.DRAFT },
+        order: { updatedAt: 'DESC' },
+      });
+      if (existingDraft) {
+        return this.update(existingDraft.id, {
+          addressId: dto.addressId,
+          requestedDate: dto.requestedDate,
+          observations: dto.observations,
+          details: dto.details,
+        }, actor);
+      }
       const origin = this.origin(actor);
       const { customer, address, items, schedule } = await this.validateOrder(
         customerId,
@@ -137,7 +169,6 @@ export abstract class OrdersServiceParte01 extends OrdersServiceParte02 {
         dto.details,
       );
       const total = items.reduce((sum, item) => sum + item.subtotal, 0);
-      const rawConfirmationToken = randomBytes(32).toString('base64url');
       const orderId = await workflowTransaction(this.dataSource, async (manager) => {
         const sequence = await manager.query<{ nextval: string }[]>(`SELECT nextval('pedidos_codigo_seq')::text AS nextval`);
         const code = sequence[0].nextval;
@@ -174,15 +205,6 @@ export abstract class OrdersServiceParte01 extends OrdersServiceParte02 {
           origin,
           observation: 'Pedido registrado',
         }));
-        await manager.getRepository(OrderConfirmationLink).save(manager.getRepository(OrderConfirmationLink).create({
-          orderId: order.id,
-          tokenHash: this.hashToken(rawConfirmationToken),
-          status: OrderConfirmationLinkStatus.ACTIVE,
-          expiresAt: schedule.orderCutoffAt,
-          createdById: actor.id,
-          usedAt: null,
-          revokedAt: null,
-        }));
         return order.id;
       });
       await this.auditService.record({
@@ -195,18 +217,7 @@ export abstract class OrdersServiceParte01 extends OrdersServiceParte02 {
         metadata: { customerId, origin },
       });
       const created = await this.findOne(orderId, actor);
-      const trackingUrl = await this.trackingService.ensureOrderLink(created);
       await this.trackingService.safeCaptureOrder(orderId, `order.created:${orderId}`, false);
-      await this.notificationService.safeEnqueueOrderLifecycle(
-        created,
-        NotificationEvent.ORDER_DRAFT,
-        actor.id,
-        {
-          trackingUrl,
-          confirmationUrl: `${this.publicBaseUrl()}/confirmar-pedido/${rawConfirmationToken}`,
-          productList: this.productList(created),
-        },
-      );
       return created;
     }
 }
