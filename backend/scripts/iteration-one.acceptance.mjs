@@ -61,6 +61,24 @@ async function expectStatus(path, options, expected, label) {
   return result;
 }
 
+async function completeRequiredPasswordChange(identifier, temporaryPassword, newPassword, jar, label) {
+  const firstLogin = await expectStatus('/api/auth/login', {
+    method: 'POST', jar,
+    body: { identifier, password: temporaryPassword },
+  }, 200, `${label}: primer acceso`);
+  assert.equal(firstLogin.payload.user.mustChangePassword, true);
+  await expectStatus('/api/auth/change-password', {
+    method: 'POST', jar,
+    body: { currentPassword: temporaryPassword, newPassword },
+  }, 200, `${label}: cambio obligatorio`);
+  const finalLogin = await expectStatus('/api/auth/login', {
+    method: 'POST', jar,
+    body: { identifier, password: newPassword },
+  }, 200, `${label}: acceso definitivo`);
+  assert.equal(finalLogin.payload.user.mustChangePassword, false);
+  return finalLogin;
+}
+
 const results = [];
 function passed(code, description) {
   results.push({ code, description });
@@ -183,10 +201,23 @@ try {
   }, 201, 'crear usuario sin correo y con credenciales mínimas');
   assert.equal(minimumCredentialsUser.payload.username, minimumUsername);
   assert.equal(minimumCredentialsUser.payload.email, null);
-  await expectStatus('/api/auth/login', {
-    method: 'POST',
+  assert.equal(minimumCredentialsUser.payload.countryCode, '+591');
+  const minimumJar = new CookieJar();
+  await completeRequiredPasswordChange(
+    minimumUsername,
+    '123456',
+    'abcdef',
+    minimumJar,
+    'usuario sin correo',
+  );
+  await expectStatus(`/api/usuarios/${minimumCredentialsUser.payload.id}/password`, {
+    method: 'PATCH', jar: adminJar, body: {},
+  }, 200, 'restablecer contraseña interna a 123456');
+  const resetLogin = await expectStatus('/api/auth/login', {
+    method: 'POST', jar: new CookieJar(),
     body: { identifier: minimumUsername, password: '123456' },
-  }, 200, 'iniciar sesión con usuario sin correo');
+  }, 200, 'acceder con contraseña restablecida');
+  assert.equal(resetLogin.payload.user.mustChangePassword, true);
   await expectStatus('/api/usuarios', {
     method: 'POST',
     jar: adminJar,
@@ -207,7 +238,7 @@ try {
       roleIds: [rolesResponse.payload.find((role) => role.name === 'COMERCIALIZACION').id],
     },
   }, 400, 'rechazar contraseña con menos de seis caracteres');
-  passed('CP-USU-09', 'el correo es opcional y se aceptan usuario de 4 caracteres y contraseña simple de 6');
+  passed('CP-USU-09', 'el correo es opcional, las credenciales respetan los mínimos y el acceso inicial exige cambiar contraseña');
 
   const disposableUser = await expectStatus('/api/usuarios', {
     method: 'POST',
@@ -290,6 +321,8 @@ try {
       creditDays: 0,
     },
   }, 201, 'crear cliente B');
+  assert.equal(customerA.payload.countryCode, '+591');
+  assert.equal(customerB.payload.countryCode, '+591');
 
   const disposableCustomer = await expectStatus('/api/clientes', {
     method: 'POST', jar: adminJar,
@@ -301,25 +334,27 @@ try {
       creditLimit: 0,
       creditDays: 0,
     },
-  }, 201, 'crear cliente eliminable');
-  const deletedCustomer = await expectStatus(`/api/clientes/${disposableCustomer.payload.id}`, {
+  }, 201, 'crear cliente desactivable');
+  const deactivatedCustomer = await expectStatus(`/api/clientes/${disposableCustomer.payload.id}`, {
     method: 'DELETE', jar: adminJar,
-  }, 200, 'eliminar cliente sin relaciones');
-  assert.deepEqual(deletedCustomer.payload, {
+  }, 200, 'desactivar cliente sin relaciones');
+  assert.deepEqual(deactivatedCustomer.payload, {
     id: disposableCustomer.payload.id,
     code: disposableCustomer.payload.code,
-    deleted: true,
+    status: 'INACTIVO',
+    deactivated: true,
   });
-  await expectStatus(`/api/clientes/${disposableCustomer.payload.id}`, {
+  const retainedCustomer = await expectStatus(`/api/clientes/${disposableCustomer.payload.id}`, {
     jar: adminJar,
-  }, 404, 'confirmar eliminación de cliente');
-  const customerDeletionAudit = await expectStatus(
-    `/api/auditoria?action=ELIMINAR_CLIENTE&entityId=${disposableCustomer.payload.id}`,
+  }, 200, 'confirmar conservación del cliente inactivo');
+  assert.equal(retainedCustomer.payload.status, 'INACTIVO');
+  const customerDeactivationAudit = await expectStatus(
+    `/api/auditoria?action=DESACTIVAR_CLIENTE&entityId=${disposableCustomer.payload.id}`,
     { jar: adminJar },
     200,
-    'auditoría de cliente eliminado',
+    'auditoría de cliente desactivado',
   );
-  assert.equal(customerDeletionAudit.payload.data[0].metadata.code, disposableCustomer.payload.code);
+  assert.equal(customerDeactivationAudit.payload.data[0].metadata.code, disposableCustomer.payload.code);
 
   assert(Number.isInteger(customerA.payload.code) && customerA.payload.code > 0);
   assert(Number.isInteger(customerB.payload.code) && customerB.payload.code > customerA.payload.code);
@@ -342,40 +377,40 @@ try {
 
   await expectStatus(`/api/clientes/${customerA.payload.id}/usuarios`, {
     method: 'POST', jar: adminJar,
-    body: { password: '1234567' },
+    body: { username: 'abc', password: '123456' },
   }, 400, 'CP-04A');
-  passed('CP-04A', 'la contraseña inicial de cliente exige exactamente 8 caracteres');
+  passed('CP-04A', 'el nombre de usuario de cliente exige al menos 4 caracteres');
 
-  const customerPassword = 'Cli12345';
+  const customerUsername = `cliente.${suffix}`;
+  const customerTemporaryPassword = '123456';
+  const customerPassword = 'Cliente789';
   const customerAccount = await expectStatus(`/api/clientes/${customerA.payload.id}/usuarios`, {
     method: 'POST', jar: adminJar,
-    body: { password: customerPassword },
+    body: { username: customerUsername, password: customerTemporaryPassword },
   }, 201, 'crear cuenta de cliente');
   assert.equal(customerAccount.payload.customerId, customerA.payload.id);
-  assert.equal(customerAccount.payload.user.username, customerA.payload.taxId.toLowerCase());
+  assert.equal(customerAccount.payload.user.username, customerUsername);
   assert.equal(customerAccount.payload.user.email, customerA.payload.email.toLowerCase());
 
   await expectStatus(`/api/clientes/${customerA.payload.id}/usuarios`, {
     method: 'POST', jar: adminJar,
-    body: { password: customerPassword },
+    body: { username: `${customerUsername}.otra`, password: customerTemporaryPassword },
   }, 409, 'CP-04B');
   passed('CP-04B', 'un cliente con cuenta habilitada no admite una segunda cuenta');
 
-  await expectStatus(`/api/clientes/${customerA.payload.id}`, {
-    method: 'DELETE', jar: adminJar,
-  }, 409, 'impedir eliminar cliente relacionado');
-  passed('CP-CLI-06', 'un cliente libre puede eliminarse y uno con relaciones queda protegido y auditado');
-
   const customerJar = new CookieJar();
-  const customerLogin = await expectStatus('/api/auth/login', {
-    method: 'POST', jar: customerJar,
-    body: { identifier: customerA.payload.taxId, password: customerPassword },
-  }, 200, 'CP-04');
+  const customerLogin = await completeRequiredPasswordChange(
+    customerUsername,
+    customerTemporaryPassword,
+    customerPassword,
+    customerJar,
+    'cuenta de cliente',
+  );
   assert.equal(customerLogin.payload.user.type, 'CLIENTE');
   assert.equal(customerLogin.payload.user.customerId, customerA.payload.id);
   const profile = await expectStatus('/api/me', { jar: customerJar }, 200, 'perfil cliente');
   assert.equal(profile.payload.customerId, customerA.payload.id);
-  passed('CP-04', 'la cuenta de cliente inicia sesión con su NIT/CI y conserva su vínculo comercial');
+  passed('CP-04', 'la cuenta de cliente inicia sesión con su usuario y conserva su vínculo comercial');
 
   await expectStatus(`/api/clientes/${customerA.payload.id}`, { jar: customerJar }, 200, 'cliente propio');
   await expectStatus(`/api/clientes/${customerB.payload.id}`, { jar: customerJar }, 404, 'CP-05');
@@ -504,14 +539,57 @@ try {
   }, 200, 'CP-04C');
   const synchronizedAccount = synchronizedCustomer.payload.userLinks.find((link) => link.isPrimary)
     ?? synchronizedCustomer.payload.userLinks[0];
-  assert.equal(synchronizedAccount.user.username, synchronizedTaxId.toLowerCase());
+  assert.equal(synchronizedAccount.user.username, customerUsername);
   assert.equal(synchronizedAccount.user.email, synchronizedEmail);
   const synchronizedJar = new CookieJar();
   await expectStatus('/api/auth/login', {
     method: 'POST', jar: synchronizedJar,
-    body: { identifier: synchronizedTaxId, password: customerPassword },
-  }, 200, 'login con NIT/CI actualizado');
-  passed('CP-04C', 'los cambios de identidad del cliente se sincronizan con su cuenta principal');
+    body: { identifier: customerUsername, password: customerPassword },
+  }, 200, 'login con usuario independiente del NIT/CI');
+  passed('CP-04C', 'los datos de contacto se sincronizan sin sustituir el usuario asignado');
+
+  await expectStatus(
+    `/api/clientes/${customerA.payload.id}/usuarios/${customerAccount.payload.userId}/password`,
+    { method: 'PATCH', jar: adminJar, body: {} },
+    200,
+    'restablecer contraseña de cliente',
+  );
+  const resetCustomerJar = new CookieJar();
+  const resetCustomerLogin = await expectStatus('/api/auth/login', {
+    method: 'POST', jar: resetCustomerJar,
+    body: { identifier: customerUsername, password: '123456' },
+  }, 200, 'login con contraseña temporal restablecida');
+  assert.equal(resetCustomerLogin.payload.user.mustChangePassword, true);
+  await expectStatus(`/api/clientes/${customerA.payload.id}`, {
+    jar: resetCustomerJar,
+  }, 403, 'bloquear operación mientras el cambio es obligatorio');
+  const finalCustomerPassword = 'ClienteFinal9';
+  await completeRequiredPasswordChange(
+    customerUsername,
+    '123456',
+    finalCustomerPassword,
+    resetCustomerJar,
+    'restablecimiento de cliente',
+  );
+  passed('CP-CLI-08', 'el restablecimiento usa 123456 y bloquea operaciones hasta cambiarla');
+
+  await expectStatus(`/api/clientes/${customerA.payload.id}`, {
+    method: 'DELETE', jar: adminJar,
+  }, 200, 'desactivar cliente con cuenta, domicilio e historial');
+  const relatedCustomerAfterDeactivation = await expectStatus(
+    `/api/clientes/${customerA.payload.id}`,
+    { jar: adminJar },
+    200,
+    'consultar cliente relacionado después de desactivarlo',
+  );
+  assert.equal(relatedCustomerAfterDeactivation.payload.status, 'INACTIVO');
+  assert(relatedCustomerAfterDeactivation.payload.userLinks.length >= 1);
+  assert(relatedCustomerAfterDeactivation.payload.addresses.length >= 1);
+  await expectStatus('/api/auth/login', {
+    method: 'POST', jar: new CookieJar(),
+    body: { identifier: customerUsername, password: finalCustomerPassword },
+  }, 401, 'impedir acceso de cliente inactivo');
+  passed('CP-CLI-06', 'la baja lógica conserva las relaciones y bloquea nuevos accesos del cliente');
 
   const previousSession = adminJar.clone();
   await expectStatus('/api/auth/logout', { method: 'POST', jar: adminJar, body: {} }, 200, 'logout');

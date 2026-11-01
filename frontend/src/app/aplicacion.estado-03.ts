@@ -106,6 +106,7 @@ export abstract class AplicacionEstado03 extends AplicacionEstado02 {
         taxId: [''],
         contactName: [''],
         phone: ['', [Validators.required, Validators.minLength(6)]],
+        countryCode: ['+591', Validators.required],
         whatsapp: [''],
         email: ['', Validators.email],
         paymentCondition: ['CONTADO', Validators.required],
@@ -116,10 +117,11 @@ export abstract class AplicacionEstado03 extends AplicacionEstado02 {
 
   protected readonly userForm = this.fb.nonNullable.group({
         name: ['', [Validators.required, Validators.minLength(3)]],
-        username: ['', [Validators.required, Validators.pattern(/^[a-zA-Z0-9._-]{4,80}$/)]],
+        username: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(80)]],
         email: ['', Validators.email],
         phone: [''],
-        password: [''],
+        countryCode: ['+591', Validators.required],
+        password: ['123456', Validators.minLength(6)],
         roleIds: [[] as string[], Validators.required],
         productionAreaIds: [[] as string[]],
         status: ['ACTIVO'],
@@ -156,22 +158,17 @@ export abstract class AplicacionEstado03 extends AplicacionEstado02 {
         status: ['ACTIVO'],
       });
 
-  protected readonly passwordForm = this.fb.nonNullable.group({
-        newPassword: ['', [Validators.required, Validators.minLength(6)]],
-      });
-
   protected readonly accountForm = this.fb.nonNullable.group({
-        password: [
-          '',
-          [Validators.required, Validators.minLength(8), Validators.maxLength(8)],
-        ],
+        username: ['', [Validators.required, Validators.minLength(4), Validators.maxLength(80)]],
+        password: ['123456', Validators.minLength(6)],
       });
 
   constructor() {
         super();
         effect(() => {
           const userId = this.auth.user()?.id ?? null;
-          if (userId && this.initializedUserId !== userId) {
+          const mustChangePassword = this.auth.user()?.mustChangePassword ?? false;
+          if (userId && !mustChangePassword && this.initializedUserId !== userId) {
             this.initializedUserId = userId;
             queueMicrotask(() => {
               this.loadReferenceData();

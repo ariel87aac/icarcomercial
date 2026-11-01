@@ -108,6 +108,7 @@ export abstract class AplicacionParte02 extends AplicacionParte03 {
         taxId: customer?.taxId ?? '',
         contactName: customer?.contactName ?? '',
         phone: customer?.phone ?? '',
+        countryCode: customer?.countryCode ?? '+591',
         whatsapp: customer?.whatsapp ?? '',
         email: customer?.email ?? '',
         paymentCondition: customer?.paymentCondition ?? 'CONTADO',
@@ -139,14 +140,20 @@ export abstract class AplicacionParte02 extends AplicacionParte03 {
       if (!customer) return;
       this.saving.set(true);
       this.http
-        .delete<{ id: string; code: number; deleted: true }>(`/api/customers/${customer.id}`)
+        .delete<{ id: string; code: number; status: 'INACTIVO'; deactivated: true }>(
+          `/api/customers/${customer.id}`,
+        )
         .subscribe({
           next: () => {
             this.saving.set(false);
             this.customerDeleteDialog.set(false);
             this.customerToDelete.set(null);
-            this.toast('success', 'Cliente eliminado', `${customer.code} · ${customer.businessName}`);
-            this.loadCustomers(this.customerMeta().page);
+            this.toast(
+              'success',
+              'Cliente inactivo',
+              `${customer.code} · ${customer.businessName}`,
+            );
+            this.loadCustomers(1);
           },
           error: (error) => this.handleSaveError(error),
         });
@@ -201,7 +208,8 @@ export abstract class AplicacionParte02 extends AplicacionParte03 {
         username: user?.username ?? '',
         email: user?.email ?? '',
         phone: user?.phone ?? '',
-        password: '',
+        countryCode: user?.countryCode ?? '+591',
+        password: user ? '' : '123456',
         roleIds: user?.roles.map((role) => role.id) ?? [],
         productionAreaIds: user?.productionAreas.map((area) => area.id) ?? [],
         status: user?.status ?? 'ACTIVO',

@@ -134,7 +134,7 @@ try {
   async function createCustomer(type, label, priceIndex) {
     const customer = (await expectStatus('/api/clientes', { method: 'POST', jar: adminJar, body: { type, businessName: `${label} ${suffix}`, taxId: `${label.slice(0, 3).toUpperCase()}-${suffix}-${priceIndex}`, phone: `70${priceIndex}00000`, email: `${label.toLowerCase()}.${suffix}@icar.local`, paymentCondition: 'CONTADO', creditLimit: 0, creditDays: 0 } }, 201, `cliente ${type}`)).payload;
     const address = (await expectStatus(`/api/clientes/${customer.id}/domicilios`, { method: 'POST', jar: adminJar, body: { label: 'Principal', address: `Dirección ${label}`, zoneId: zone.id, distributionDayId: day.id, isPrimary: true } }, 201, 'domicilio')).payload;
-    const account = (await expectStatus(`/api/clientes/${customer.id}/usuarios`, { method: 'POST', jar: adminJar, body: { password: 'Cli12345' } }, 201, 'cuenta')).payload;
+    const account = (await expectStatus(`/api/clientes/${customer.id}/usuarios`, { method: 'POST', jar: adminJar, body: { username: `cliente.${priceIndex}.${suffix}`, password: 'Cli12345' } }, 201, 'cuenta')).payload;
     const jar = new CookieJar();
     await expectStatus('/api/auth/login', { method: 'POST', jar, body: { identifier: account.user.username, password: 'Cli12345' } }, 200, 'login cliente');
     return { customer, address, jar };

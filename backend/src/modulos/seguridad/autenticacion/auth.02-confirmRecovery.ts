@@ -24,6 +24,7 @@ export interface SessionView {
     id: string;
     name: string;
     username: string;
+    mustChangePassword: boolean;
     email: string | null;
     type: UserType;
     customerId: string | null;
@@ -60,6 +61,7 @@ export abstract class AuthServiceParte02 extends AuthServiceBase {
         throw new UnauthorizedException('El enlace de recuperación no es válido o expiró');
       }
       reset.user.passwordHash = await hash(dto.newPassword, 12);
+      reset.user.mustChangePassword = false;
       reset.usedAt = new Date();
       await this.userRepository.save(reset.user);
       await this.resetRepository.save(reset);
@@ -110,6 +112,7 @@ export abstract class AuthServiceParte02 extends AuthServiceBase {
           id: user.id,
           name: user.name,
           username: user.username,
+          mustChangePassword: user.mustChangePassword,
           email: user.email,
           type: user.type,
           customerId,

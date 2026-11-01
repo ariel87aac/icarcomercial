@@ -105,6 +105,8 @@ export abstract class AplicacionContratos01 {
 
   protected abstract submitLogin(): void;
 
+  protected abstract changeRequiredPassword(): void;
+
   protected abstract logout(): void;
 
   protected abstract can(permission?: string): boolean;
@@ -194,11 +196,13 @@ export abstract class AplicacionContratos01 {
 
   protected abstract saveAddress(): void;
 
-  protected abstract openAccount(customer: Customer): void;
+  protected abstract openAccount(customer: Customer, account?: CustomerAccount): void;
 
   protected abstract saveAccount(): void;
 
   protected abstract setAccountStatus(customer: Customer, account: CustomerAccount): void;
+
+  protected abstract openCustomerPasswordReset(customer: Customer, account: CustomerAccount): void;
 
   protected abstract closeAddressDialog(): void;
 

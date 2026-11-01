@@ -34,6 +34,12 @@ export class User extends AuditableEntity {
   @Column({ name: 'telefono', type: 'varchar', length: 30, nullable: true })
   phone: string | null;
 
+  @Column({ name: 'codigo_pais', type: 'varchar', length: 8, default: '+591' })
+  countryCode: string;
+
+  @Column({ name: 'debe_cambiar_password', type: 'boolean', default: false })
+  mustChangePassword: boolean;
+
   @Column({
     name: 'tipo_usuario',
     type: 'enum',

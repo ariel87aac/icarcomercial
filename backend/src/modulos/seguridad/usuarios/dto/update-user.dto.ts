@@ -11,6 +11,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { RecordStatus } from '../../../../compartido/enumeraciones/record-status.enum';
 
 export class UpdateUserDto {
@@ -22,9 +23,9 @@ export class UpdateUserDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^[a-zA-Z0-9._-]{4,80}$/, {
-    message: 'El nombre de usuario debe tener al menos 4 caracteres y solo puede usar letras, números, punto, guion o guion bajo',
-  })
+  @Transform(({ value }) => typeof value === 'string' ? value.trim() : value)
+  @MinLength(4, { message: 'El nombre de usuario debe tener al menos 4 caracteres' })
+  @MaxLength(80)
   username?: string;
 
   @IsOptional()
@@ -36,6 +37,11 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(30)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+[1-9]\d{0,3}$/, { message: 'Seleccione un código de país válido' })
+  countryCode?: string;
 
   @IsOptional()
   @IsEnum(RecordStatus)

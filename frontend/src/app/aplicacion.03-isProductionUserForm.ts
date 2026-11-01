@@ -149,18 +149,30 @@ export abstract class AplicacionParte03 extends AplicacionParte04 {
 
   protected override openPasswordReset(user: User): void {
       this.editingUserId.set(user.id);
-      this.passwordForm.reset({ newPassword: '' });
+      this.passwordResetTarget.set('USER');
+      this.passwordResetLabel.set(`${user.code} · ${user.name}`);
       this.passwordDialog.set(true);
     }
 
   protected override resetPassword(): void {
-      if (this.passwordForm.invalid || !this.editingUserId()) return this.passwordForm.markAllAsTouched();
+      if (!this.editingUserId()) return;
       this.saving.set(true);
-      this.http.patch(`/api/users/${this.editingUserId()}/password`, this.passwordForm.getRawValue()).subscribe({
+      const target = this.passwordResetTarget();
+      const customerId = this.selectedCustomer()?.id;
+      const url = target === 'CUSTOMER' && customerId
+        ? `/api/customers/${customerId}/users/${this.editingUserId()}/password`
+        : `/api/users/${this.editingUserId()}/password`;
+      this.http.patch(url, {}).subscribe({
         next: () => {
           this.saving.set(false);
           this.passwordDialog.set(false);
-          this.toast('success', 'Contraseña restablecida', 'Las sesiones anteriores fueron invalidadas.');
+          if (target === 'CUSTOMER') this.customerInfoDialog.set(false);
+          this.toast(
+            'success',
+            'Contraseña restablecida',
+            'La contraseña temporal es 123456 y deberá cambiarse en el próximo acceso.',
+          );
+          if (target === 'CUSTOMER') this.loadCustomers(this.customerMeta().page);
         },
         error: (error) => this.handleSaveError(error),
       });

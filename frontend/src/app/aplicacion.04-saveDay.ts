@@ -174,53 +174,51 @@ export abstract class AplicacionParte04 extends AplicacionParte05 {
       });
     }
 
-  protected override openAccount(customer: Customer): void {
-      if (customer.userLinks.length) {
+  protected override openAccount(customer: Customer, account?: CustomerAccount): void {
+      if (!account && customer.userLinks.length) {
         this.toast(
           'info',
-          'Cuenta ya habilitada',
-          'Este cliente ya tiene una cuenta de acceso. Puede habilitarla o deshabilitarla desde la misma fila.',
-        );
-        return;
-      }
-      if (!customer.taxId?.trim()) {
-        this.toast(
-          'info',
-          'Falta NIT / CI',
-          'Registre el NIT o carnet del cliente antes de habilitar su cuenta.',
-        );
-        return;
-      }
-      if (!customer.email?.trim()) {
-        this.toast(
-          'info',
-          'Falta correo',
-          'Registre el correo del cliente antes de habilitar su cuenta.',
+          'Usuario ya asignado',
+          'Este cliente ya tiene un usuario del sistema. Puede modificarlo desde la misma fila.',
         );
         return;
       }
       this.selectedCustomer.set(customer);
-      this.accountForm.reset({ password: '' });
+      const taxId = customer.taxId?.trim() ?? '';
+      const suggestedUsername = taxId.length >= 4 ? taxId : `cliente${customer.code}`;
+      this.editingAccountUserId.set(account?.userId ?? null);
+      this.accountForm.reset({
+        username: account?.user.username ?? suggestedUsername,
+        password: account ? '' : '123456',
+      });
       this.accountDialog.set(true);
     }
 
   protected override saveAccount(): void {
+      const editingAccountUserId = this.editingAccountUserId();
+      if (!editingAccountUserId && this.accountForm.controls.password.value.length < 6) {
+        this.accountForm.controls.password.setErrors({ minlength: { requiredLength: 6 } });
+      }
       if (this.accountForm.invalid || !this.selectedCustomer()) {
         return this.accountForm.markAllAsTouched();
       }
       this.saving.set(true);
-      this.http
-        .post<CustomerAccount>(
-          `/api/customers/${this.selectedCustomer()!.id}/users`,
-          this.accountForm.getRawValue(),
-        )
-        .subscribe({
+      const customerId = this.selectedCustomer()!.id;
+      const raw = this.accountForm.getRawValue();
+      const request = editingAccountUserId
+        ? this.http.patch<CustomerAccount>(
+            `/api/customers/${customerId}/users/${editingAccountUserId}`,
+            { username: raw.username },
+          )
+        : this.http.post<CustomerAccount>(`/api/customers/${customerId}/users`, raw);
+      request.subscribe({
           next: () => {
             this.saving.set(false);
             this.accountDialog.set(false);
+            this.customerInfoDialog.set(false);
             this.toast(
               'success',
-              'Cuenta de cliente creada',
+              editingAccountUserId ? 'Usuario del sistema actualizado' : 'Usuario del sistema asignado',
               this.selectedCustomer()!.businessName,
             );
             this.loadCustomers(this.customerMeta().page);

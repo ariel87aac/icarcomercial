@@ -24,6 +24,7 @@ export interface SessionView {
     id: string;
     name: string;
     username: string;
+    mustChangePassword: boolean;
     email: string | null;
     type: UserType;
     customerId: string | null;
@@ -138,6 +139,7 @@ export abstract class AuthServiceParte01 extends AuthServiceParte02 {
         throw new UnauthorizedException('La contraseña actual no es válida');
       }
       entity.passwordHash = await hash(dto.newPassword, 12);
+      entity.mustChangePassword = false;
       await this.userRepository.save(entity);
       await this.sessionRepository.update(
         { userId: user.id, revokedAt: IsNull() },

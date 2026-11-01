@@ -13,7 +13,7 @@ La cuenta de cliente queda vinculada a un solo registro comercial y solo puede c
 | HU-01 | Inicio, renovación y cierre de sesión; rechazo de credenciales o cuentas inactivas. |
 | HU-02 | Cuenta de tipo `CLIENTE`, vínculo en `clientes_usuarios` y alcance de datos por `customerId`. |
 | HU-03 | Administración de usuarios internos, roles y permisos. |
-| HU-04 | Habilitación y deshabilitación de una cuenta desde el cliente, usando su NIT/CI como usuario. |
+| HU-04 | Habilitación, modificación y deshabilitación de una cuenta desde el cliente, con nombre de usuario independiente del NIT/CI. |
 | HU-05 | Registro, edición, activación, desactivación, búsqueda y filtros de clientes. |
 | HU-06 | Domicilios, coordenadas validadas, OpenStreetMap, zonas y días programados. |
 | HU-07 | Registro y consulta de auditoría sin contraseñas, tokens ni secretos. |
@@ -44,7 +44,9 @@ La API conserva las rutas internas en inglés y ofrece los alias en español def
 | `GET / POST` | `/api/roles` | Consulta o registra roles y permisos. |
 | `GET / POST` | `/api/clientes` | Consulta o registra clientes según alcance. |
 | `PATCH` | `/api/clientes/:id` | Modifica un cliente autorizado. |
-| `POST` | `/api/clientes/:id/usuarios` | Habilita la cuenta del cliente con una contraseña inicial de 8 caracteres. |
+| `POST` | `/api/clientes/:id/usuarios` | Habilita la cuenta del cliente con nombre de usuario y contraseña temporal. |
+| `PATCH` | `/api/clientes/:id/usuarios/:userId` | Modifica el nombre de usuario o el estado de la cuenta del cliente. |
+| `PATCH` | `/api/clientes/:id/usuarios/:userId/password` | Restablece la contraseña a `123456`, revoca sesiones y exige cambio en el próximo acceso. |
 | `PATCH` | `/api/clientes/:id/usuarios/:userId` | Habilita o deshabilita la cuenta vinculada. |
 | `GET / POST` | `/api/clientes/:id/domicilios` | Consulta o registra domicilios. |
 | `PATCH` | `/api/domicilios/:id` | Actualiza dirección, zona o coordenadas. |
@@ -69,22 +71,26 @@ La migración `1720000024000-add-user-code-and-delete.ts` incorpora un código n
 
 La migración `1720000025000-add-customer-code.ts` incorpora un código numérico correlativo, único y automático para cada cliente. Los registros existentes se numeran según su fecha de creación; las altas posteriores usan la secuencia de PostgreSQL. La consulta de clientes se ordena por código y permite buscarlo sin que el operador deba escribirlo durante el alta.
 
-La migración `1720000026000-add-customer-delete.ts` añade `customers.delete` al rol `ADMINISTRADOR`. Un cliente sólo puede eliminarse físicamente cuando no tiene cuenta, domicilios, pedidos, ventas ni otras operaciones asociadas; los rechazos no modifican información y el borrado exitoso registra `ELIMINAR_CLIENTE` en auditoría.
+La migración `1720000026000-add-customer-delete.ts` añade `customers.delete` al rol `ADMINISTRADOR`. Como ajuste de aceptación del 1 de noviembre de 2026, este permiso ya no autoriza un borrado físico: la acción cambia el cliente a `INACTIVO`, conserva cuenta, domicilios, pedidos, ventas, cobros y demás historial, revoca sus sesiones renovables y registra `DESACTIVAR_CLIENTE` en auditoría. La vista de Clientes inicia con el filtro `ACTIVO` y permite consultar inactivos desde el selector de estado. No se requiere una nueva migración porque el campo de estado ya existía.
 
 La migración `1720000042000-make-user-email-optional.ts` permite que el correo de un usuario sea nulo. En el alta de usuarios internos el nombre de usuario exige un mínimo de 4 caracteres y la contraseña un mínimo de 6, sin reglas de mayúsculas, números o símbolos. Los correos que sí se registren conservan su validación de formato y unicidad. La misma regla mínima de contraseña se aplica al cambio, recuperación y restablecimiento administrativo para no crear políticas contradictorias.
 
+La migración `1720000052000-add-country-code-and-password-change.ts` añade `codigo_pais` a clientes y usuarios con Bolivia (`+591`) como valor predeterminado, y `debe_cambiar_password` a usuarios. El restablecimiento administrativo siempre asigna `123456`; la sesión queda limitada a cambio de contraseña, consulta de sesión y cierre hasta que el usuario registre una nueva clave de al menos 6 caracteres.
+
 ## Ajuste posterior de aceptación: cliente y cuenta unificados
 
-La gestión separada de **Cuentas de clientes** se eliminó porque duplicaba datos y permitía que el operador escribiera una identidad distinta a la registrada en el cliente. La única acción disponible ahora se encuentra en la fila del maestro **Clientes** y se denomina **Habilitar cuenta de cliente**.
+La gestión separada de **Cuentas de clientes** se eliminó para mantener una sola relación entre `clientes`, `clientes_usuarios` y `usuarios`. La tabla del maestro **Clientes** muestra la columna **Usuario del sistema** y ofrece acciones directas para asignarlo, modificarlo y restablecer su contraseña.
 
 Se aplican estas reglas:
 
-- El cliente debe tener NIT o CI y correo antes de habilitar su acceso.
-- El nombre de usuario se obtiene del campo NIT/CI; el operador no puede escribir otro valor.
-- Nombre, correo y teléfono se toman del registro del cliente.
-- La contraseña inicial debe tener exactamente 8 caracteres. Esta regla sigue siendo exclusiva de la cuenta de cliente; para usuarios internos rige el mínimo de 6 caracteres sin requisitos de composición.
+- El nombre de usuario se asigna y puede modificarse desde el módulo Clientes; es independiente del NIT/CI y exige únicamente un mínimo de 4 caracteres.
+- La fila del cliente muestra el usuario asignado, su disponibilidad de acceso y si tiene pendiente el cambio de contraseña.
+- Nombre, correo, código de país y teléfono se toman del registro del cliente. El correo continúa siendo opcional.
+- La contraseña temporal predeterminada es `123456`. Las contraseñas exigen únicamente un mínimo de 6 caracteres, sin requisitos de composición.
+- El primer acceso con la contraseña temporal queda bloqueado en una pantalla de cambio obligatorio. La API impide utilizar otros módulos hasta completar ese cambio.
+- El restablecimiento de contraseña de clientes y usuarios internos vuelve a asignar `123456`, revoca sesiones anteriores y reactiva la obligación de cambio.
 - Solo se permite habilitar una cuenta nueva por cliente. Si ya existe una cuenta, la interfaz ofrece habilitarla o deshabilitarla y la API rechaza un segundo alta.
-- Si se modifican NIT/CI, correo, contacto, razón social o teléfono del cliente, la cuenta principal vinculada se mantiene sincronizada.
+- Si se modifican correo, contacto, razón social, código de país o teléfono del cliente, la cuenta principal vinculada se mantiene sincronizada sin sustituir el nombre de usuario asignado.
 - Las cuentas históricas adicionales se muestran en la fila del cliente para que ningún acceso existente quede oculto; no se eliminan automáticamente.
 
 El cuerpo de creación ya no acepta identidad duplicada. La API deriva esos datos del cliente:
@@ -109,19 +115,20 @@ Los cambios de áreas, el inicio de elaboración, las cantidades entregadas por 
 
 ## Pruebas de aceptación
 
-El script `backend/scripts/iteration-one.acceptance.mjs` ejecuta CP-01 a CP-12 y las comprobaciones adicionales CP-04A/CP-04B/CP-04C, CP-USU-07, CP-USU-08, CP-USU-09, CP-CLI-01 y CP-CLI-06: acceso válido, credenciales inválidas, cuenta inactiva, cuenta de cliente, aislamiento entre clientes, permiso insuficiente, gestión institucional, alta auditada, duplicidad, coordenadas inválidas, zona con día, auditoría filtrada, códigos automáticos, credenciales mínimas y eliminaciones controladas. También comprueba que el cierre de sesión invalide la sesión anterior.
+El script `backend/scripts/iteration-one.acceptance.mjs` ejecuta CP-01 a CP-12 y las comprobaciones adicionales CP-04A/CP-04B/CP-04C, CP-USU-07, CP-USU-08, CP-USU-09, CP-CLI-01 y CP-CLI-06: acceso válido, credenciales inválidas, cuenta inactiva, cuenta de cliente, aislamiento entre clientes, permiso insuficiente, gestión institucional, alta auditada, duplicidad, coordenadas inválidas, zona con día, auditoría filtrada, códigos automáticos, credenciales mínimas y baja lógica de clientes. También comprueba que el cierre de sesión invalide la sesión anterior.
 
 | Caso | Preparación y acción | Resultado esperado |
 | --- | --- | --- |
-| CP-04 | Cliente con NIT/CI, correo y cuenta habilitada; iniciar sesión con NIT/CI y contraseña inicial | La sesión es de tipo `CLIENTE` y conserva el `customerId` correcto. |
-| CP-04A | Intentar habilitar la cuenta con una contraseña de 7 caracteres | HTTP 400; no se crea usuario ni vínculo. |
+| CP-04 | Cliente con cuenta habilitada; iniciar sesión con el usuario y contraseña temporal | La sesión conserva el `customerId`, exige cambio de contraseña y permite operar después de registrarla. |
+| CP-04A | Intentar habilitar la cuenta con un nombre de usuario de 3 caracteres | HTTP 400; no se crea usuario ni vínculo. |
 | CP-04B | Intentar habilitar otra cuenta para un cliente que ya posee una | HTTP 409; se conserva la cuenta existente. |
-| CP-04C | Modificar NIT/CI, correo y contacto de un cliente con cuenta | La cuenta principal se sincroniza y permite iniciar sesión con el nuevo NIT/CI. |
+| CP-04C | Modificar NIT/CI, correo y contacto de un cliente con cuenta | Los datos de contacto se sincronizan y el nombre de usuario asignado no cambia. |
 | CP-USU-07 | Crear usuarios internos y consultar la tabla | Cada usuario recibe un código numérico automático y la lista se ordena de menor a mayor. |
 | CP-USU-08 | Intentar eliminar la cuenta autenticada y luego un usuario nuevo sin operaciones | La cuenta autenticada se protege; el usuario sin operaciones se elimina y queda el evento `ELIMINAR_USUARIO`. |
-| CP-USU-09 | Crear un usuario interno sin correo, con usuario de 4 caracteres y contraseña simple de 6; intentar valores inferiores | El alta y el inicio de sesión funcionan con los mínimos; usuario de 3 o contraseña de 5 se rechazan con HTTP 400. |
+| CP-USU-09 | Crear un usuario interno sin correo con los mínimos y prefijo predeterminado | Se asigna `+591`, el primer acceso con `123456` exige cambio; usuario de 3 o contraseña de 5 se rechazan. |
+| CP-CLI-08 | Restablecer la contraseña de una cuenta de cliente | Se asigna `123456`, se cierran sesiones y los demás módulos responden HTTP 403 hasta cambiarla. |
 | CP-CLI-01 | Crear clientes, consultar la lista y buscar por código | Cada cliente recibe un código automático único; la lista está ordenada de menor a mayor y el buscador encuentra el código. |
-| CP-CLI-06 | Eliminar un cliente sin relaciones e intentar eliminar otro con cuenta | El primero se elimina y audita; el segundo permanece intacto y devuelve HTTP 409. |
+| CP-CLI-06 | Ejecutar la acción Eliminar sobre clientes libres y relacionados | Ambos pasan a `INACTIVO` sin pérdida de relaciones; la cuenta deja de iniciar sesión y se registra `DESACTIVAR_CLIENTE`. |
 
 Con el stack en ejecución:
 

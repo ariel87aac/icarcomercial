@@ -12,6 +12,7 @@ import { Request, Response } from 'express';
 import { CurrentUser } from '../../../compartido/decoradores/current-user.decorator';
 import { Public } from '../../../compartido/decoradores/public.decorator';
 import { AuthenticatedUser } from '../../../compartido/interfaces/authenticated-user.interface';
+import { AllowPasswordChangeRequired } from '../../../compartido/decoradores/allow-password-change-required.decorator';
 import { readCookie } from '../../../compartido/utilidades/cookie.util';
 import { AuthService } from './auth.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -54,12 +55,14 @@ export class AuthController {
   }
 
   @Get('me')
+  @AllowPasswordChangeRequired()
   me(@CurrentUser() user: AuthenticatedUser) {
     return { user };
   }
 
   @Post('logout')
   @HttpCode(200)
+  @AllowPasswordChangeRequired()
   async logout(
     @CurrentUser() user: AuthenticatedUser,
     @Req() request: Request,
@@ -72,6 +75,7 @@ export class AuthController {
 
   @Post('change-password')
   @HttpCode(200)
+  @AllowPasswordChangeRequired()
   async changePassword(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ChangePasswordDto,

@@ -6,6 +6,7 @@ export interface SessionUser {
   name: string;
   email: string | null;
   username: string;
+  mustChangePassword: boolean;
   type: UserType;
   customerId: string | null;
   roles: string[];
@@ -37,6 +38,8 @@ export interface User {
   username: string;
   email: string | null;
   phone: string | null;
+  countryCode: string;
+  mustChangePassword: boolean;
   type: UserType;
   status: RecordStatus;
   lastLoginAt: string | null;

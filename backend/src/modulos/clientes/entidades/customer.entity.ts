@@ -35,6 +35,9 @@ export class Customer extends AuditableEntity {
   @Column({ name: 'telefono', type: 'varchar', length: 30 })
   phone: string;
 
+  @Column({ name: 'codigo_pais', type: 'varchar', length: 8, default: '+591' })
+  countryCode: string;
+
   @Column({ name: 'whatsapp', type: 'varchar', length: 30, nullable: true })
   whatsapp: string | null;
 

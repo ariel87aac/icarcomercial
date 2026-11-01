@@ -42,6 +42,8 @@ export abstract class UsersServiceParte02 extends UsersServiceParte03 {
         username: user.username,
         email: user.email,
         phone: user.phone,
+        countryCode: user.countryCode,
+        mustChangePassword: user.mustChangePassword,
         type: user.type,
         status: user.status,
         roles: user.roles.map((role) => role.name),
@@ -81,11 +83,11 @@ export abstract class UsersServiceParte02 extends UsersServiceParte03 {
 
   async adminResetPassword(
       id: string,
-      dto: AdminResetPasswordDto,
       actor: AuthenticatedUser,
     ): Promise<{ message: string }> {
       const user = await this.findOne(id);
-      user.passwordHash = await hash(dto.newPassword, 12);
+      user.passwordHash = await hash('123456', 12);
+      user.mustChangePassword = true;
       await this.userRepository.save(user);
       await this.sessionRepository.update(
         { userId: id, revokedAt: IsNull() },
@@ -99,7 +101,9 @@ export abstract class UsersServiceParte02 extends UsersServiceParte03 {
         entityId: id,
         result: 'EXITOSO',
       });
-      return { message: 'Contraseña restablecida; las sesiones anteriores fueron invalidadas' };
+      return {
+        message: 'Contraseña restablecida a 123456; deberá cambiarse en el próximo acceso',
+      };
     }
 
   async remove(id: string, actor: AuthenticatedUser): Promise<{ id: string; code: number; deleted: true }> {

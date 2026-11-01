@@ -6,6 +6,7 @@ export interface AuthenticatedUser {
   name: string;
   email: string | null;
   username: string;
+  mustChangePassword: boolean;
   type: UserType;
   customerId: string | null;
   roles: string[];

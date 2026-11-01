@@ -131,6 +131,12 @@ protected readonly http = inject(HttpClient);
 
   protected readonly loginBusy = signal(false);
 
+  protected readonly loginNotice = signal('');
+
+  protected readonly passwordChangeBusy = signal(false);
+
+  protected readonly passwordChangeError = signal('');
+
   protected readonly customers = signal<Customer[]>([]);
 
   protected readonly customerMeta = signal({ page: 1, total: 0, totalPages: 1 });
@@ -177,6 +183,10 @@ protected readonly http = inject(HttpClient);
 
   protected readonly passwordDialog = signal(false);
 
+  protected readonly passwordResetTarget = signal<'USER' | 'CUSTOMER'>('USER');
+
+  protected readonly passwordResetLabel = signal('');
+
   protected readonly editingCustomerId = signal<string | null>(null);
 
   protected readonly editingUserId = signal<string | null>(null);
@@ -195,11 +205,13 @@ protected readonly http = inject(HttpClient);
 
   protected readonly editingAddressId = signal<string | null>(null);
 
+  protected readonly editingAccountUserId = signal<string | null>(null);
+
   protected readonly customerSearch = signal('');
 
   protected readonly customerTypeFilter = signal<string | null>(null);
 
-  protected readonly customerStatusFilter = signal<string | null>(null);
+  protected readonly customerStatusFilter = signal<string | null>('ACTIVO');
 
   protected readonly customerZoneFilter = signal<string | null>(null);
 

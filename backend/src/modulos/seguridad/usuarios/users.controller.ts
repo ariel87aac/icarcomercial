@@ -2,7 +2,6 @@ import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query
 import { CurrentUser } from '../../../compartido/decoradores/current-user.decorator';
 import { RequirePermissions } from '../../../compartido/decoradores/permissions.decorator';
 import { AuthenticatedUser } from '../../../compartido/interfaces/authenticated-user.interface';
-import { AdminResetPasswordDto } from './dto/admin-reset-password.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateOwnProfileDto } from './dto/update-own-profile.dto';
@@ -51,10 +50,9 @@ export class UsersController {
   @RequirePermissions('users.update')
   resetPassword(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: AdminResetPasswordDto,
     @CurrentUser() actor: AuthenticatedUser,
   ) {
-    return this.usersService.adminResetPassword(id, dto, actor);
+    return this.usersService.adminResetPassword(id, actor);
   }
 
   @Delete(':id')

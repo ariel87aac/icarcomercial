@@ -1,19 +1,33 @@
 import {
   IsEnum,
+  IsOptional,
   IsString,
-  Length,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 import { RecordStatus } from '../../../compartido/enumeraciones/record-status.enum';
 
 export class CreateCustomerAccountDto {
   @IsString()
-  @Length(8, 8, {
-    message: 'La contraseña de la cuenta de cliente debe tener exactamente 8 caracteres',
-  })
-  password: string;
+  @MinLength(4, { message: 'El nombre de usuario debe tener al menos 4 caracteres' })
+  @MaxLength(80)
+  username: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(6, { message: 'La contraseña debe tener al menos 6 caracteres' })
+  @MaxLength(100)
+  password?: string;
 }
 
 export class UpdateCustomerAccountDto {
+  @IsOptional()
   @IsEnum(RecordStatus)
-  status: RecordStatus;
+  status?: RecordStatus;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(4, { message: 'El nombre de usuario debe tener al menos 4 caracteres' })
+  @MaxLength(80)
+  username?: string;
 }

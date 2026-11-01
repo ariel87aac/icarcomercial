@@ -100,6 +100,17 @@ import { Directive } from '@angular/core';
 
 @Directive()
 export abstract class AplicacionParte05 extends AplicacionEstado03 {
+  protected override openCustomerPasswordReset(
+      customer: Customer,
+      account: CustomerAccount,
+    ): void {
+      this.selectedCustomer.set(customer);
+      this.editingUserId.set(account.userId);
+      this.passwordResetTarget.set('CUSTOMER');
+      this.passwordResetLabel.set(`${customer.code} · ${account.user.username}`);
+      this.passwordDialog.set(true);
+    }
+
   protected override setAccountStatus(
       customer: Customer,
       account: CustomerAccount,

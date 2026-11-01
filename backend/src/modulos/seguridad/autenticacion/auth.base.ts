@@ -24,6 +24,7 @@ export interface SessionView {
     id: string;
     name: string;
     username: string;
+    mustChangePassword: boolean;
     email: string | null;
     type: UserType;
     customerId: string | null;

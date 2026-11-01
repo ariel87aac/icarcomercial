@@ -9,7 +9,7 @@ export interface CustomerAccount {
   createdAt: string;
   user: Pick<
     User,
-    'id' | 'name' | 'username' | 'email' | 'phone' | 'type' | 'status'
+    'id' | 'name' | 'username' | 'email' | 'phone' | 'countryCode' | 'mustChangePassword' | 'type' | 'status'
   >;
 }
 
@@ -54,6 +54,7 @@ export interface Customer {
   taxId: string | null;
   contactName: string | null;
   phone: string;
+  countryCode: string;
   whatsapp: string | null;
   email: string | null;
   paymentCondition: PaymentCondition;

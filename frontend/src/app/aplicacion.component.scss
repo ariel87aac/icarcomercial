@@ -110,7 +110,7 @@
 .customer-info dt { color: var(--text-muted); font-size: .65rem; }
 .customer-info dd { min-width: 0; margin: 0; overflow-wrap: anywhere; color: #243d51; font-size: .68rem; font-weight: 700; text-align: right; }
 .customer-info__accounts { display: grid; gap: .45rem; }
-.customer-info__accounts article { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: .45rem; padding: .5rem; border-radius: .6rem; background: #eef5f9; }
+.customer-info__accounts article { display: grid; grid-template-columns: minmax(0, 1fr) repeat(4, auto); align-items: center; gap: .35rem; padding: .5rem; border-radius: .6rem; background: #eef5f9; }
 .customer-info__accounts strong, .customer-info__accounts small { display: block; }
 .customer-info__accounts small { margin-top: .15rem; color: var(--text-muted); font-size: .62rem; }
 .customer-info__addresses { padding: 1rem; border: 1px solid var(--surface-border); border-radius: .8rem; }

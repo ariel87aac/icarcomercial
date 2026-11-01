@@ -62,9 +62,9 @@ Fuente automatizada: `backend/scripts/iteration-one.acceptance.mjs`.
 | CP-01 | Iniciar sesión con una cuenta interna activa devuelve una sesión válida. | Aprobada |
 | CP-02 | Las credenciales inválidas se rechazan sin revelar si falló el usuario o la contraseña. | Aprobada |
 | CP-03 | Una cuenta inactiva no puede autenticarse. | Aprobada |
-| CP-04A | La contraseña inicial de una cuenta de cliente debe tener exactamente ocho caracteres. | Aprobada |
+| CP-04A | El nombre de usuario de una cuenta de cliente debe tener al menos cuatro caracteres. | Aprobada |
 | CP-04B | Un cliente que ya tiene cuenta habilitada no admite una segunda cuenta. | Aprobada |
-| CP-04 | La cuenta del cliente inicia sesión con su NIT o CI y conserva el vínculo con el cliente correcto. | Aprobada |
+| CP-04 | La cuenta del cliente inicia sesión con su usuario, conserva el vínculo correcto y cambia la contraseña temporal antes de operar. | Aprobada |
 | CP-05 | Un cliente no puede consultar registros pertenecientes a otro cliente. | Aprobada |
 | CP-06 | Una operación sin permiso obtiene HTTP 403 y no se ejecuta. | Aprobada |
 | CP-07 | El rol de Ventas consulta los clientes autorizados por su perfil. | Aprobada |
@@ -73,13 +73,15 @@ Fuente automatizada: `backend/scripts/iteration-one.acceptance.mjs`.
 | CP-10 | Las coordenadas fuera de rango se rechazan y no alteran el domicilio persistido. | Aprobada |
 | CP-11 | Una zona activa conserva y expone su día programado de distribución. | Aprobada |
 | CP-12 | La consulta de auditoría permite filtrar eventos y no expone contraseñas, tokens ni secretos. | Aprobada |
-| CP-04C | Los cambios de NIT o CI, correo y contacto del cliente se sincronizan con su cuenta principal. | Aprobada |
+| CP-04C | Los cambios de contacto se sincronizan sin reemplazar el nombre de usuario asignado a la cuenta. | Aprobada |
 | HU-01 | Cerrar sesión invalida en el servidor la sesión renovable anterior. | Aprobada |
 | CP-USU-07 | Los usuarios reciben un código numérico automático y se listan de menor a mayor. | Aprobada |
 | CP-USU-08 | Un usuario sin operaciones puede eliminarse; la cuenta en uso se protege y la acción queda auditada. | Aprobada |
-| CP-USU-09 | El correo del usuario interno es opcional; el usuario admite 4 caracteres y la contraseña simple 6, rechazando valores inferiores. | Aprobada |
+| CP-USU-09 | El correo es opcional, Bolivia es el prefijo predeterminado y las credenciales admiten los mínimos; `123456` exige cambio inicial. | Aprobada |
+| CP-CLI-08 | Restablecer una cuenta asigna `123456`, revoca sesiones y bloquea los módulos hasta registrar una nueva contraseña. | Aprobada |
+| CP-CLI-10 | La tabla de clientes identifica el usuario del sistema y permite asignarlo, editarlo o restablecerlo desde la misma fila. | Aprobada |
 | CP-CLI-01 | Los clientes reciben un código numérico automático, se ordenan de menor a mayor y pueden buscarse por ese código. | Aprobada |
-| CP-CLI-06 | Un cliente sin relaciones puede eliminarse; los clientes relacionados permanecen protegidos y el borrado queda auditado. | Aprobada |
+| CP-CLI-06 | El botón Eliminar realiza una baja lógica: el cliente queda inactivo, conserva sus relaciones, pierde acceso y la acción queda auditada. | Aprobada |
 
 ## 6. Segunda iteración y modificaciones posteriores
 
@@ -404,8 +406,8 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CLI-02 | Abrir el módulo Clientes. | La tabla muestra `Cod-Cliente`, `Cliente`, `Tipo`, `Contacto`, `Estado` y `Acciones`, sin columnas de detalle repetidas. | Manual |
 | CLI-03 | Comparar clientes Público, Minorista, Distribuidor y Mayorista. | El tipo conserva su texto y se resalta con un color diferenciable. | Manual |
 | CLI-04 | Presionar el botón de información. | El modal muestra identificación, contacto, condición comercial, cuenta, domicilios, distribución, coordenadas y fechas. | Manual |
-| CLI-06 | Presionar eliminar para un cliente libre y para uno relacionado. | Se muestra confirmación; el cliente libre se elimina y el relacionado presenta un rechazo controlado. | Mixta |
-| CLI-07 | Escribir en el buscador y cambiar tipo, estado o zona. | Los resultados se actualizan automáticamente; no aparece filtro por día ni botón de aplicación. | Manual |
+| CLI-06 | Presionar eliminar para un cliente activo con cuenta, domicilio e historial. | Se muestra una confirmación de baja lógica; el estado cambia a Inactivo, se conservan todas las relaciones y se bloquea el acceso del cliente. | Mixta |
+| CLI-07 | Ingresar al módulo, limpiar filtros y cambiar tipo, estado o zona. | Por defecto sólo se muestran activos; los resultados se actualizan automáticamente y el estado permite consultar inactivos o todos. | Manual |
 
 ### 12.9 Entrega, retornos y cuenta por cobrar
 

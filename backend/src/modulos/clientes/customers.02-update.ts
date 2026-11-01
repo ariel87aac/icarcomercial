@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hash } from 'bcryptjs';
-import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
+import { Brackets, DataSource, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '../../compartido/dto/pagination-query.dto';
 import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
@@ -54,6 +54,7 @@ export abstract class CustomersServiceParte02 extends CustomersServiceParte03 {
       if (dto.taxId !== undefined) changes.taxId = dto.taxId.trim() || null;
       if (dto.contactName !== undefined) changes.contactName = dto.contactName.trim() || null;
       if (dto.phone !== undefined) changes.phone = dto.phone.trim();
+      if (dto.countryCode !== undefined) changes.countryCode = dto.countryCode;
       if (dto.whatsapp !== undefined) changes.whatsapp = dto.whatsapp.trim() || null;
       if (dto.email !== undefined) changes.email = dto.email.trim().toLowerCase() || null;
       if (dto.paymentCondition !== undefined) changes.paymentCondition = dto.paymentCondition;
@@ -65,33 +66,27 @@ export abstract class CustomersServiceParte02 extends CustomersServiceParte03 {
         accountLink &&
         (dto.businessName !== undefined ||
           dto.contactName !== undefined ||
-          dto.taxId !== undefined ||
           dto.email !== undefined ||
-          dto.phone !== undefined);
+          dto.phone !== undefined ||
+          dto.countryCode !== undefined);
       if (identityChanged) {
-        const username = (changes.taxId ?? customer.taxId)?.trim();
-        const email = (changes.email ?? customer.email)?.trim().toLowerCase();
-        if (!username) {
-          throw new BadRequestException(
-            'Una cuenta habilitada requiere el NIT o carnet del cliente',
-          );
-        }
-        if (!email) {
-          throw new BadRequestException(
-            'Una cuenta habilitada requiere el correo del cliente',
-          );
-        }
-        const duplicatedIdentity = await this.userRepository
+        const username = accountLink.user.username;
+        const email = (
+          dto.email !== undefined ? changes.email : customer.email
+        )?.trim().toLowerCase();
+        const duplicatedIdentityQuery = this.userRepository
           .createQueryBuilder('user')
           .where('user.id <> :userId', { userId: accountLink.userId })
           .andWhere(
-            '(lower(user.email) = lower(:email) OR lower(user.username) = lower(:username))',
-            { email, username },
-          )
-          .getOne();
+            new Brackets((identity) => {
+              identity.where('lower(user.username) = lower(:username)', { username });
+              if (email) identity.orWhere('lower(user.email) = lower(:email)', { email });
+            }),
+          );
+        const duplicatedIdentity = await duplicatedIdentityQuery.getOne();
         if (duplicatedIdentity) {
           throw new ConflictException(
-            'El correo o NIT/CI ya está registrado como acceso de otro usuario',
+            'El correo o nombre de usuario ya está registrado como acceso de otro usuario',
           );
         }
         const name =
@@ -103,8 +98,9 @@ export abstract class CustomersServiceParte02 extends CustomersServiceParte03 {
           await manager.getRepository(User).update(accountLink.userId, {
             name,
             username: username.toLowerCase(),
-            email,
+            email: email || null,
             phone,
+            countryCode: changes.countryCode ?? customer.countryCode,
           });
         });
       } else {
@@ -134,44 +130,62 @@ export abstract class CustomersServiceParte02 extends CustomersServiceParte03 {
   async remove(
       id: string,
       actor: AuthenticatedUser,
-    ): Promise<{ id: string; code: number; deleted: true }> {
+    ): Promise<{
+      id: string;
+      code: number;
+      status: RecordStatus.INACTIVE;
+      deactivated: true;
+    }> {
       const customer = await this.findOne(id, actor);
-      if (customer.userLinks.length || customer.addresses.length) {
-        throw new ConflictException(
-          'No se puede eliminar el cliente porque tiene una cuenta o domicilios asociados',
-        );
-      }
-  
       const snapshot = {
         code: customer.code,
         businessName: customer.businessName,
         taxId: customer.taxId,
         type: customer.type,
+        previousStatus: customer.status,
+        status: RecordStatus.INACTIVE,
       };
-      try {
-        await this.customerRepository.remove(customer);
-      } catch (error) {
-        const databaseCode =
-          error instanceof QueryFailedError
-            ? (error.driverError as { code?: string }).code
-            : undefined;
-        if (databaseCode === '23503') {
-          throw new ConflictException(
-            'No se puede eliminar el cliente porque tiene pedidos, ventas u operaciones asociadas',
-          );
-        }
-        throw error;
+
+      if (customer.status === RecordStatus.INACTIVE) {
+        return {
+          id,
+          code: customer.code,
+          status: RecordStatus.INACTIVE,
+          deactivated: true,
+        };
       }
+
+      const linkedUserIds = customer.userLinks.map((link: CustomerUser) => link.userId);
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(Customer).update(id, {
+          status: RecordStatus.INACTIVE,
+        });
+        if (linkedUserIds.length) {
+          await manager
+            .getRepository(UserSession)
+            .createQueryBuilder()
+            .update()
+            .set({ revokedAt: new Date() })
+            .where('usuario_id IN (:...linkedUserIds)', { linkedUserIds })
+            .andWhere('revocada_at IS NULL')
+            .execute();
+        }
+      });
       await this.auditService.record({
         userId: actor.id,
         module: 'customers',
-        action: 'ELIMINAR_CLIENTE',
+        action: 'DESACTIVAR_CLIENTE',
         entity: 'clientes',
         entityId: id,
         result: 'EXITOSO',
-        metadata: snapshot,
+        metadata: { ...snapshot, source: 'ELIMINAR' },
       });
-      return { id, code: snapshot.code, deleted: true };
+      return {
+        id,
+        code: snapshot.code,
+        status: RecordStatus.INACTIVE,
+        deactivated: true,
+      };
     }
 
   async addresses(

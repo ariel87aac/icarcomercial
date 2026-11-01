@@ -29,6 +29,11 @@
   text-rendering: optimizeLegibility;
 }
 
+.password-change-page { min-height: 100dvh; display: grid; place-items: center; padding: 1.25rem; background: radial-gradient(circle at 20% 15%, rgb(32 169 224 / 18%), transparent 28%), linear-gradient(145deg, var(--brand-950), #075d9c); }
+.password-change-card { width: min(31rem, 100%); padding: clamp(1.5rem, 4vw, 2.5rem); border-radius: 1.2rem; background: #fff; box-shadow: 0 30px 70px rgb(0 25 63 / 30%); }
+.password-change-card h1 { margin: .75rem 0; font-size: clamp(1.7rem, 5vw, 2.35rem); letter-spacing: -.045em; }
+.password-change-card > p { color: var(--text-muted); line-height: 1.55; }
+
 * {
   box-sizing: border-box;
 }

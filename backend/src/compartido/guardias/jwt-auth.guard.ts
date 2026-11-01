@@ -1,4 +1,10 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,6 +16,7 @@ import { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
 import { readCookie } from '../utilidades/cookie.util';
 import { UserSession } from '../../modulos/seguridad/autenticacion/entidades/user-session.entity';
 import { UserType } from '../../modulos/seguridad/usuarios/entidades/user-type.enum';
+import { ALLOW_PASSWORD_CHANGE_REQUIRED_KEY } from '../decoradores/allow-password-change-required.decorator';
 
 type AuthenticatedRequest = Request & { user: AuthenticatedUser };
 
@@ -28,6 +35,10 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
     if (isPublic) return true;
+    const allowsRequiredChange = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_PASSWORD_CHANGE_REQUIRED_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     const request = context.switchToHttp().getRequest<AuthenticatedRequest>();
     const token = this.extractToken(request);
@@ -67,6 +78,7 @@ export class JwtAuthGuard implements CanActivate {
         name: session.user.name,
         email: session.user.email,
         username: session.user.username,
+        mustChangePassword: session.user.mustChangePassword,
         type: session.user.type,
         customerId,
         roles: roles.map((role) => role.name),
@@ -75,9 +87,14 @@ export class JwtAuthGuard implements CanActivate {
         ],
         productionAreaIds: session.user.productionAreas?.map((area) => area.id) ?? [],
       };
+      if (session.user.mustChangePassword && !allowsRequiredChange) {
+        throw new ForbiddenException(
+          'Debe cambiar la contraseña temporal antes de utilizar el sistema',
+        );
+      }
       return true;
     } catch (error) {
-      if (error instanceof UnauthorizedException) throw error;
+      if (error instanceof UnauthorizedException || error instanceof ForbiddenException) throw error;
       throw new UnauthorizedException('La sesión no es válida o expiró');
     }
   }

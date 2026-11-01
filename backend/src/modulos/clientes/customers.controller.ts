@@ -111,6 +111,16 @@ export class CustomersController {
     return this.customersService.createAccount(id, dto, actor);
   }
 
+  @Patch([':id/users/:userId/password', ':id/usuarios/:userId/password'])
+  @RequirePermissions('customer_accounts.create')
+  resetAccountPassword(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.customersService.resetAccountPassword(id, userId, actor);
+  }
+
   @Patch([':id/users/:userId', ':id/usuarios/:userId'])
   @RequirePermissions('customer_accounts.create')
   updateAccount(

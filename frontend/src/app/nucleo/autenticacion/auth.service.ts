@@ -35,6 +35,15 @@ export class AuthService {
       .pipe(tap(() => this.user.set(null)));
   }
 
+  changePassword(currentPassword: string, newPassword: string): Observable<{ message: string }> {
+    return this.http
+      .post<{ message: string }>('/api/auth/change-password', {
+        currentPassword,
+        newPassword,
+      })
+      .pipe(tap(() => this.user.set(null)));
+  }
+
   clear(): void {
     this.user.set(null);
   }

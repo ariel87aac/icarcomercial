@@ -119,11 +119,41 @@ export abstract class AplicacionParte01 extends AplicacionParte02 {
       this.auth.login(this.loginForm.value.identifier!, this.loginForm.value.password!).subscribe({
         next: () => {
           this.loginBusy.set(false);
+          this.loginNotice.set('');
           this.loginForm.controls.password.reset();
         },
         error: (error) => {
           this.loginBusy.set(false);
           this.loginError.set(this.errorMessage(error));
+        },
+      });
+    }
+
+  protected override changeRequiredPassword(): void {
+      const raw = this.requiredPasswordForm.getRawValue();
+      if (this.requiredPasswordForm.invalid) {
+        this.requiredPasswordForm.markAllAsTouched();
+        return;
+      }
+      if (raw.newPassword !== raw.confirmPassword) {
+        this.passwordChangeError.set('La confirmación no coincide con la nueva contraseña.');
+        return;
+      }
+      this.passwordChangeBusy.set(true);
+      this.passwordChangeError.set('');
+      this.auth.changePassword(raw.currentPassword, raw.newPassword).subscribe({
+        next: () => {
+          this.passwordChangeBusy.set(false);
+          this.requiredPasswordForm.reset({
+            currentPassword: '',
+            newPassword: '',
+            confirmPassword: '',
+          });
+          this.loginNotice.set('Contraseña actualizada. Inicie sesión con su nueva contraseña.');
+        },
+        error: (error) => {
+          this.passwordChangeBusy.set(false);
+          this.passwordChangeError.set(this.errorMessage(error));
         },
       });
     }
@@ -243,7 +273,7 @@ export abstract class AplicacionParte01 extends AplicacionParte02 {
   protected override clearCustomerFilters(): void {
       this.customerSearch.set('');
       this.customerTypeFilter.set(null);
-      this.customerStatusFilter.set(null);
+      this.customerStatusFilter.set('ACTIVO');
       this.customerZoneFilter.set(null);
       this.loadCustomers(1);
     }

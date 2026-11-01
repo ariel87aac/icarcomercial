@@ -6,6 +6,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -37,6 +38,10 @@ export class CreateCustomerDto {
   @MinLength(6)
   @MaxLength(30)
   phone: string;
+
+  @IsString()
+  @Matches(/^\+[1-9]\d{0,3}$/, { message: 'Seleccione un código de país válido' })
+  countryCode = '+591';
 
   @IsOptional()
   @IsString()
@@ -90,6 +95,11 @@ export class UpdateCustomerDto {
   @MinLength(6)
   @MaxLength(30)
   phone?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\+[1-9]\d{0,3}$/, { message: 'Seleccione un código de país válido' })
+  countryCode?: string;
 
   @IsOptional()
   @IsString()

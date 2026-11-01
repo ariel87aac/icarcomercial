@@ -72,7 +72,9 @@ export abstract class UsersServiceParte01 extends UsersServiceParte02 {
           username: dto.username,
           email,
           phone: dto.phone?.trim() || null,
+          countryCode: dto.countryCode,
           passwordHash: await hash(dto.password, 12),
+          mustChangePassword: dto.password === '123456',
           type: UserType.INTERNAL,
           roles,
           productionAreas,
@@ -109,6 +111,7 @@ export abstract class UsersServiceParte01 extends UsersServiceParte02 {
       if (dto.username !== undefined) user.username = dto.username;
       if (dto.email !== undefined) user.email = dto.email?.trim() || null;
       if (dto.phone !== undefined) user.phone = dto.phone?.trim() || null;
+      if (dto.countryCode !== undefined) user.countryCode = dto.countryCode;
       if (dto.status !== undefined) user.status = dto.status;
       const roles = dto.roleIds ? await this.resolveRoles(dto.roleIds) : user.roles;
       user.roles = roles;

@@ -81,25 +81,13 @@ export abstract class CustomersServiceParte03 extends CustomersServiceParte04 {
       if (customer.userLinks.length) {
         throw new ConflictException('El cliente ya tiene una cuenta de acceso habilitada');
       }
-      const username = customer.taxId?.trim();
-      if (!username) {
-        throw new BadRequestException(
-          'Registre el NIT o carnet del cliente antes de habilitar su cuenta',
-        );
-      }
-      const email = customer.email?.trim().toLowerCase();
-      if (!email) {
-        throw new BadRequestException(
-          'Registre el correo del cliente antes de habilitar su cuenta',
-        );
-      }
-      const identity = await this.userRepository
+      const username = dto.username.trim();
+      const email = customer.email?.trim().toLowerCase() || null;
+      const identityQuery = this.userRepository
         .createQueryBuilder('user')
-        .where(
-          '(lower(user.email) = lower(:email) OR lower(user.username) = lower(:username))',
-          { email, username },
-        )
-        .getOne();
+        .where('lower(user.username) = lower(:username)', { username });
+      if (email) identityQuery.orWhere('lower(user.email) = lower(:email)', { email });
+      const identity = await identityQuery.getOne();
       if (identity) {
         throw new ConflictException('El correo o nombre de usuario ya está registrado');
       }
@@ -119,7 +107,9 @@ export abstract class CustomersServiceParte03 extends CustomersServiceParte04 {
             username,
             email,
             phone: customer.phone,
-            passwordHash: await hash(dto.password, 12),
+            countryCode: customer.countryCode,
+            passwordHash: await hash(dto.password ?? '123456', 12),
+            mustChangePassword: (dto.password ?? '123456') === '123456',
             type: UserType.CUSTOMER,
             roles: [customerRole],
           }),

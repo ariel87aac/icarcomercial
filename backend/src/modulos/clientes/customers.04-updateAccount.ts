@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { hash } from 'bcryptjs';
-import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
+import { Brackets, DataSource, IsNull, QueryFailedError, Repository } from 'typeorm';
 import { paginate, PaginatedResponse } from '../../compartido/dto/pagination-query.dto';
 import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
@@ -31,6 +31,38 @@ import { PaymentCondition } from './entidades/customer.enums';
 import { CustomersServiceParte05 } from './customers.05-assertNotDuplicate';
 
 export abstract class CustomersServiceParte04 extends CustomersServiceParte05 {
+  async resetAccountPassword(
+      customerId: string,
+      userId: string,
+      actor: AuthenticatedUser,
+    ): Promise<{ message: string }> {
+      await this.findOne(customerId, actor);
+      const link = await this.accountRepository.findOne({ where: { customerId, userId } });
+      if (!link) throw new NotFoundException('Cuenta de cliente no encontrada');
+      await this.dataSource.transaction(async (manager) => {
+        await manager.getRepository(User).update(userId, {
+          passwordHash: await hash('123456', 12),
+          mustChangePassword: true,
+        });
+        await manager.getRepository(UserSession).update(
+          { userId, revokedAt: IsNull() },
+          { revokedAt: new Date() },
+        );
+      });
+      await this.auditService.record({
+        userId: actor.id,
+        module: 'customer_accounts',
+        action: 'RESTABLECER_PASSWORD_CLIENTE',
+        entity: 'usuarios',
+        entityId: userId,
+        result: 'EXITOSO',
+        metadata: { customerId },
+      });
+      return {
+        message: 'Contraseña restablecida a 123456; deberá cambiarse en el próximo acceso',
+      };
+    }
+
   async updateAccount(
       customerId: string,
       userId: string,
@@ -44,9 +76,22 @@ export abstract class CustomersServiceParte04 extends CustomersServiceParte05 {
       });
       if (!link) throw new NotFoundException('Cuenta de cliente no encontrada');
       const previousStatus = link.status;
+      const previousUsername = link.user.username;
+      if (dto.username !== undefined) {
+        const username = dto.username.trim();
+        const duplicated = await this.userRepository
+          .createQueryBuilder('user')
+          .where('user.id <> :userId', { userId })
+          .andWhere('lower(user.username) = lower(:username)', { username })
+          .getOne();
+        if (duplicated) throw new ConflictException('El nombre de usuario ya está registrado');
+        link.user.username = username;
+      }
       await this.dataSource.transaction(async (manager) => {
-        link.status = dto.status;
-        link.user.status = dto.status;
+        if (dto.status !== undefined) {
+          link.status = dto.status;
+          link.user.status = dto.status;
+        }
         await manager.getRepository(CustomerUser).save(link);
         await manager.getRepository(User).save(link.user);
         if (dto.status === 'INACTIVO') {
@@ -63,14 +108,21 @@ export abstract class CustomersServiceParte04 extends CustomersServiceParte05 {
       await this.auditService.record({
         userId: actor.id,
         module: 'customer_accounts',
-        action:
-          dto.status === 'ACTIVO'
+        action: dto.status !== undefined
+          ? dto.status === 'ACTIVO'
             ? 'ACTIVAR_CUENTA_CLIENTE'
-            : 'DESACTIVAR_CUENTA_CLIENTE',
+            : 'DESACTIVAR_CUENTA_CLIENTE'
+          : 'ACTUALIZAR_CUENTA_CLIENTE',
         entity: 'clientes_usuarios',
         entityId: userId,
         result: 'EXITOSO',
-        metadata: { customerId, previousStatus, status: dto.status },
+        metadata: {
+          customerId,
+          previousStatus,
+          status: dto.status ?? link.status,
+          previousUsername,
+          username: link.user.username,
+        },
       });
       return this.accountRepository.findOneOrFail({
         where: { customerId, userId },
