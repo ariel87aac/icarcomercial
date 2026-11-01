@@ -32,6 +32,7 @@ Simplificar la consulta del maestro de clientes sin perder información comercia
 | CLI-07 | Ingresar al módulo, limpiar filtros, escribir en el buscador y cambiar tipo, estado o zona. | La vista inicial y la limpieza muestran sólo activos; la tabla se actualiza automáticamente y el filtro de estado permite consultar inactivos o todos. | Verificación visual de interfaz. | Aprobada |
 | CLI-08 | Habilitar una cuenta con usuario propio y restablecer su contraseña. | El usuario no depende del NIT/CI; `123456` permite el primer acceso, pero sólo se habilita el sistema después de cambiarla. | Suite de primera iteración, `CP-CLI-08`. | Aprobada |
 | CLI-10 | Consultar y administrar el usuario desde la tabla de clientes. | Se visualiza el usuario asignado o “Sin usuario asignado”; editar y restablecer están disponibles en la misma fila según permisos. | Verificación de interfaz del módulo Clientes. | Aprobada |
+| CLI-11 | Abrir el mapa de un domicilio nuevo. | Sin coordenadas previas, el mapa inicia centrado en Cochabamba, Bolivia; al editar conserva la ubicación registrada. | Verificación de interfaz del módulo Clientes. | Aprobada |
 | CLI-09 | Crear o editar un cliente sin cambiar Código de país. | Se conserva Bolivia (`+591`) y la tabla muestra prefijo y teléfono juntos. | Verificación funcional y visual. | Aprobada |
 
 ## Persistencia

@@ -145,8 +145,8 @@ export abstract class AplicacionParte05 extends AplicacionEstado03 {
       this.destroyMap();
       const element = document.getElementById('address-map');
       if (!element) return;
-      const latitude = this.addressForm.controls.latitude.value ?? -16.5;
-      const longitude = this.addressForm.controls.longitude.value ?? -68.15;
+      const latitude = this.addressForm.controls.latitude.value ?? -17.3935;
+      const longitude = this.addressForm.controls.longitude.value ?? -66.157;
       const streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         maxZoom: 19,
         attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
@@ -159,7 +159,7 @@ export abstract class AplicacionParte05 extends AplicacionEstado03 {
         },
       );
       this.map = L.map(element, { zoomControl: true, layers: [streetLayer] })
-        .setView([latitude, longitude], this.addressForm.controls.latitude.value ? 16 : 12);
+        .setView([latitude, longitude], this.addressForm.controls.latitude.value ? 16 : 13);
       L.control.layers(
         { 'Mapa OpenStreetMap': streetLayer, 'Vista satelital': satelliteLayer },
         undefined,

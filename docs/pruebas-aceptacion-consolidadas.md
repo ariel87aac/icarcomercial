@@ -80,6 +80,7 @@ Fuente automatizada: `backend/scripts/iteration-one.acceptance.mjs`.
 | CP-USU-09 | El correo es opcional, Bolivia es el prefijo predeterminado y las credenciales admiten los mínimos; `123456` exige cambio inicial. | Aprobada |
 | CP-CLI-08 | Restablecer una cuenta asigna `123456`, revoca sesiones y bloquea los módulos hasta registrar una nueva contraseña. | Aprobada |
 | CP-CLI-10 | La tabla de clientes identifica el usuario del sistema y permite asignarlo, editarlo o restablecerlo desde la misma fila. | Aprobada |
+| CP-CLI-11 | El mapa de un domicilio nuevo inicia en Cochabamba y conserva las coordenadas existentes durante la edición. | Aprobada |
 | CP-CLI-01 | Los clientes reciben un código numérico automático, se ordenan de menor a mayor y pueden buscarse por ese código. | Aprobada |
 | CP-CLI-06 | El botón Eliminar realiza una baja lógica: el cliente queda inactivo, conserva sus relaciones, pierde acceso y la acción queda auditada. | Aprobada |
 
