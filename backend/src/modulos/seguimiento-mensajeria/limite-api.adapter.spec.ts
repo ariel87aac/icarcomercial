@@ -43,4 +43,16 @@ describe('LimiteApiAdapter', () => {
       error: 'No fue posible contactar LimiteAPI',
     });
   });
+
+  it('reconoce el identificador providerMessageId devuelto por LimiteAPI', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      ok: true,
+      status: 'sent',
+      providerMessageId: '3EB0ABC123',
+    }), { status: 200 }));
+
+    const result = await new LimiteApiAdapter().send(setting, '59170000000', 'Mensaje', 'token-secreto');
+
+    expect(result.messageId).toBe('3EB0ABC123');
+  });
 });

@@ -51,7 +51,7 @@ export class LimiteApiAdapter {
   }
 
   private findMessageId(response: Record<string, unknown>): string | null {
-    for (const key of ['id', 'messageId', 'message_id']) {
+    for (const key of ['id', 'messageId', 'message_id', 'providerMessageId']) {
       const value = response[key];
       if (typeof value === 'string' && value.length <= 160) return value;
     }

@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   OnDestroy,
   OnInit,
   effect,
@@ -153,6 +154,17 @@ protected readonly http = inject(HttpClient);
 
   protected readonly zones = signal<Zone[]>([]);
 
+  protected readonly zoneStatusFilter = signal<string | null>('ACTIVO');
+
+  protected readonly visibleZones = computed(() => {
+    const status = this.zoneStatusFilter();
+    return status ? this.zones().filter((zone) => zone.status === status) : this.zones();
+  });
+
+  protected readonly activeZones = computed(() =>
+    this.zones().filter((zone) => zone.status === 'ACTIVO'),
+  );
+
   protected readonly auditEvents = signal<AuditEvent[]>([]);
 
   protected readonly auditMeta = signal({ page: 1, total: 0, totalPages: 1 });
@@ -174,6 +186,8 @@ protected readonly http = inject(HttpClient);
   protected readonly roleDialog = signal(false);
 
   protected readonly zoneDialog = signal(false);
+
+  protected readonly zoneDeleteDialog = signal(false);
 
   protected readonly dayDialog = signal(false);
 
@@ -202,6 +216,8 @@ protected readonly http = inject(HttpClient);
   protected readonly userToDelete = signal<User | null>(null);
 
   protected readonly selectedZone = signal<Zone | null>(null);
+
+  protected readonly zoneToDelete = signal<Zone | null>(null);
 
   protected readonly editingAddressId = signal<string | null>(null);
 

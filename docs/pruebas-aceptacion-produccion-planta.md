@@ -9,7 +9,7 @@ Este documento registra la modificación solicitada después de la revisión fun
 | N.º | Decisión | Implementación |
 | --- | --- | --- |
 | 1 | Diferenciar la solicitud comercial del ajuste técnico. | La interfaz muestra **Solicitud para stock** y **Ajuste por batch/capacidad** en columnas separadas. |
-| 2 | Eliminar la orden completamente manual como flujo separado. | Sólo existe **Generar orden de producción**. Sin pedidos, la orden se genera desde una solicitud de abastecimiento enviada por Comercial. |
+| 2 | Eliminar la orden completamente manual como flujo separado. | La orden sólo se genera al aceptar una solicitud de abastecimiento pendiente enviada desde Almacén; se retiró el botón general **Generar orden de producción**. |
 | 3 | Configurar áreas con categorías existentes. | Un área admite una o varias categorías; una categoría no puede pertenecer a dos áreas. |
 | 4 | Implementar Producción en planta. | Segunda vista con una tabla por cada área autorizada; la categoría se identifica en cada producto. |
 | 5 | Registrar cantidad real y diferencia. | Cada entrega guarda cantidad real. La entrega final diferente al plan exige incidencia. |
@@ -29,14 +29,17 @@ Este documento registra la modificación solicitada después de la revisión fun
 | 19 | Abrir directamente el trabajo de planta. | Se elimina el listado intermedio y el botón **Procesar orden**. Producción en planta presenta directamente las órdenes emitidas o en proceso, reunidas por área, y conserva únicamente el filtro **Área de Producción**. |
 | 20 | Cerrar la producción con faltantes. | Cada orden visible ofrece **Cerrar producción**. Si todavía existe cantidad pendiente, el cierre usa `CERRADA_INCOMPLETA` y exige un motivo; no permite cerrar mientras Almacén tenga entregas pendientes. |
 | 21 | Ubicar la recepción en el módulo responsable. | La opción **Recepciones** se retira de Producción y se incorpora en **Almacén**, conservando permisos, doble validación, auditoría y movimiento de existencia. |
+| 22 | Retirar la generación general sin solicitud. | La cabecera de Órdenes de Producción ya no muestra **Generar orden de producción**; el responsable utiliza **Solicitudes pendientes → Aceptar solicitud**. |
 
 ## Criterios de aceptación funcional
 
 ### PA-PROD-01 — Generación única
 
-**Dado** un usuario con permiso de planificación  
-**Cuando** presiona **Generar orden de producción** para una fecha  
-**Entonces** se crea un Borrador con el faltante de los pedidos confirmados y la solicitud para stock de la misma fecha, sin mostrar una opción independiente de orden manual. Si no existe ninguno de esos dos orígenes, la generación se rechaza y no deja una orden vacía.
+**Dado** un usuario con permiso de planificación
+
+**Cuando** abre **Solicitudes pendientes** y acepta una solicitud de abastecimiento
+
+**Entonces** se crea un Borrador con el faltante de los pedidos confirmados y la cantidad para stock de esa solicitud. No se muestra un botón general ni una opción independiente para crear órdenes manuales.
 
 ### PA-PROD-02 — Solicitud para stock y ajuste técnico
 
@@ -179,6 +182,14 @@ La fecha solicitada permanece como referencia para obtener los pedidos y cantida
 **Dada** una orden que terminó su flujo  
 **Cuando** se consulta la tabla, el detalle, los filtros o el historial  
 **Entonces** el estado técnico `CERRADA` se presenta al usuario como **Completada** y `CERRADA_INCOMPLETA` como **Completada con faltantes**. Los valores internos se conservan para no romper la trazabilidad ni las integraciones existentes.
+
+### PA-PROD-20 — Devolución a Almacén para corrección
+
+**Dada** una solicitud de abastecimiento `ENVIADA` y todavía sin orden vinculada.
+
+**Cuando** Producción presiona **Devolver**, registra un motivo de al menos cinco caracteres y confirma.
+
+**Entonces** la solicitud vuelve a `BORRADOR`, desaparece de pendientes de Producción y Almacén muestra el motivo, responsable y fecha para corregirla y reenviarla. Si ya está `PROGRAMADA`, el sistema rechaza la devolución para proteger la trazabilidad de la orden.
 
 ## Evidencia automatizada
 

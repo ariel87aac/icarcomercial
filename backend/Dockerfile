@@ -27,6 +27,7 @@ COPY --from=production-dependencies /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY package.json ./
 COPY scripts ./scripts
+COPY assets ./assets
 
 USER node
 EXPOSE 3000

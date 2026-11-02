@@ -18,6 +18,7 @@ Simplificar la consulta del maestro de clientes sin perder información comercia
 - La contraseña temporal predeterminada y de restablecimiento es `123456`. El cliente no puede utilizar los módulos hasta cambiarla por otra de al menos 6 caracteres.
 - La búsqueda espera 300 ms después de escribir y actualiza la tabla sin un botón intermedio. Los filtros de tipo, estado y zona se aplican inmediatamente; el filtro por día se retiró. Al ingresar o limpiar los filtros, el estado predeterminado es **Activo**.
 - El botón **Eliminar cliente** sólo se muestra con `customers.delete` y para clientes activos. Su acción es una baja lógica: cambia el estado a `INACTIVO`, conserva cuenta, domicilios, pedidos, ventas, cobros y auditoría, y revoca las sesiones renovables de la cuenta vinculada.
+- Al agregar o modificar un domicilio, el selector permite asignar únicamente zonas activas; las zonas inactivas permanecen en el historial, pero no aparecen como opciones disponibles.
 
 ## Matriz de aceptación
 
@@ -34,6 +35,7 @@ Simplificar la consulta del maestro de clientes sin perder información comercia
 | CLI-10 | Consultar y administrar el usuario desde la tabla de clientes. | Se visualiza el usuario asignado o “Sin usuario asignado”; editar y restablecer están disponibles en la misma fila según permisos. | Verificación de interfaz del módulo Clientes. | Aprobada |
 | CLI-11 | Abrir el mapa de un domicilio nuevo. | Sin coordenadas previas, el mapa inicia centrado en Cochabamba, Bolivia; al editar conserva la ubicación registrada. | Verificación de interfaz del módulo Clientes. | Aprobada |
 | CLI-09 | Crear o editar un cliente sin cambiar Código de país. | Se conserva Bolivia (`+591`) y la tabla muestra prefijo y teléfono juntos. | Verificación funcional y visual. | Aprobada |
+| CLI-12 | Abrir el formulario de un domicilio con zonas activas e inactivas registradas. | El selector muestra únicamente las zonas activas y no permite asignar una zona inactiva. | Verificación funcional y visual. | Aprobada |
 
 ## Persistencia
 

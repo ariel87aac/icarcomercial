@@ -125,15 +125,27 @@ try {
   await expectStatus(`/api/inventario/solicitudes-abastecimiento/${stockRequest.id}`, { method: 'PATCH', jar, body: { items: [{ presentationId: presentation.id, additionalStockQuantity: 8 }] } }, 409, 'bloqueo enviado');
   process.stdout.write('✓ SA-03 guarda, envía y bloquea las cantidades comerciales\n');
 
+  await expectStatus(`/api/production-stock-requests/${stockRequest.id}/return`, { method: 'POST', jar, body: { reason: 'mal' } }, 400, 'exigir motivo de devolución');
+  stockRequest = await expectStatus(`/api/production-stock-requests/${stockRequest.id}/return`, { method: 'POST', jar, body: { reason: 'Corregir cantidad solicitada para stock' } }, 201, 'devolver solicitud a Almacén');
+  assert.equal(stockRequest.status, 'BORRADOR');
+  assert.equal(stockRequest.returnReason, 'Corregir cantidad solicitada para stock');
+  assert(stockRequest.returnedAt);
+  assert(stockRequest.returnedBy);
+  stockRequest = await expectStatus(`/api/inventario/solicitudes-abastecimiento/${stockRequest.id}`, { method: 'PATCH', jar, body: { items: [{ presentationId: presentation.id, additionalStockQuantity: 8, observation: 'Cantidad corregida por Almacén' }] } }, 200, 'corregir solicitud devuelta');
+  stockRequest = await expectStatus(`/api/inventario/solicitudes-abastecimiento/${stockRequest.id}/enviar`, { method: 'POST', jar, body: {} }, 201, 'reenviar solicitud corregida');
+  assert.equal(stockRequest.status, 'ENVIADA');
+  assert.equal(Number(stockRequest.details[0].additionalStockQuantity), 8);
+  process.stdout.write('✓ SA-17 Producción devuelve con motivo y Almacén puede corregir y reenviar\n');
+
   await expectStatus('/api/production-consolidations', { method: 'POST', jar, body: { deliveryDate: requiredDate } }, 422, 'selección obligatoria cuando hay varias solicitudes');
   let production = await expectStatus('/api/production-consolidations', { method: 'POST', jar, body: { deliveryDate: requiredDate, stockRequestId: stockRequest.id } }, 201, 'generar producción desde primera solicitud');
   const detail = production.details.find((item) => item.presentationId === presentation.id);
   assert(detail);
   assert.equal(production.type, 'PRINCIPAL');
   assert.equal(Number(detail.productionRequiredQuantity), 0);
-  assert.equal(Number(detail.stockRequestedQuantity), 7);
+  assert.equal(Number(detail.stockRequestedQuantity), 8);
   assert.equal(Number(detail.additionalProductionQuantity), 0);
-  assert.equal(Number(detail.plannedQuantity), 7);
+  assert.equal(Number(detail.plannedQuantity), 8);
   const secondProduction = await expectStatus('/api/production-consolidations', { method: 'POST', jar, body: { deliveryDate: requiredDate, stockRequestId: secondStockRequest.id } }, 201, 'generar producción desde segunda solicitud');
   const secondDetail = secondProduction.details.find((item) => item.presentationId === presentation.id);
   assert(secondDetail);
@@ -146,12 +158,13 @@ try {
   assert.equal(stockRequest.productionConsolidationId, production.id);
   assert.equal(secondStockRequest.status, 'PROGRAMADA');
   assert.equal(secondStockRequest.productionConsolidationId, secondProduction.id);
+  await expectStatus(`/api/production-stock-requests/${stockRequest.id}/return`, { method: 'POST', jar, body: { reason: 'Intento posterior a programación' } }, 409, 'bloquear devolución de solicitud programada');
   process.stdout.write('✓ SA-04 vincula cada solicitud de la misma fecha a su propia orden sin mezclar cantidades\n');
 
-  production = await expectStatus(`/api/production-consolidations/${production.id}/details/${detail.id}/plan`, { method: 'PATCH', jar, body: { additionalQuantity: 3, reason: 'Completar batch de 10' } }, 200, 'ajuste técnico');
+  production = await expectStatus(`/api/production-consolidations/${production.id}/details/${detail.id}/plan`, { method: 'PATCH', jar, body: { additionalQuantity: 2, reason: 'Completar batch de 10' } }, 200, 'ajuste técnico');
   const adjusted = production.details.find((item) => item.id === detail.id);
-  assert.equal(Number(adjusted.stockRequestedQuantity), 7);
-  assert.equal(Number(adjusted.additionalProductionQuantity), 3);
+  assert.equal(Number(adjusted.stockRequestedQuantity), 8);
+  assert.equal(Number(adjusted.additionalProductionQuantity), 2);
   assert.equal(Number(adjusted.plannedQuantity), 10);
   process.stdout.write('✓ SA-05 separa solicitud de stock y ajuste técnico por batch\n');
 } finally {

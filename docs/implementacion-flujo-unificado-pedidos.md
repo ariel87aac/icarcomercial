@@ -42,7 +42,7 @@ La vista `pedido_flujo_actual` deriva el estado actual desde cobertura, preparac
 
 La migración importa los eventos comerciales, traspasos, asignaciones, despachos de ruta y resultados históricos que realmente existen. Registra una línea base del estado actual sin enviar mensajes retroactivos. No inventa horas históricas de cobertura que nunca se registraron.
 
-El historial comercial original conserva su API. La pantalla Historial usa el nuevo `GET /api/pedidos/:id/workflow`, con el permiso `orders.history.read` y el alcance del pedido validado antes de consultar el recorrido completo.
+El historial comercial original conserva su API. La acción Seguimiento de la columna Gestión reúne los antiguos botones Historial y Seguir. Usa `GET /api/pedidos/:id/workflow` cuando el usuario tiene `orders.history.read`; para usuarios con permisos de seguimiento conserva `GET /api/orders/:id/tracking-link`. Ambos accesos validan el alcance del pedido y muestran el mismo recorrido.
 
 ## Enlace y turno de reparto
 
@@ -126,3 +126,16 @@ La columna Estado y el detalle del pedido usan el estado operativo para elegir e
 Cada etiqueta conserva el nombre del estado y combina fondo claro, texto oscuro y borde del mismo tono. La paleta compartida está definida en `frontend/src/app/core/order-workflow.ts`.
 
 Verificación del ajuste visual: compilador Angular y compilación de producción Docker aprobados. Se comprobaron 12 combinaciones distintas, con contraste mínimo de texto/fondo de 4,52:1.
+
+## Módulo por estado en Seguimiento
+
+Actualización: 2 de noviembre de 2026. El diálogo de Seguimiento muestra el módulo al lado del estado actual y de cada evento del historial, conservando las fechas y horas reales de las transiciones.
+
+| Estados | Módulo |
+| --- | --- |
+| Borrador, Recibido, Aprobado y Cancelado | Pedidos |
+| En preparación (pendiente de cobertura / abastecimiento) | Producción |
+| Disponible para preparar | Almacén |
+| Preparado (traspasado), Asignado, En reparto y resultados de entrega | Distribución |
+
+Esta identificación corresponde a la etapa del flujo; no crea transiciones ni cambia la disponibilidad del pedido. Un pedido con existencias suficientes puede pasar a Almacén sin esperar Producción.

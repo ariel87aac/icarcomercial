@@ -35,3 +35,26 @@ export function workflowStyle(status?: string): Record<string, string> {
   const normalized = status === 'CONFIRMADO' ? 'PEDIDO_CONFIRMADO' : status;
   return WORKFLOW_STYLES[normalized as PublicTrackingStatus] ?? WORKFLOW_STYLES['BORRADOR'];
 }
+
+export type OrderWorkflowDepartment = 'Pedidos' | 'Almacén' | 'Producción' | 'Distribución';
+
+const WORKFLOW_DEPARTMENTS: Record<PublicTrackingStatus, OrderWorkflowDepartment> = {
+  BORRADOR: 'Pedidos',
+  RECIBIDO: 'Pedidos',
+  PEDIDO_CONFIRMADO: 'Pedidos',
+  CANCELADO: 'Pedidos',
+  EN_PREPARACION: 'Producción',
+  DISPONIBLE_PARA_PREPARAR: 'Almacén',
+  // Preparado indica que Almacén ya entregó el pedido a Distribución.
+  PREPARADO: 'Distribución',
+  ASIGNADO: 'Distribución',
+  EN_RUTA: 'Distribución',
+  ENTREGADO: 'Distribución',
+  ENTREGA_PARCIAL: 'Distribución',
+  ENTREGA_NO_COMPLETADA: 'Distribución',
+};
+
+export function workflowDepartment(status?: string): string {
+  const normalized = status === 'CONFIRMADO' ? 'PEDIDO_CONFIRMADO' : status;
+  return WORKFLOW_DEPARTMENTS[normalized as PublicTrackingStatus] ?? '—';
+}

@@ -255,6 +255,33 @@ export abstract class AplicacionParte03 extends AplicacionParte04 {
       });
     }
 
+  protected override requestZoneDeletion(zone: Zone): void {
+      this.zoneToDelete.set(zone);
+      this.zoneDeleteDialog.set(true);
+    }
+
+  protected override closeZoneDeletion(visible = false): void {
+      if (this.saving()) return;
+      this.zoneDeleteDialog.set(visible);
+      if (!visible) this.zoneToDelete.set(null);
+    }
+
+  protected override confirmZoneDeletion(): void {
+      const zone = this.zoneToDelete();
+      if (!zone) return;
+      this.saving.set(true);
+      this.http.delete<{ id: string; name: string; status: 'INACTIVO' }>(`/api/zones/${zone.id}`).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.zoneDeleteDialog.set(false);
+          this.zoneToDelete.set(null);
+          this.toast('success', 'Zona inactivada', zone.name);
+          this.loadZones();
+        },
+        error: (error) => this.handleSaveError(error),
+      });
+    }
+
   protected override openDay(zone: Zone): void {
       this.selectedZone.set(zone);
       this.dayForm.reset({ weekday: 1, startTime: '08:00', endTime: '17:00' });

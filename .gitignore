@@ -4,6 +4,8 @@ node_modules/
 dist/
 out-tsc/
 coverage/
+output/
+outputs/
 *.log
 *.tsbuildinfo
 vitest.config.mjs

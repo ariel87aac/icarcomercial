@@ -12,6 +12,8 @@ import { StockReplenishmentRequest } from './entidades/stock-replenishment-reque
 import { StockReplenishmentRequestDetail } from './entidades/stock-replenishment-request-detail.entity';
 import { ProductionArea } from '../produccion/entidades/production-area.entity';
 import { StockReplenishmentRequestService } from './stock-replenishment-request.service';
+import { InventoryKardexController } from './reportes/inventory-kardex.controller';
+import { InventoryKardexService } from './reportes/inventory-kardex.service';
 
 @Module({
   imports: [TrackingModule, TypeOrmModule.forFeature([
@@ -24,8 +26,8 @@ import { StockReplenishmentRequestService } from './stock-replenishment-request.
     StockReplenishmentRequest,
     StockReplenishmentRequestDetail,
   ])],
-  controllers: [InventoryController],
-  providers: [InventoryService, StockReplenishmentRequestService],
+  controllers: [InventoryController, InventoryKardexController],
+  providers: [InventoryService, StockReplenishmentRequestService, InventoryKardexService],
   exports: [InventoryService, StockReplenishmentRequestService, TypeOrmModule],
 })
 export class InventoryModule {}

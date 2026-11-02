@@ -142,6 +142,12 @@ export abstract class AplicacionEstado02 extends AplicacionBase {
         { label: 'Inactivo', value: 'INACTIVO' },
       ];
 
+  protected readonly zoneStatusOptions = [
+        { label: 'Activas', value: 'ACTIVO' },
+        { label: 'Inactivas', value: 'INACTIVO' },
+        { label: 'Todas', value: null },
+      ];
+
   protected readonly customerTypeOptions = [
         { label: 'Público', value: 'PUBLICO' },
         { label: 'Minorista', value: 'MINORISTA' },

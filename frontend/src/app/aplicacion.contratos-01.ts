@@ -181,6 +181,12 @@ export abstract class AplicacionContratos01 {
 
   protected abstract saveZone(): void;
 
+  protected abstract requestZoneDeletion(zone: Zone): void;
+
+  protected abstract closeZoneDeletion(visible: boolean): void;
+
+  protected abstract confirmZoneDeletion(): void;
+
   protected abstract openDay(zone: Zone): void;
 
   protected abstract saveDay(): void;

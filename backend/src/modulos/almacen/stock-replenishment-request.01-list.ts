@@ -38,6 +38,7 @@ export abstract class StockReplenishmentRequestServiceParte01 extends StockReple
       const builder = this.requestRepository.createQueryBuilder('request')
         .leftJoinAndSelect('request.requestedBy', 'requestedBy')
         .leftJoinAndSelect('request.sentBy', 'sentBy')
+        .leftJoinAndSelect('request.returnedBy', 'returnedBy')
         .leftJoinAndSelect('request.closedBy', 'closedBy')
         .leftJoinAndSelect('request.productionConsolidation', 'productionConsolidation')
         .loadRelationCountAndMap('request.detailCount', 'request.details')
@@ -57,6 +58,7 @@ export abstract class StockReplenishmentRequestServiceParte01 extends StockReple
         relations: {
           requestedBy: true,
           sentBy: true,
+          returnedBy: true,
           closedBy: true,
           productionConsolidation: true,
           details: {
@@ -92,6 +94,9 @@ export abstract class StockReplenishmentRequestServiceParte01 extends StockReple
           requestedById: actor.id,
           sentById: null,
           sentAt: null,
+          returnedById: null,
+          returnedAt: null,
+          returnReason: null,
           productionConsolidationId: null,
           scheduledAt: null,
           closedAt: null,

@@ -29,6 +29,46 @@ export interface InventoryMovement {
   occurredAt: string;
 }
 
+export interface InventoryKardexProductOption {
+  id: string;
+  productCode: string;
+  productName: string;
+  presentationDescription: string;
+  unitAbbreviation: string;
+  label: string;
+}
+
+export interface InventoryKardexMovement {
+  id: string;
+  occurredAt: string;
+  type: InventoryMovementType;
+  typeLabel: string;
+  document: string;
+  reason: string;
+  entry: number;
+  exit: number;
+  balance: number;
+  userName: string;
+}
+
+export interface InventoryKardexReport {
+  from: string;
+  to: string;
+  generatedAt: string;
+  generatedBy: string;
+  product: {
+    presentationId: string;
+    productCode: string;
+    productName: string;
+    presentationDescription: string;
+    unitAbbreviation: string;
+    categoryName: string | null;
+    productLineName: string | null;
+  };
+  metrics: { openingBalance: number; totalEntries: number; totalExits: number; closingBalance: number };
+  movements: InventoryKardexMovement[];
+}
+
 export interface InventoryReservation {
   id: string;
   orderDetailId: string;
@@ -66,6 +106,10 @@ export interface StockReplenishmentRequest {
   requestedBy: Pick<User, 'id' | 'name' | 'email'>;
   sentBy: Pick<User, 'id' | 'name' | 'email'> | null;
   sentAt: string | null;
+  returnedById: string | null;
+  returnedBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  returnedAt: string | null;
+  returnReason: string | null;
   productionConsolidationId: string | null;
   productionConsolidation: Pick<ProductionConsolidation, 'id' | 'version' | 'status' | 'deliveryDate'> | null;
   scheduledAt: string | null;

@@ -188,6 +188,16 @@ export class ProductionStockRequestsController {
   pending(@CurrentUser() actor: AuthenticatedUser) {
     return this.production.pendingStockRequests(actor);
   }
+
+  @Post(':id/return')
+  @RequirePermissions('production.consolidations.create')
+  returnToWarehouse(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ProductionReasonDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.production.returnStockRequest(id, dto, actor);
+  }
 }
 
 @Controller('production-areas')

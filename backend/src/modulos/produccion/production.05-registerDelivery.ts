@@ -210,4 +210,50 @@ export abstract class ProductionServiceParte05 extends ProductionServiceParte06 
       }
       return requests.filter((request) => request.details.length > 0);
     }
+
+  async returnStockRequest(
+      id: string,
+      dto: ProductionReasonDto,
+      actor: AuthenticatedUser,
+    ): Promise<StockReplenishmentRequest> {
+      const reason = this.requiredReason(dto.reason);
+      await workflowTransaction(this.dataSource, async (manager) => {
+        const repository = manager.getRepository(StockReplenishmentRequest);
+        const request = await repository.createQueryBuilder('request')
+          .setLock('pessimistic_write')
+          .where('request.id = :id', { id })
+          .getOne();
+        if (!request) throw new NotFoundException('Solicitud de abastecimiento no encontrada');
+        if (request.status !== StockReplenishmentRequestStatus.SENT) {
+          throw new ConflictException('Solo una solicitud Enviada y aún no programada puede devolverse a Almacén');
+        }
+        request.status = StockReplenishmentRequestStatus.DRAFT;
+        request.sentById = null;
+        request.sentAt = null;
+        request.returnedById = actor.id;
+        request.returnedAt = new Date();
+        request.returnReason = reason;
+        request.productionConsolidationId = null;
+        request.scheduledAt = null;
+        request.closedAt = null;
+        request.closeObservation = null;
+        request.closedById = null;
+        await repository.save(request);
+        const auditRepository = manager.getRepository(AuditEvent);
+        await auditRepository.save(auditRepository.create({
+          userId: actor.id,
+          module: 'production',
+          action: 'DEVOLVER_SOLICITUD_ABASTECIMIENTO',
+          entity: 'solicitudes_abastecimiento',
+          entityId: request.id,
+          result: 'EXITOSO',
+          ipAddress: null,
+          metadata: { requestCode: request.code, reason },
+        }));
+      });
+      return this.dataSource.getRepository(StockReplenishmentRequest).findOneOrFail({
+        where: { id },
+        relations: { requestedBy: true, returnedBy: true, details: true },
+      });
+    }
 }

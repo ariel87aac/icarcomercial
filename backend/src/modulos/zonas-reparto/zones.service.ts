@@ -1,6 +1,7 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
 import { AuditService } from '../seguridad/auditoria/audit.service';
 import {
@@ -75,6 +76,35 @@ export class ZonesService {
       },
     });
     return this.findZone(id);
+  }
+
+  async remove(
+    id: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ id: string; name: string; status: RecordStatus }> {
+    const zone = await this.findZone(id);
+    if (zone.status === RecordStatus.INACTIVE) {
+      return { id, name: zone.name, status: RecordStatus.INACTIVE };
+    }
+    const snapshot = {
+      name: zone.name,
+      distributionDays: zone.distributionDays.length,
+    };
+    await this.zoneRepository.update(id, { status: RecordStatus.INACTIVE });
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'zones',
+      action: 'DESACTIVAR_ZONA',
+      entity: 'zonas',
+      entityId: id,
+      result: 'EXITOSO',
+      metadata: {
+        ...snapshot,
+        previousStatus: RecordStatus.ACTIVE,
+        status: RecordStatus.INACTIVE,
+      },
+    });
+    return { id, name: snapshot.name, status: RecordStatus.INACTIVE };
   }
 
   async addDay(zoneId: string, dto: CreateDistributionDayDto, actor: AuthenticatedUser) {

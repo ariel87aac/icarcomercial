@@ -1,0 +1,35 @@
+<section class="kardex-shell">
+  <header class="kardex-heading">
+    <div><span class="eyebrow">Trazabilidad de existencias</span><h3>Kardex de movimientos</h3><p>Consulte el ingreso, la salida y el saldo histórico de un producto por rango de fechas.</p></div>
+    <div class="export-actions">
+      <p-button label="PDF" icon="pi pi-file-pdf" severity="danger" [outlined]="true" [disabled]="!report()" [loading]="exporting()==='PDF'" (onClick)="export('PDF')" />
+      <p-button label="Excel" icon="pi pi-file-excel" severity="success" [outlined]="true" [disabled]="!report()" [loading]="exporting()==='XLSX'" (onClick)="export('XLSX')" />
+    </div>
+  </header>
+
+  <div class="kardex-filters">
+    <label class="product-filter"><span>Producto / presentación</span><p-select [options]="products()" optionLabel="label" optionValue="id" [filter]="true" filterBy="label" [ngModel]="presentationId()" (ngModelChange)="presentationId.set($event);report.set(null)" placeholder="Seleccione un producto" [showClear]="true" appendTo="body" /></label>
+    <label><span>Desde</span><input pInputText type="date" [ngModel]="from()" (ngModelChange)="from.set($event);report.set(null)" /></label>
+    <label><span>Hasta</span><input pInputText type="date" [ngModel]="to()" (ngModelChange)="to.set($event);report.set(null)" /></label>
+    <p-button label="Consultar" icon="pi pi-search" [loading]="loading()" (onClick)="load()" />
+  </div>
+
+  @if (report(); as data) {
+    <div class="product-context"><div><strong>{{ data.product.productCode }} · {{ data.product.productName }}</strong><span>{{ data.product.presentationDescription }} · {{ data.product.unitAbbreviation }}</span></div><small>{{ data.product.categoryName || 'Sin categoría' }} · {{ data.product.productLineName || 'Sin línea' }}</small></div>
+    <div class="kardex-metrics">
+      <article><span>Saldo inicial</span><strong>{{ number(data.metrics.openingBalance) }}</strong></article>
+      <article class="entry"><span>Total ingresos</span><strong>+ {{ number(data.metrics.totalEntries) }}</strong></article>
+      <article class="exit"><span>Total salidas</span><strong>- {{ number(data.metrics.totalExits) }}</strong></article>
+      <article><span>Saldo final</span><strong>{{ number(data.metrics.closingBalance) }}</strong></article>
+    </div>
+    <div class="kardex-table"><table><thead><tr><th>Fecha y hora</th><th>Movimiento</th><th>Documento</th><th>Motivo</th><th>Ingreso</th><th>Salida</th><th>Saldo</th><th>Usuario</th></tr></thead><tbody>
+      @for (movement of data.movements; track movement.id) {
+        <tr><td>{{ dateTime(movement.occurredAt) }}</td><td><span class="movement-type">{{ movement.typeLabel }}</span></td><td>{{ movement.document }}</td><td>{{ movement.reason }}</td><td class="amount entry">{{ movement.entry ? number(movement.entry) : '—' }}</td><td class="amount exit">{{ movement.exit ? number(movement.exit) : '—' }}</td><td class="amount balance">{{ number(movement.balance) }}</td><td>{{ movement.userName }}</td></tr>
+      } @empty {
+        <tr><td colspan="8"><div class="empty"><i class="pi pi-info-circle"></i><strong>Sin movimientos en el rango</strong><span>El saldo inicial y final conservan el último saldo anterior disponible.</span></div></td></tr>
+      }
+    </tbody></table></div>
+  } @else {
+    <div class="kardex-empty"><i class="pi pi-arrow-right-arrow-left"></i><strong>Seleccione un producto y el rango de fechas</strong><span>El Kardex mostrará cada movimiento y su saldo acumulado.</span></div>
+  }
+</section>

@@ -22,6 +22,8 @@ import { ProductionArea } from './entidades/production-area.entity';
 import { ProductionDelivery } from './entidades/production-delivery.entity';
 import { StockReplenishmentRequest } from '../almacen/entidades/stock-replenishment-request.entity';
 import { StockReplenishmentRequestDetail } from '../almacen/entidades/stock-replenishment-request-detail.entity';
+import { ProductionReportController } from './reportes/production-report.controller';
+import { ProductionReportService } from './reportes/production-report.service';
 
 @Module({
   imports: [TrackingModule, TypeOrmModule.forFeature([
@@ -45,8 +47,8 @@ import { StockReplenishmentRequestDetail } from '../almacen/entidades/stock-repl
     StockReplenishmentRequest,
     StockReplenishmentRequestDetail,
   ])],
-  controllers: [ProductionConsolidationsController, ProductionRequirementsController, ProductionSummaryController, ProductionAreasController, ProductionDeliveriesController, ProductionStockRequestsController],
-  providers: [ProductionService],
+  controllers: [ProductionConsolidationsController, ProductionRequirementsController, ProductionSummaryController, ProductionAreasController, ProductionDeliveriesController, ProductionStockRequestsController, ProductionReportController],
+  providers: [ProductionService, ProductionReportService],
   exports: [ProductionService, TypeOrmModule],
 })
 export class ProductionModule {}

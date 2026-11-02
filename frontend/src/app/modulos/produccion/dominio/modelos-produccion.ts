@@ -172,3 +172,37 @@ export interface ProductionSummaryRow {
   pendingQuantity: string;
   difference: string;
 }
+
+export interface ProductionReportArea {
+  id: string;
+  name: string;
+}
+
+export interface DailyProductionReportRow {
+  areaId: string | null;
+  areaName: string | null;
+  categoryName: string | null;
+  productCode: string;
+  productName: string;
+  presentationDescription: string | null;
+  unitAbbreviation: string;
+  producedQuantity: string;
+  deliveryCount: number;
+  firstDeliveredAt: string;
+  lastDeliveredAt: string;
+}
+
+export interface DailyProductionReport {
+  date: string;
+  areaIds: string[];
+  areaNames: string[];
+  generatedAt: string;
+  generatedBy: string;
+  metrics: {
+    areaCount: number;
+    productCount: number;
+    deliveryCount: number;
+    quantityByUnit: Array<{ unit: string; quantity: number }>;
+  };
+  groups: Array<{ areaId: string | null; areaName: string; rows: DailyProductionReportRow[] }>;
+}

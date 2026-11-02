@@ -10,11 +10,12 @@ Separar la cantidad adicional solicitada por el área Comercial para mantener st
 2. El sistema muestra existencias físicas, reservas y el **Disponible**, sin exponer columnas independientes de demanda o faltante. La confirmación compromete toda la cantidad pedida, por lo que `Disponible = físico - reservado` puede ser negativo. Ese resultado se presenta en rojo y sirve como referencia para Comercial.
 3. Comercial registra únicamente **Adicional para stock**, guarda el Borrador y lo envía. El sistema también conserva con valor cero una presentación cuyo Disponible es negativo y cuyo faltante corresponde a pedidos de la fecha seleccionada, porque ese faltante ya forma parte automática del requerimiento de Producción.
 4. Al enviar, las cantidades y sus snapshots quedan bloqueados.
-5. Producción genera cada orden desde **Solicitudes pendientes**. La primera solicitud de la fecha origina la orden principal y las siguientes generan órdenes complementarias independientes, incluso cuando una orden anterior de esa fecha ya fue emitida o cerrada; cada solicitud cambia a `PROGRAMADA` y conserva su vínculo propio.
-6. Producción puede agregar un **Ajuste por batch/capacidad**, independiente de la solicitud comercial.
-7. El plan se valida como `faltante de pedidos + solicitud para stock + ajuste técnico`.
-8. Cuando la orden termina y Almacén recibe todos los productos, la solicitud cambia a `CERRADA`.
-9. Si Producción cancela la orden o la cierra con faltantes, la solicitud cambia a `CERRADA_INCOMPLETA`; conserva quién cerró, la fecha y la observación obligatoria.
+5. Antes de generar la orden, Producción puede **Devolver a Almacén** una solicitud `ENVIADA`. El motivo es obligatorio; la solicitud vuelve a `BORRADOR`, conserva quién y cuándo la devolvió y Almacén puede corregirla y reenviarla.
+6. Producción genera cada orden desde **Solicitudes pendientes**. La primera solicitud de la fecha origina la orden principal y las siguientes generan órdenes complementarias independientes, incluso cuando una orden anterior de esa fecha ya fue emitida o cerrada; cada solicitud cambia a `PROGRAMADA` y conserva su vínculo propio.
+7. Producción puede agregar un **Ajuste por batch/capacidad**, independiente de la solicitud comercial.
+8. El plan se valida como `faltante de pedidos + solicitud para stock + ajuste técnico`.
+9. Cuando la orden termina y Almacén recibe todos los productos, la solicitud cambia a `CERRADA`.
+10. Si Producción cancela la orden o la cierra con faltantes, la solicitud cambia a `CERRADA_INCOMPLETA`; conserva quién cerró, la fecha y la observación obligatoria.
 
 ## Relaciones y restricciones
 
@@ -26,6 +27,7 @@ Separar la cantidad adicional solicitada por el área Comercial para mantener st
 - Cada detalle consolidado conserva, cuando corresponde, el detalle de solicitud que originó la cantidad para stock.
 - Una categoría sólo puede pertenecer a un área de Producción.
 - Una solicitud enviada no puede modificarse. Una nueva solicitud para una fecha que ya tiene Producción se procesa posteriormente como una orden complementaria independiente, sin alterar las órdenes anteriores.
+- La devolución sólo se permite mientras la solicitud está `ENVIADA` y todavía no tiene orden vinculada. Una solicitud `PROGRAMADA` no puede regresar a Borrador.
 
 ## Casos de aceptación
 
@@ -47,6 +49,9 @@ Separar la cantidad adicional solicitada por el área Comercial para mantener st
 | SA-14 | Un pedido de 200 con físico 170 genera 30 de faltante automático; una solicitud con `Para stock = 0` no duplica ese faltante y la orden de Producción conserva un total base de 30. |
 | SA-15 | Aunque para la fecha exista una orden emitida o cerrada, Comercial puede crear y enviar otra solicitud; Producción la recibe pendiente y genera una orden complementaria independiente. |
 | SA-16 | El filtro **Solo negativos** muestra exclusivamente disponibilidades menores que cero; al volver a **Ver todos** mantiene intactas las cantidades para stock y observaciones ya ingresadas. |
+| SA-17 | Producción devuelve una solicitud enviada con motivo obligatorio; desaparece de pendientes, Almacén ve el motivo, la corrige y puede reenviarla. Una solicitud ya programada rechaza la devolución. |
+| SA-18 | En Solicitudes pendientes, **Ver detalle** abre los productos sin aceptar ni modificar la solicitud y muestra código, presentación, categoría, área, saldos, faltante, cantidad para stock, total y observación. |
+| SA-19 | Al ingresar una cantidad mayor que cero en **Para stock**, la fila se resalta con el color institucional, una franja lateral y la etiqueta **Agregado para stock**; al volver a cero, la identificación desaparece sin ocultar alertas de disponibilidad negativa. |
 
 ## Evidencia automatizada
 
@@ -54,4 +59,4 @@ Separar la cantidad adicional solicitada por el área Comercial para mantener st
 docker compose exec -T backend npm run test:acceptance:stock-requests
 ```
 
-La prueba automatizada crea dos solicitudes para la misma fecha, verifica que sus códigos sean enteros positivos y consecutivos, el flujo Borrador → Enviada → Programada, sus órdenes principal y complementaria, las cantidades separadas y la eliminación de los datos temporales.
+La prueba automatizada crea dos solicitudes para la misma fecha, verifica sus códigos consecutivos, el flujo Borrador → Enviada → Devuelta → Corregida → Enviada → Programada, el bloqueo posterior a la programación, sus órdenes independientes y la eliminación de los datos temporales.

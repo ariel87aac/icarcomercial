@@ -39,6 +39,19 @@ export class StockReplenishmentRequest extends AuditableEntity {
   @Column({ name: 'enviado_at', type: 'timestamptz', nullable: true })
   sentAt: Date | null;
 
+  @Column({ name: 'devuelto_por', type: 'uuid', nullable: true })
+  returnedById: string | null;
+
+  @ManyToOne(() => User, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'devuelto_por' })
+  returnedBy: User | null;
+
+  @Column({ name: 'devuelto_at', type: 'timestamptz', nullable: true })
+  returnedAt: Date | null;
+
+  @Column({ name: 'motivo_devolucion', type: 'varchar', length: 1000, nullable: true })
+  returnReason: string | null;
+
   @Column({ name: 'consolidacion_produccion_id', type: 'uuid', nullable: true })
   productionConsolidationId: string | null;
 

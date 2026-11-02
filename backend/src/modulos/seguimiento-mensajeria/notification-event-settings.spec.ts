@@ -8,7 +8,12 @@ function service(enabled: boolean) {
   const subject = Object.create(NotificationService.prototype) as NotificationService;
   const query = vi.fn().mockResolvedValue([{ event: NotificationEvent.ORDER_DRAFT, enabled }]);
   const findOne = vi.fn().mockResolvedValue(enabled ? { id: 'template', body: '', allowedVariables: [] } : null);
-  Object.assign(subject, { dataSource: { query }, templates: { findOne }, audit: { record: vi.fn() }, enqueueWithTemplate: vi.fn().mockResolvedValue(null) });
+  Object.assign(subject, {
+    dataSource: { query },
+    templates: { findOne },
+    audit: { record: vi.fn() },
+    enqueueWithTemplate: vi.fn().mockResolvedValue(null),
+  });
   return { subject, query, findOne };
 }
 
@@ -33,15 +38,18 @@ describe('Preferencias de envío por evento', () => {
   it('permite buscar una plantilla activa al habilitar el evento', async () => {
     const { subject, findOne } = service(true);
     await subject.enqueue({} as Order, null, NotificationEvent.DELIVERED, 1, {});
-    expect(findOne).toHaveBeenCalledWith({ where: { event: NotificationEvent.DELIVERED, active: true }, order: { version: 'DESC' } });
+    expect(findOne).toHaveBeenCalledWith({
+      where: { event: NotificationEvent.DELIVERED, active: true },
+      order: { version: 'DESC' },
+    });
   });
 
   it('preserva la compatibilidad de los eventos sin configuración y devuelve todos los eventos', async () => {
     const { subject, query } = service(false);
     const rows = await subject.listEventSettings();
     expect(rows).toHaveLength(Object.values(NotificationEvent).length);
-    expect(rows.find(row => row.event === NotificationEvent.ORDER_DRAFT)?.enabled).toBe(false);
-    expect(rows.find(row => row.event === NotificationEvent.DELIVERED)?.enabled).toBe(true);
+    expect(rows.find((row) => row.event === NotificationEvent.ORDER_DRAFT)?.enabled).toBe(false);
+    expect(rows.find((row) => row.event === NotificationEvent.DELIVERED)?.enabled).toBe(true);
     query.mockResolvedValue([]);
     const { findOne } = service(true);
     Object.assign(subject, { templates: { findOne } });
@@ -51,19 +59,22 @@ describe('Preferencias de envío por evento', () => {
 
   it('incluye el enlace de aprobación al enviar aunque la plantilla recibida sea anterior', () => {
     const { subject } = service(true);
-    const body = (subject as unknown as {
-      renderLifecycleRequirements(
-        body: string,
-        template: { allowedVariables: string[] },
-        event: NotificationEvent,
-        variables: { confirmationUrl: string },
-      ): string;
-    }).renderLifecycleRequirements(
-      'Recibimos tu pedido.',
-      { allowedVariables: [] },
-      NotificationEvent.ORDER_RECEIVED,
-      { confirmationUrl: 'https://icar.test/confirmar-pedido/token' },
-    );
+    const body = (
+      subject as unknown as {
+        renderLifecycleRequirements(body: string, template: { allowedVariables: string[] }, event: NotificationEvent, variables: { confirmationUrl: string }): string;
+      }
+    ).renderLifecycleRequirements('Recibimos tu pedido.', { allowedVariables: [] }, NotificationEvent.ORDER_RECEIVED, { confirmationUrl: 'https://icar.test/confirmar-pedido/token' });
     expect(body).toContain('Aprueba tu pedido aquí: https://icar.test/confirmar-pedido/token');
+  });
+
+  it('distingue cada nueva transición de borrador a recibido', async () => {
+    const { subject } = service(true);
+    const order = {
+      id: 'pedido-1',
+      code: '1',
+      customer: { businessName: 'Cliente' },
+    } as Order;
+    await subject.safeEnqueueOrderLifecycle(order, NotificationEvent.ORDER_RECEIVED, 'user', {}, 'confirmacion-2');
+    expect((subject as unknown as { enqueueWithTemplate: ReturnType<typeof vi.fn> }).enqueueWithTemplate).toHaveBeenCalledWith(order, null, expect.anything(), NotificationEvent.ORDER_RECEIVED, 1, expect.anything(), 'pedido-1:PEDIDO_RECIBIDO:confirmacion-2');
   });
 });

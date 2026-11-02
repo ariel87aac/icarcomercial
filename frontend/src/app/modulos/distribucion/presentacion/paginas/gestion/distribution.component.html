@@ -27,7 +27,7 @@
         <article [class.warning]="selectedPendingMissingWeights().length>0"><span>Peso seleccionado</span><strong>{{ number(selectedPendingWeight()) }} kg</strong><small>{{ selectedPendingMissingWeights().length ? selectedPendingMissingWeights().length+' peso(s) pendiente(s)' : 'Carga calculada' }}</small></article>
         <div class="pending-delivery-actions">
           @if (auth.can('distribution.routes.create')) { <p-button label="Enviar a reparto" icon="pi pi-truck" [disabled]="!selectedPendingPreparations().length || selectedPendingZoneIds().length!==1" (onClick)="openRouteFromPending()" /> }
-          @if (auth.can('distribution.visits.create')) { <p-button label="Entrega en fábrica" icon="pi pi-building" severity="success" [outlined]="true" [disabled]="selectedPendingPreparations().length!==1" (onClick)="openFactoryDelivery()" /> }
+          @if (auth.can('distribution.visits.create')) { <p-button label="Entrega en fábrica" icon="pi pi-building" [disabled]="selectedPendingPreparations().length!==1" (onClick)="openFactoryDelivery()" /> }
         </div>
       </section>
       @if (selectedPendingZoneIds().length>1) { <div class="capacity-alert warning"><i class="pi pi-exclamation-triangle"></i><div><strong>Seleccione pedidos de una sola zona</strong><span>Cada ruta pertenece a una zona. Quite los pedidos de otras zonas para continuar.</span></div></div> }

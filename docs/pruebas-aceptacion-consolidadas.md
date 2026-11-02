@@ -336,6 +336,17 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CP-121N | Revisar el detalle de una solicitud de abastecimiento. | La primera columna muestra el ID numérico del producto y el resto de columnas utiliza anchos compactos. | Manual |
 | CP-121O | Confirmar un pedido de 200 unidades con 170 físicas. | Reservado global queda en 200, Disponible en −30 y Almacén muestra una alerta para crear la solicitud de abastecimiento. | Automatizada y visual |
 | CP-121R | Activar **Solo negativos** dentro de una solicitud. | La tabla conserva exclusivamente productos con Disponible menor que cero; **Ver todos** restaura las filas sin perder cantidades u observaciones. | Manual |
+| CP-121S | Devolver desde Producción una solicitud enviada, indicando un motivo. | Vuelve a Borrador, Almacén muestra motivo, usuario y fecha, permite corregir y reenviar; si ya está programada la operación se bloquea. | Automatizada y visual |
+| CP-121T | Presionar **Ver detalle** en una solicitud pendiente de Producción. | Se abre una consulta de solo lectura con productos, saldos, cantidades solicitadas, total requerido y observaciones, sin generar la orden. | Visual |
+| CP-121U | Ingresar y retirar una cantidad en **Para stock** dentro de un Borrador. | La fila agregada se distingue con fondo azul, franja lateral y etiqueta con check; al dejarla en cero recupera su apariencia normal. | Visual |
+| CP-121V | Ingresar a Órdenes de Producción con permiso de creación. | No aparece el botón general **Generar orden de producción**; la creación permanece disponible únicamente desde **Solicitudes pendientes → Aceptar solicitud**. | Visual |
+| CP-121W | Consultar el Kardex de un producto con historial anterior al rango. | El saldo inicial toma el último saldo anterior y cada movimiento conserva su saldo acumulado. | Mixta |
+| CP-121X | Consultar un rango con ingresos y salidas. | Los registros están ordenados cronológicamente y la conciliación saldo inicial más ingresos menos salidas coincide con el saldo final. | Automatizada |
+| CP-121Y | Revisar movimientos originados por Pedidos, Distribución y Producción. | Documento identifica Pedido, Ruta u Orden de Producción cuando existe; un ajuste se identifica como manual. | Mixta |
+| CP-121Z | Consultar un rango sin movimientos con saldo anterior. | La tabla queda vacía y el saldo inicial se conserva como saldo final. | Mixta |
+| CP-121AA | Consultar sin producto o con Desde posterior a Hasta. | La interfaz explica el filtro inválido y la API rechaza el rango incorrecto. | Mixta |
+| CP-121AB | Descargar el Kardex como PDF. | Se genera en carta vertical con plantilla ICAR, producto, rango, totalizadores, detalle y paginación. | Mixta |
+| CP-121AC | Descargar el Kardex como Excel. | La hoja `Kardex` conserva fechas reales, cantidades numéricas, contexto y configuración de impresión horizontal. | Mixta |
 
 ### 12.4 Planificación neta de Producción
 
@@ -420,7 +431,7 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CP-159 | Rechazar el pedido con motivo. | No se genera venta y toda la carga queda como devolución. | Automatizada; presentación visual manual |
 | CP-160 | Confirmar otra entrega de un cliente Contado con saldo. | La transacción se rechaza sin dejar visita ni venta parcial. | Automatizada |
 | CP-162 | Finalizar una ruta con productos no entregados. | Se crea una orden de retorno pendiente sin modificar existencias. | Automatizada |
-| CP-163 | Abrir Recepciones de Almacén. | Retornos de Distribución y entregas de Producción aparecen como grupos separados. | Manual |
+| CP-163 | Abrir Recepciones de Almacén. | Entregas de Producción aparece como primera tabla y Retornos de recorrido debajo, conservando ambos grupos separados. | Manual |
 | CP-164 | Aceptar una orden de retorno. | Se registra `ENTRADA_DEVOLUCION`, la orden queda Recibida y la ruta Liquidada. | Automatizada |
 | CP-167 | Elegir Entrega en fábrica para un pedido preparado. | Se completa sin ruta ni vehículo y genera nota de venta por la entrega efectiva. | Automatizada; presentación visual manual |
 | CP-168 | Registrar una entrega parcial en fábrica. | Sólo se descuenta y factura lo retirado; la diferencia permanece en Almacén. | Automatizada |
@@ -435,6 +446,15 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CP-175 | Registrar un abono por monto. | Se aplica desde la nota pendiente más antigua y permite una aplicación parcial en la última nota cubierta. | Automatizada |
 | PA-COB-01 | Seleccionar dos o más notas de un cliente. | El total se calcula con las notas seleccionadas y el cobro se registra con todas sus aplicaciones. | Manual |
 | PA-COB-02 | Cambiar entre **Abono por monto** y **Seleccionar notas**. | Se limpian selecciones incompatibles y no se puede registrar un importe cero, superior a la deuda o sin referencia cuando el medio la exige. | Manual |
+
+### 12.11 Reportes de Producción
+
+| Caso | Acción manual | Resultado esperado | Tipo |
+| --- | --- | --- | --- |
+| REP-PROD-01 | Abrir **Producción > Reportes**. | Se muestra la producción diaria con filtro de fecha y áreas, indicadores y agrupación por área. | Manual |
+| REP-PROD-02 | Descargar el PDF. | El reporte sale en hoja carta horizontal, con logotipo, colores ICAR, contexto, tabla y páginas numeradas. | Automatizada; presentación visual manual |
+| REP-PROD-03 | Descargar el Excel. | La información coincide con la pantalla y conserva las cantidades como valores numéricos. | Automatizada; presentación visual manual |
+| REP-PROD-04 | Ingresar con un usuario de Producción limitado por área. | Sólo consulta y exporta las áreas que tiene asignadas. | Mixta |
 
 ## 13. Evidencia y trazabilidad
 
@@ -457,6 +477,7 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | Usuarios y líneas productivas | `docs/pruebas-aceptacion-usuarios.md` |
 | Clientes | `docs/pruebas-aceptacion-clientes.md` |
 | Entrega, retorno, venta y cobranza | `docs/pruebas-aceptacion-entrega-ventas-retornos.md` |
+| Reportes de Producción | `docs/pruebas-aceptacion-reportes-produccion.md` |
 
 ## 14. Procedimiento de repetición
 

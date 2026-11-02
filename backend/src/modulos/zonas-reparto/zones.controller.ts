@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post } from '@nestjs/common';
 import { CurrentUser } from '../../compartido/decoradores/current-user.decorator';
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
@@ -34,6 +34,15 @@ export class ZonesController {
     @CurrentUser() actor: AuthenticatedUser,
   ) {
     return this.zonesService.update(id, dto, actor);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('zones.delete')
+  remove(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.zonesService.remove(id, actor);
   }
 
   @Post([':id/distribution-days', ':id/dias-distribucion'])
