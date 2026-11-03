@@ -1,6 +1,6 @@
 import { workflowLabel } from '../../../../pedidos/dominio/order-workflow';
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, computed, inject, input, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -23,15 +23,15 @@ type View = 'requests' | 'links' | 'settings' | 'templates' | 'channel' | 'histo
   standalone: true,
   imports: [FormsModule, ButtonModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, MultiSelectModule, SelectModule, TableModule, TagModule, TextareaModule],
   template: `
-    <div class="page-toolbar"><div><span class="eyebrow">Quinta iteración</span><h2>Seguimiento y mensajería</h2><p>Enlaces protegidos, estimaciones referenciales y notificaciones WhatsApp mediante LimiteAPI.</p></div></div>
+    <div class="page-toolbar"><div><span class="eyebrow">{{ mode()==='full' ? 'Quinta iteración' : 'Configuraciones' }}</span><h2>{{ mode()==='templates' ? 'Plantillas de mensajes' : mode()==='channel' ? 'Canal' : 'Seguimiento y mensajería' }}</h2><p>{{ mode()==='templates' ? 'Configura el contenido de las notificaciones por estado o evento.' : mode()==='channel' ? 'Administra la conexión y las pruebas del proveedor WhatsApp.' : 'Enlaces protegidos, estimaciones referenciales y notificaciones WhatsApp mediante LimiteAPI.' }}</p></div></div>
+    @if (mode()==='full') {
     <nav class="view-tabs">
       @if (auth.can('tracking.links.read')) { <button [class.active]="view()==='links'" (click)="selectView('links')"><i class="pi pi-link"></i> Enlaces</button> }
       @if (auth.can('tracking.settings.read')) { <button [class.active]="view()==='settings'" (click)="selectView('settings')"><i class="pi pi-clock"></i> Estimación</button> }
       @if (auth.can('tracking.links.read')) { <button [class.active]="view()==='requests'" (click)="selectView('requests')"><i class="pi pi-comments"></i> Solicitudes de cambio</button> }
-      @if (auth.can('notifications.templates.read')) { <button [class.active]="view()==='templates'" (click)="selectView('templates')"><i class="pi pi-file-edit"></i> Plantillas</button> }
-      @if (auth.can('notifications.channel.read')) { <button [class.active]="view()==='channel'" (click)="selectView('channel')"><i class="pi pi-whatsapp"></i> Canal</button> }
       @if (auth.can('notifications.read')) { <button [class.active]="view()==='history'" (click)="selectView('history')"><i class="pi pi-history"></i> Historial</button><button [class.active]="view()==='supervision'" (click)="selectView('supervision')"><i class="pi pi-chart-bar"></i> Supervisión</button> }
     </nav>
+    }
 
     @if (view()==='links') {
       <section class="panel"><div class="section-heading"><div><span>Gestión de acceso</span><h3>Enlace público por pedido</h3></div><small>El token se muestra una sola vez y la base de datos conserva únicamente su hash.</small></div>
@@ -98,6 +98,7 @@ type View = 'requests' | 'links' | 'settings' | 'templates' | 'channel' | 'histo
 })
 export class MessagingComponent implements OnInit {
   private readonly http=inject(HttpClient);private readonly messages=inject(MessageService);protected readonly auth=inject(AuthService);
+  readonly mode=input<'full'|'templates'|'channel'>('full');
   protected readonly view=signal<View>('links');protected readonly loading=signal(false);protected readonly saving=signal(false);protected readonly orders=signal<Order[]>([]);protected readonly zones=signal<Zone[]>([]);protected readonly tracking=signal<OrderTrackingResponse|null>(null);protected readonly settings=signal<EstimationSetting[]>([]);protected readonly templates=signal<NotificationTemplate[]>([]);protected readonly notifications=signal<NotificationRecord[]>([]);protected readonly selectedNotification=signal<NotificationRecord|null>(null);protected readonly detailDialog=signal(false);
   protected readonly selectedOrderId=signal<string|null>(null);protected readonly expiresAt=signal(this.localDateTime(new Date(Date.now()+7*86400000)));protected readonly generatedUrl=signal('');protected readonly settingZoneId=signal<string|null>(null);protected readonly averageMinutes=signal(15);protected readonly toleranceMinutes=signal(10);protected readonly nextThreshold=signal(1);
   protected readonly changeRequests=signal<Array<{id:string;orderCode:string;customerName:string;message:string;status:string;response:string|null;createdAt:string}>>([]);
@@ -110,7 +111,7 @@ export class MessagingComponent implements OnInit {
   protected readonly confirmedOrders=computed(()=>this.orders().map(x=>({id:x.id,label:`${x.code} · ${x.customer.businessName}`})));protected readonly zoneOptions=computed(()=>[{label:'Configuración global',value:null},...this.zones().filter(x=>x.status==='ACTIVO').map(x=>({label:x.name,value:x.id}))]);protected readonly queueCount=computed(()=>this.notifications().filter(x=>['PENDIENTE','PROCESANDO','REINTENTO'].includes(x.status)).length);protected readonly successCount=computed(()=>this.notifications().filter(x=>['ENVIADO','ENTREGADO'].includes(x.status)).length);protected readonly failureCount=computed(()=>this.notifications().filter(x=>x.status==='FALLIDO').length);
   protected readonly validTest=computed(()=>/^\d{8,15}$/.test(this.testNumber().trim())&&this.testBody().trim().length>0&&this.testBody().trim().length<=4000);
   protected readonly eventOptions=[{label:'En preparación',value:'EN_PREPARACION'},{label:'Disponible para preparar',value:'DISPONIBLE_PARA_PREPARAR'},{label:'Preparado',value:'PREPARADO'},{label:'Asignado',value:'ASIGNADO'},{label:'Entrega parcial',value:'ENTREGA_PARCIAL'},{label:'Pedido en borrador',value:'PEDIDO_BORRADOR'},{label:'Pedido recibido',value:'PEDIDO_RECIBIDO'},{label:'Pedido confirmado',value:'PEDIDO_CONFIRMADO'},{label:'Pedido cancelado',value:'PEDIDO_CANCELADO'},{label:'Cambio relevante',value:'CAMBIO_RELEVANTE'},{label:'En reparto / está en camino',value:'SALIDA_RUTA'},{label:'Próxima entrega',value:'PROXIMA_ENTREGA'},{label:'Entregado',value:'ENTREGADO'},{label:'Entrega no completada',value:'ENTREGA_NO_COMPLETADA'},{label:'Pago recibido',value:'PAGO_RECIBIDO'}];protected readonly statusOptions=['PENDIENTE','PROCESANDO','ENVIADO','ENTREGADO','REINTENTO','FALLIDO'].map(value=>({label:value,value}));protected readonly variableOptions=['trackingUrl','orderReference','publicStatus','pendingStops','estimatedFrom','estimatedUntil','customerName','confirmationUrl','productList','orderTotal','deliveryDate','cancellationReason'].map(value=>({label:value,value}));
-  ngOnInit():void{this.loadBase();}
+  ngOnInit():void{if(this.mode()==='templates'){this.view.set('templates');this.loadTemplates();this.loadEventSettings();return;}if(this.mode()==='channel'){this.view.set('channel');this.loadChannel();return;}this.loadBase();}
   protected selectView(value:View):void{if(value==='requests')this.loadChangeRequests();this.view.set(value);if(value==='settings')this.loadSettings();if(value==='templates'){this.loadTemplates();this.loadEventSettings();}if(value==='channel')this.loadChannel();if(value==='history'||value==='supervision')this.loadNotifications();}
   private loadBase():void{if(this.auth.can('tracking.links.read'))this.http.get<Paginated<Order>>('/api/orders',{params:new HttpParams().set('limit',100)}).subscribe({next:r=>this.orders.set(r.data),error:e=>this.fail(e)});if(this.auth.can('tracking.settings.read'))this.http.get<Zone[]>('/api/zones').subscribe({next:r=>this.zones.set(r),error:e=>this.fail(e)});if(!this.auth.can('tracking.links.read')){if(this.auth.can('tracking.settings.read'))this.view.set('settings');else if(this.auth.can('notifications.read'))this.view.set('history');}}
   protected chooseOrder(id:string|null):void{this.selectedOrderId.set(id);this.generatedUrl.set('');this.tracking.set(null);if(id)this.http.get<OrderTrackingResponse>(`/api/orders/${id}/tracking-link`).subscribe({next:r=>this.tracking.set(r),error:e=>this.fail(e)});}

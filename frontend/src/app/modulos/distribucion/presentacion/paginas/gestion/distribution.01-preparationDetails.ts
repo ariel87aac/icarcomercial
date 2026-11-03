@@ -37,6 +37,7 @@ export abstract class DistributionParte01 extends DistributionParte02 {
     }
 
   protected override selectInitialView(): void {
+      if (this.standaloneView()) { this.view.set(this.standaloneView()!); return; }
       if (this.mode() === 'warehouse') { this.view.set('preparations'); return; }
       if (this.auth.can('distribution.routes.read')) this.view.set('pending');
       else if (this.auth.can('vehicles.read')) this.view.set('vehicles');

@@ -36,6 +36,8 @@ protected readonly http = inject(HttpClient);
 
   readonly mode = input<'warehouse'|'distribution'>('distribution');
 
+  readonly standaloneView = input<DistributionView | null>(null);
+
   protected map: L.Map | null = null;
 
   protected searchTimer?: ReturnType<typeof setTimeout>;

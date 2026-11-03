@@ -14,7 +14,10 @@ type Section =
   | 'users'
   | 'roles'
   | 'zones'
-  | 'audit';
+  | 'audit'
+  | 'vehicles'
+  | 'message-templates'
+  | 'message-channel';
 
 type OperationalStageKey = 'orders' | 'production' | 'preparation' | 'distribution';
 

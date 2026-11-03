@@ -1,3 +1,4 @@
+import { signal, Directive } from '@angular/core';
 import { Validators } from '@angular/forms';
 import { AplicacionBase } from './aplicacion.base';
 
@@ -15,7 +16,10 @@ type Section =
   | 'users'
   | 'roles'
   | 'zones'
-  | 'audit';
+  | 'audit'
+  | 'vehicles'
+  | 'message-templates'
+  | 'message-channel';
 
 interface NavigationItem {
   id: Section;
@@ -23,8 +27,6 @@ interface NavigationItem {
   icon: string;
   permission?: string;
 }
-
-import { Directive } from '@angular/core';
 
 @Directive()
 export abstract class AplicacionEstado02 extends AplicacionBase {
@@ -58,12 +60,26 @@ export abstract class AplicacionEstado02 extends AplicacionBase {
           icon: 'pi pi-credit-card',
           permission: 'commercial.sales.read',
         },
-        { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
         { id: 'zones', label: 'Zonas y reparto', icon: 'pi pi-map', permission: 'zones.read' },
-        { id: 'users', label: 'Usuarios', icon: 'pi pi-user-edit', permission: 'users.read' },
-        { id: 'roles', label: 'Roles y permisos', icon: 'pi pi-shield', permission: 'roles.read' },
-        { id: 'audit', label: 'Auditoría', icon: 'pi pi-history', permission: 'audit.read' },
       ];
+
+  protected readonly configurationNavigation: NavigationItem[] = [
+    { id: 'customers', label: 'Clientes', icon: 'pi pi-users', permission: 'customers.read' },
+    { id: 'users', label: 'Usuarios', icon: 'pi pi-user-edit', permission: 'users.read' },
+    { id: 'roles', label: 'Roles y permisos', icon: 'pi pi-shield', permission: 'roles.read' },
+    { id: 'audit', label: 'Auditoría', icon: 'pi pi-history', permission: 'audit.read' },
+    { id: 'vehicles', label: 'Vehículos', icon: 'pi pi-truck', permission: 'vehicles.read' },
+    { id: 'message-templates', label: 'Plantillas de mensajes', icon: 'pi pi-file-edit', permission: 'notifications.templates.read' },
+    { id: 'message-channel', label: 'Canal', icon: 'pi pi-whatsapp', permission: 'notifications.channel.read' },
+  ];
+
+  protected readonly configurationOpen = signal(false);
+
+  protected hasConfigurationAccess(): boolean { return this.configurationNavigation.some((item) => this.can(item.permission)); }
+
+  protected isConfigurationSection(section: Section = this.activeSection()): boolean { return this.configurationNavigation.some((item) => item.id === section); }
+
+  protected toggleConfiguration(): void { this.configurationOpen.update((open) => !open); }
 
   protected readonly statusOptions = [
         { label: 'Activo', value: 'ACTIVO' },

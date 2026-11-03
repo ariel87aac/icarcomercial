@@ -1,16 +1,17 @@
 @if (mode()==='distribution') {
       <header class="page-toolbar">
-        <div><span class="eyebrow">Operación de reparto</span><h2>Distribución</h2><p>Vehículos, pesos de carga, rutas, visitas y liquidación operativa.</p></div>
+        <div><span class="eyebrow">{{ standaloneView()==='vehicles' ? 'Configuraciones' : 'Operación de reparto' }}</span><h2>{{ standaloneView()==='vehicles' ? 'Vehículos' : 'Distribución' }}</h2><p>{{ standaloneView()==='vehicles' ? 'Administra los vehículos y su capacidad de carga.' : 'Pesos de carga, rutas, visitas y liquidación operativa.' }}</p></div>
         <p-button icon="pi pi-refresh" label="Actualizar" [outlined]="true" (onClick)="reload()" />
       </header>
+      @if (!standaloneView()) {
       <nav class="view-tabs" aria-label="Vistas de distribución">
         @if (auth.can('distribution.routes.read')) { <button type="button" [class.active]="view()==='pending'" (click)="setView('pending')"><i class="pi pi-inbox"></i> Pedidos pendientes @if (pendingMeta().total) { <span class="tab-count">{{ pendingMeta().total }}</span> }</button> }
-        @if (auth.can('vehicles.read')) { <button type="button" [class.active]="view()==='vehicles'" (click)="setView('vehicles')"><i class="pi pi-truck"></i> Vehículos</button> }
         @if (auth.can('distribution.weights.read')) { <button type="button" [class.active]="view()==='weights'" (click)="setView('weights')"><i class="pi pi-gauge"></i> Pesos de carga</button> }
         @if (auth.can('distribution.routes.read')) { <button type="button" [class.active]="view()==='routes'" (click)="setView('routes')"><i class="pi pi-map"></i> Rutas</button> }
         @if (auth.can('distribution.routes.assigned.read')) { <button type="button" [class.active]="view()==='assigned'" (click)="setView('assigned')"><i class="pi pi-directions"></i> {{ controlsAllDeliveries() ? 'Repartos activos' : 'Mi reparto' }}</button> }
         @if (auth.can('distribution.summary.read')) { <button type="button" [class.active]="view()==='summary'" (click)="setView('summary')"><i class="pi pi-chart-bar"></i> Resumen</button> }
       </nav>
+      }
     } @else {
       <div class="embedded-toolbar"><div><span class="eyebrow">Almacén → Distribución</span><h3>Preparación de pedidos</h3><p>Separa existencias recibidas, identifica faltantes y entrega pedidos preparados a Distribución.</p></div><p-button icon="pi pi-refresh" label="Actualizar" [outlined]="true" (onClick)="reload()" /></div>
     }

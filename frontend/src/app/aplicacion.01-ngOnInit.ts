@@ -16,7 +16,10 @@ type Section =
   | 'users'
   | 'roles'
   | 'zones'
-  | 'audit';
+  | 'audit'
+  | 'vehicles'
+  | 'message-templates'
+  | 'message-channel';
 
 type OperationalStageKey = 'orders' | 'production' | 'preparation' | 'distribution';
 
@@ -110,6 +113,7 @@ export abstract class AplicacionParte01 extends AplicacionParte02 {
   protected override selectSection(section: Section): void {
       this.activeSection.set(section);
       this.sidebarOpen.set(false);
+      this.configurationOpen.set(this.isConfigurationSection(section));
       if (section === 'dashboard') this.loadOperationalSummary();
       if (section === 'customers') this.loadCustomers(1);
       if (section === 'users') { this.loadUsers(1); this.loadUserProductionAreas(); }
@@ -119,7 +123,7 @@ export abstract class AplicacionParte01 extends AplicacionParte02 {
     }
 
   protected override sectionTitle(): string {
-      return this.navigation.find((item) => item.id === this.activeSection())?.label ?? 'Sistema comercial';
+      return [...this.navigation, ...this.configurationNavigation].find((item) => item.id === this.activeSection())?.label ?? 'Sistema comercial';
     }
 
   protected override readPublicTrackingToken(): string | null {
