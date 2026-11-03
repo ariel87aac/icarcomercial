@@ -9,8 +9,8 @@ Validar el flujo de Pedidos: cabecera operativa, correlativo numérico, borrador
 - La cabecera de **Pedidos** contiene cuatro botones-totalizadores para `BORRADOR`, `RECIBIDO`, `CONFIRMADO` y `CANCELADO`, además de los tres recuadros de total, búsqueda y flujo `Pedido → Producción → Preparación → Distribución`.
 - Cada botón muestra el total real del estado dentro del alcance del usuario y funciona como filtro inmediato. Al presionar nuevamente el botón activo se restablecen todos los estados.
 - La vista inicial **En proceso** excluye los pedidos operativamente `ENTREGADO` y comercialmente `CANCELADO`. El filtro **Todos los pedidos** permite consultar también esos registros finalizados sin alterar el paginador ni el orden descendente.
-- La tabla presenta primero **Flujo del pedido** y deja **Gestión** como última columna. Gestión mantiene visibles Revisar, Historial, Editar y Eliminar en una matriz 2×2; las acciones no aplicables permanecen deshabilitadas. Flujo del pedido muestra únicamente las transiciones disponibles para el estado actual.
-- Dentro de **Flujo del pedido**, **Cancelar** y **Seguir** permanecen agrupados y alineados al extremo derecho de la columna.
+- La tabla presenta primero **Flujo del pedido** y deja **Gestión** como última columna. Gestión mantiene visibles Ver, Seguimiento, Editar y Eliminar en una matriz 2×2; las acciones no aplicables permanecen deshabilitadas. Flujo del pedido muestra únicamente las transiciones disponibles para el estado actual.
+- Los accesos anteriores **Historial** y **Seguir** se unifican como **Seguimiento** en Gestión. El botón **Cancelar** permanece al extremo derecho de Flujo del pedido cuando corresponde.
 - **Eliminar** es una eliminación lógica reservada a administradores y sólo se habilita después de cancelar el pedido. El registro deja de participar en listados y contadores, pero conserva historial, auditoría, notificaciones y relaciones.
 - `pedidos.codigo` conserva el tipo de texto por compatibilidad, pero tiene una restricción que sólo admite dígitos. El valor se obtiene de `pedidos_codigo_seq` sin prefijo, fecha ni relleno.
 - Crear o modificar un borrador no genera token, WhatsApp ni alerta al cliente.
@@ -40,8 +40,8 @@ Validar el flujo de Pedidos: cabecera operativa, correlativo numérico, borrador
 | PED-WA-14 | El filtro `RECIBIDO` está activo | Presionar nuevamente **Recibido** | Se quita el filtro y la tabla vuelve a mostrar todos los estados | Aprobado técnica y visualmente |
 | PED-WA-15 | Usuario de tipo cliente | Consultar los totalizadores | Los contadores incluyen únicamente los pedidos pertenecientes a ese cliente | Implementado en la API con el mismo alcance de seguridad del listado |
 | PED-WA-16 | Abrir Pedidos en cualquier estado | Revisar las últimas columnas | Se muestra primero **Flujo del pedido** y **Gestión** queda como última columna | Aprobado técnica y visualmente |
-| PED-WA-17 | Pedido en cualquier estado | Revisar la columna Gestión | Revisar, Historial, Editar y Eliminar permanecen visibles en disposición 2×2; Editar o Eliminar se deshabilitan cuando no corresponden | Aprobado técnica y visualmente |
-| PED-WA-18 | Pedido Borrador, Recibido, Confirmado o Cancelado | Revisar Flujo del pedido | Se muestran sólo Enviar, Devolver, Confirmar, Cancelar, Resolver cierre o Seguimiento según estado, permiso y plazo | Aprobado técnica y visualmente |
+| PED-WA-17 | Pedido en cualquier estado | Revisar la columna Gestión | Ver, Seguimiento, Editar y Eliminar permanecen en disposición 2×2; Editar o Eliminar se deshabilitan cuando no corresponden | Aprobado técnica y visualmente |
+| PED-WA-18 | Pedido Borrador, Recibido, Confirmado o Cancelado | Revisar Flujo del pedido | Se muestran sólo Enviar, Devolver, Confirmar, Cancelar o Resolver cierre según estado, permiso y plazo; Seguimiento no se duplica en esta columna | Aprobado técnica y visualmente |
 | PED-WA-19 | Pedido no cancelado | Intentar eliminar | La interfaz exige cancelarlo primero y la API rechaza la eliminación directa | Implementado |
 | PED-WA-20 | Pedido cancelado y usuario con `orders.delete` | Registrar motivo y eliminar | Desaparece del listado y de los contadores; el registro y su trazabilidad permanecen en la base como eliminación lógica | Implementado |
 | PED-WA-21 | Pedido con una o varias transiciones disponibles | Revisar **Flujo del pedido** | Los botones comienzan en el borde derecho y se distribuyen hacia la izquierda | Aprobado visualmente |
@@ -51,9 +51,10 @@ Validar el flujo de Pedidos: cabecera operativa, correlativo numérico, borrador
 | PED-WA-25 | Abrir el listado de Pedidos | Revisar columnas y contenido | Se muestra en orden: Cód. pedido, Nombre de cliente, Fecha de pedido, Fecha de entrega, Detalle, Total, Estado, Flujo del pedido y Gestión; la primera columna contiene únicamente el número | Implementado |
 | PED-WA-26 | Ingresar al listado de Pedidos sin cambiar filtros | Revisar el resultado inicial | Se muestran únicamente pedidos en proceso; los entregados y cancelados quedan ocultos | Implementado y cubierto por compilación |
 | PED-WA-27 | Cambiar la vista a **Todos los pedidos** | Revisar pedidos finalizados | La tabla incluye pedidos entregados y cancelados, conservando búsqueda, paginación y orden | Implementado y cubierto por compilación |
-| PED-WA-28 | Revisar **Flujo del pedido** | Inspeccionar la posición de acciones | **Seguir** y **Cancelar** aparecen apilados al extremo derecho; **Seguir** queda arriba y **Cancelar** abajo | Implementado |
-| PED-WA-29 | Consultar un pedido entregado desde **Todos los pedidos** | Revisar las acciones del flujo | Se mantiene **Seguir**, pero no se ofrece cancelar un pedido cuya entrega ya finalizó | Implementado |
+| PED-WA-28 | Revisar **Flujo del pedido** | Inspeccionar la posición de acciones | No existe el acceso duplicado Seguir; Cancelar aparece al extremo derecho cuando el estado permite la cancelación | Implementado |
+| PED-WA-29 | Consultar un pedido entregado desde **Todos los pedidos** | Revisar las acciones | Se mantiene **Seguimiento** en Gestión, pero no se ofrece cancelar un pedido cuya entrega ya finalizó | Implementado |
 | PED-WA-30 | Abrir Pedidos en una pantalla reducida | Revisar fechas, botones y desplazamiento | Las fechas usan formato corto, las acciones tienen etiquetas abreviadas y tamaño compacto, y la tabla conserva acceso a todas las columnas mediante desplazamiento horizontal | Implementado |
+| PED-WA-31 | Pedido con historial operativo | Abrir **Seguimiento** | El estado actual y cada evento del historial muestran al lado el módulo responsable: Pedidos, Almacén, Producción o Distribución | Implementado y compilado |
 
 ## Evidencia técnica ejecutada
 

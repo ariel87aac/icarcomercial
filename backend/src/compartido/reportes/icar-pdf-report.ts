@@ -112,8 +112,11 @@ export function createIcarPdfReport(options: IcarReportOptions): Promise<Buffer>
     const tableWidth = options.columns.reduce((sum, column) => sum + column.width, 0);
     doc.fillColor(COLORS.muted).font('Helvetica').fontSize(9).text(options.emptyMessage ?? 'No existen entregas de Producción para los filtros seleccionados.', MARGIN, y + 22, { width: tableWidth, align: 'center' });
   }
-  for (const group of options.groups) {
-    if (y + 44 > contentBottom(doc)) {
+  for (const [groupIndex, group] of options.groups.entries()) {
+    if (options.pageBreakBetweenGroups && groupIndex > 0) {
+      doc.addPage();
+      y = drawTableHeader(doc, options.columns, drawHeader(doc, options, true));
+    } else if (y + 44 > contentBottom(doc)) {
       doc.addPage();
       y = drawTableHeader(doc, options.columns, drawHeader(doc, options, true));
     }

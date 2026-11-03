@@ -12,21 +12,21 @@ La iteración incorpora áreas configurables de Producción, ejecución por prod
 
 ## Historias y ajustes cubiertos
 
-| Historia o ajuste | Evidencia funcional |
-| --- | --- |
-| HU-17 | Generación de órdenes desde pedidos Confirmados por fecha de entrega. |
-| HU-18 | Consolidación por producto y presentación, conservando factor y unidad base en las fuentes. |
-| HU-19 | Trazabilidad hasta los detalles de pedido de origen. |
-| HU-20 | Recálculo de Borrador y emisión de versión inmutable. |
-| HU-21 | Versiones complementarias para confirmaciones posteriores. |
-| HU-22 | Ejecución y entregas parciales por producto. |
-| HU-23 | Cierre con cantidad real, diferencia, responsable e incidencia. |
-| PA-03-01 | Requerimiento neto según reservas de Almacén. |
-| PA-03-02 | La **Solicitud para stock** de Comercial queda separada del **Ajuste por batch/capacidad** de Producción. |
-| PA-03-03 | Una misma orden admite demanda de pedidos, solicitud para stock o ambas; no se agregan productos manualmente desde Producción. |
-| PA-03-04 | Áreas de Producción configurables mediante asignación de una o varias categorías existentes. |
-| PA-03-05 | Pantalla **Producción en planta**, etapas por producto y entrega real. |
-| PA-03-06 | Doble validación: Producción entrega y Almacén acepta antes de aumentar la existencia. |
+| Historia o ajuste | Evidencia funcional                                                                                                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| HU-17             | Generación de órdenes desde pedidos Confirmados por fecha de entrega.                                                          |
+| HU-18             | Consolidación por producto y presentación, conservando factor y unidad base en las fuentes.                                    |
+| HU-19             | Trazabilidad hasta los detalles de pedido de origen.                                                                           |
+| HU-20             | Recálculo de Borrador y emisión de versión inmutable.                                                                          |
+| HU-21             | Versiones complementarias para confirmaciones posteriores.                                                                     |
+| HU-22             | Ejecución y entregas parciales por producto.                                                                                   |
+| HU-23             | Cierre con cantidad real, diferencia, responsable e incidencia.                                                                |
+| PA-03-01          | Requerimiento neto según reservas de Almacén.                                                                                  |
+| PA-03-02          | La **Solicitud para stock** de Comercial queda separada del **Ajuste por batch/capacidad** de Producción.                      |
+| PA-03-03          | Una misma orden admite demanda de pedidos, solicitud para stock o ambas; no se agregan productos manualmente desde Producción. |
+| PA-03-04          | Áreas de Producción configurables mediante asignación de una o varias categorías existentes.                                   |
+| PA-03-05          | Pantalla **Producción en planta**, etapas por producto y entrega real.                                                         |
+| PA-03-06          | Doble validación: Producción entrega y Almacén acepta antes de aumentar la existencia.                                         |
 
 ## Cálculo del plan
 
@@ -83,7 +83,7 @@ Una orden se cierra automáticamente como `CERRADA` sólo cuando todos sus produ
 
 Cada producto conserva `fecha_programada` y `secuencia` dentro de su área. La planificación puede colocar productos de la misma solicitud en fechas diferentes y establecer qué se procesa primero. Estas fechas son informativas: el sistema permite iniciar antes o después y registra `iniciado_at` y `concluido_at` para comparar lo programado con lo realmente ejecutado, sin bloquear la operación.
 
-Cada orden dispone además de un `codigo` numérico autoincremental. La vista **Planificación** se ordena por este código de mayor a menor y muestra solamente código, fecha de orden, fecha de entrega, estado y acciones. En esta vista sólo permanece el filtro múltiple de estados, que comienza con `EMITIDA` y `EN_PROCESO`; la pestaña conserva un contador independiente de órdenes pendientes. La consulta se pagina en el servidor con 30 registros por página de forma predeterminada y permite seleccionar 30, 60 o 90.
+Cada orden dispone además de un `codigo` numérico autoincremental. La vista **Planificación** se ordena por este código de mayor a menor y muestra solamente código, fecha de orden, fecha de entrega, estado y acciones. En esta vista sólo permanece el filtro múltiple de estados, que comienza con `BORRADOR`, `EMITIDA` y `EN_PROCESO`; la pestaña conserva un contador independiente de órdenes pendientes. La consulta se pagina en el servidor con 30 registros por página de forma predeterminada y permite seleccionar 30, 60 o 90.
 
 ## Áreas de Producción
 
@@ -143,13 +143,13 @@ La relación única entre movimiento y entrega impide contabilizar una recepció
 
 ## Matriz de permisos
 
-| Rol | Planificación | Planta | Recepción | Áreas |
-| --- | --- | --- | --- | --- |
-| `ADMINISTRADOR` | Según permisos asignados | Según permisos asignados | Según permisos asignados | Según permisos asignados |
-| `COMERCIALIZACION` | Solicita stock desde Almacén; genera, recalcula, emite y consulta la orden | Consulta | Sin aceptación | Consulta y configura |
-| `PRODUCCION` | Consulta y ajusta únicamente productos de sus áreas asignadas | Inicia y entrega únicamente productos de sus áreas | Sin aceptación | Consulta sus áreas |
-| `ALMACEN` | Consulta autorizada | Consulta | Consulta y acepta entregas | Consulta |
-| `GERENCIA` | Consulta | Consulta | Consulta si se asigna el permiso | Consulta |
+| Rol                | Planificación                                                              | Planta                                             | Recepción                        | Áreas                    |
+| ------------------ | -------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------- | ------------------------ |
+| `ADMINISTRADOR`    | Según permisos asignados                                                   | Según permisos asignados                           | Según permisos asignados         | Según permisos asignados |
+| `COMERCIALIZACION` | Solicita stock desde Almacén; genera, recalcula, emite y consulta la orden | Consulta                                           | Sin aceptación                   | Consulta y configura     |
+| `PRODUCCION`       | Consulta y ajusta únicamente productos de sus áreas asignadas              | Inicia y entrega únicamente productos de sus áreas | Sin aceptación                   | Consulta sus áreas       |
+| `ALMACEN`          | Consulta autorizada                                                        | Consulta                                           | Consulta y acepta entregas       | Consulta                 |
+| `GERENCIA`         | Consulta                                                                   | Consulta                                           | Consulta si se asigna el permiso | Consulta                 |
 
 Permisos anteriores conservados:
 
@@ -177,39 +177,39 @@ Permisos agregados:
 
 El módulo Producción contiene cinco vistas y Almacén incorpora la recepción:
 
-| Vista | Función |
-| --- | --- |
-| **Solicitudes pendientes** | Recibir solicitudes enviadas desde Almacén y generar su orden de Producción. |
-| **Planificación** | Generar, recalcular y emitir la orden; visualizar la solicitud para stock y registrar sólo el ajuste técnico. |
-| **Producción en planta** | Trabajar por área y categoría; iniciar y entregar cada producto; ver su etapa. |
-| **Áreas** | Configurar la relación entre áreas y categorías existentes. |
-| **Resumen** | Consultar totales por fecha, área, categoría, producto y presentación. |
+| Vista                      | Función                                                                                                       |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| **Solicitudes pendientes** | Recibir solicitudes enviadas desde Almacén y generar su orden de Producción.                                  |
+| **Planificación**          | Generar, recalcular y emitir la orden; visualizar la solicitud para stock y registrar sólo el ajuste técnico. |
+| **Producción en planta**   | Trabajar por área y categoría; iniciar y entregar cada producto; ver su etapa.                                |
+| **Áreas**                  | Configurar la relación entre áreas y categorías existentes.                                                   |
+| **Resumen**                | Consultar totales por fecha, área, categoría, producto y presentación.                                        |
 
 En **Almacén → Recepciones**, el responsable consulta las entregas pendientes, verifica la cantidad, registra diferencias y acepta el ingreso a existencias.
 
 ## Rutas de la API
 
-| Método | Ruta | Función |
-| --- | --- | --- |
-| `GET / POST / PATCH` | `/api/production-areas` | Consulta y configura áreas. |
-| `GET` | `/api/production-areas/categories` | Lista categorías para su asignación. |
-| `GET / POST` | `/api/production-consolidations` | Consulta o genera la orden principal. |
-| `GET` | `/api/production-consolidations/:id` | Consulta detalle, etapa, fuentes y entregas. |
-| `POST` | `/api/production-consolidations/:id/recalculate` | Recalcula un Borrador. |
-| `POST` | `/api/production-consolidations/:id/emit` | Emite y congela la planificación. |
-| `PATCH` | `/api/production-consolidations/:id/details/:detailId/plan` | Modifica el ajuste técnico por batch o capacidad sin alterar la solicitud para stock. |
-| `PATCH` | `/api/production-consolidations/:id/details/:detailId/schedule` | Programa fecha, secuencia y ajuste técnico del producto. |
-| `POST` | `/api/production-consolidations/:id/details/:detailId/start` | Inicia la elaboración de un producto. |
-| `POST` | `/api/production-consolidations/:id/details/:detailId/deliveries` | Registra la cantidad real entregada por Producción. |
-| `POST` | `/api/production-consolidations/:id/details/:detailId/cancel` | Cancela un producto con motivo. |
-| `POST` | `/api/production-consolidations/:id/cancel` | Cancela una orden sin recepciones. |
-| `POST` | `/api/production-consolidations/:id/close-incomplete` | Cierra una orden y su abastecimiento con faltantes documentados. |
-| `GET` | `/api/production-stock-requests` | Lista solicitudes enviadas pendientes de programación. |
-| `GET` | `/api/production-deliveries` | Consulta entregas pendientes o aceptadas. |
-| `POST` | `/api/production-deliveries/:id/receive` | Acepta la entrega e ingresa la presentación a Almacén. |
-| `GET` | `/api/production-consolidations/:id/sources` | Consulta pedidos de origen. |
-| `GET` | `/api/production-consolidations/:id/history` | Consulta historial cronológico. |
-| `GET` | `/api/production-summary` | Consulta resumen operativo. |
+| Método               | Ruta                                                              | Función                                                                               |
+| -------------------- | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET / POST / PATCH` | `/api/production-areas`                                           | Consulta y configura áreas.                                                           |
+| `GET`                | `/api/production-areas/categories`                                | Lista categorías para su asignación.                                                  |
+| `GET / POST`         | `/api/production-consolidations`                                  | Consulta o genera la orden principal.                                                 |
+| `GET`                | `/api/production-consolidations/:id`                              | Consulta detalle, etapa, fuentes y entregas.                                          |
+| `POST`               | `/api/production-consolidations/:id/recalculate`                  | Recalcula un Borrador.                                                                |
+| `POST`               | `/api/production-consolidations/:id/emit`                         | Emite y congela la planificación.                                                     |
+| `PATCH`              | `/api/production-consolidations/:id/details/:detailId/plan`       | Modifica el ajuste técnico por batch o capacidad sin alterar la solicitud para stock. |
+| `PATCH`              | `/api/production-consolidations/:id/details/:detailId/schedule`   | Programa fecha, secuencia y ajuste técnico del producto.                              |
+| `POST`               | `/api/production-consolidations/:id/details/:detailId/start`      | Inicia la elaboración de un producto.                                                 |
+| `POST`               | `/api/production-consolidations/:id/details/:detailId/deliveries` | Registra la cantidad real entregada por Producción.                                   |
+| `POST`               | `/api/production-consolidations/:id/details/:detailId/cancel`     | Cancela un producto con motivo.                                                       |
+| `POST`               | `/api/production-consolidations/:id/cancel`                       | Cancela una orden sin recepciones.                                                    |
+| `POST`               | `/api/production-consolidations/:id/close-incomplete`             | Cierra una orden y su abastecimiento con faltantes documentados.                      |
+| `GET`                | `/api/production-stock-requests`                                  | Lista solicitudes enviadas pendientes de programación.                                |
+| `GET`                | `/api/production-deliveries`                                      | Consulta entregas pendientes o aceptadas.                                             |
+| `POST`               | `/api/production-deliveries/:id/receive`                          | Acepta la entrega e ingresa la presentación a Almacén.                                |
+| `GET`                | `/api/production-consolidations/:id/sources`                      | Consulta pedidos de origen.                                                           |
+| `GET`                | `/api/production-consolidations/:id/history`                      | Consulta historial cronológico.                                                       |
+| `GET`                | `/api/production-summary`                                         | Consulta resumen operativo.                                                           |
 
 ## Persistencia
 
@@ -264,6 +264,14 @@ La migración `1720000031000-add-user-production-area-scope.ts` crea `usuarios_a
 
 La planificación de Producción ahora separa `cantidad_solicitada_stock` del `ajuste_lote`. El plan final se valida como faltante de pedidos más solicitud comercial para stock más ajuste técnico de Producción. La evidencia se encuentra en `docs/pruebas-aceptacion-solicitudes-abastecimiento.md`.
 
+### Impresión de la planificación
+
+Cada fila de la pantalla de Planificación incorpora la acción **Imprimir**. La acción está disponible sin importar el estado de la orden y genera información exclusivamente de la fila seleccionada. Antes de crear el archivo, el sistema solicita elegir entre dos vistas: **Total de productos**, que consolida las cantidades de la orden por producto, presentación y unidad; y **Orden por áreas**, que divide sus productos por área y conserva la fecha y secuencia de trabajo. Ambos formatos usan la plantilla institucional ICAR en papel carta horizontal, respetan el alcance de áreas autorizado y registran la orden y el formato en auditoría. Los casos REP-PROD-09 a REP-PROD-13 se documentan en `docs/pruebas-aceptacion-reportes-produccion.md`.
+
+### Reporte por orden de producción
+
+La interfaz **Producción > Reportes** permite seleccionar una orden y comparar, por producto y área, la cantidad solicitada a planta con la cantidad preparada. Para conservar el significado operativo de la orden, **cantidad solicitada** corresponde a `cantidad_planificada`, que ya incorpora el ajuste técnico por batch o capacidad; la cantidad preparada corresponde a `cantidad_preparada`. La pantalla y las exportaciones PDF/Excel separan los totales por unidad, respetan las áreas asignadas al usuario y registran cada exportación en auditoría. Los casos REP-PROD-15 a REP-PROD-19 se documentan en `docs/pruebas-aceptacion-reportes-produccion.md`.
+
 La regresión histórica de esta iteración se ejecuta con:
 
 ```bash
@@ -290,12 +298,12 @@ docker compose exec -T backend npm run test:acceptance:production-flow
 
 ## Impacto por iteración
 
-| Iteración | Modificación documentada |
-| --- | --- |
-| Primera: seguridad y auditoría | Se agregan permisos específicos y eventos auditados para áreas, ejecución, entrega y recepción. No se modifica autenticación. |
-| Segunda: Productos, Almacén y pedidos | La reserva continúa siendo la fuente del faltante. Almacén recibe producción en la misma presentación mediante `INGRESO_PRODUCCION`. |
-| Tercera: Producción | Se separan **Solicitud para stock** y **Ajuste por batch/capacidad**; se habilitan órdenes sin pedidos cuando existe solicitud comercial, áreas configurables, ejecución por producto, diferencias y doble validación. |
-| Cuarta: preparación y distribución | Preparación usa las existencias ya aceptadas por Almacén y puede reducir la cantidad a entregar ante faltante de producción, conservando la diferencia y su observación. |
+| Iteración                             | Modificación documentada                                                                                                                                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Primera: seguridad y auditoría        | Se agregan permisos específicos y eventos auditados para áreas, ejecución, entrega y recepción. No se modifica autenticación.                                                                                          |
+| Segunda: Productos, Almacén y pedidos | La reserva continúa siendo la fuente del faltante. Almacén recibe producción en la misma presentación mediante `INGRESO_PRODUCCION`.                                                                                   |
+| Tercera: Producción                   | Se separan **Solicitud para stock** y **Ajuste por batch/capacidad**; se habilitan órdenes sin pedidos cuando existe solicitud comercial, áreas configurables, ejecución por producto, diferencias y doble validación. |
+| Cuarta: preparación y distribución    | Preparación usa las existencias ya aceptadas por Almacén y puede reducir la cantidad a entregar ante faltante de producción, conservando la diferencia y su observación.                                               |
 
 ## Integración del flujo unificado — 29 de octubre de 2026
 
@@ -303,4 +311,4 @@ Aceptar una recepción actualiza la cobertura y las etapas de los pedidos por an
 
 ## Seguimiento de órdenes — 29 de octubre de 2026
 
-Se agrega **Producción → Seguimiento** con filtros por código, fecha y estados, avance producido/recibido, pendientes de recepción y detalle cronológico de etapas, entregas y responsables. La consulta se actualiza cada 30 segundos y respeta las áreas autorizadas. Las reglas de cálculo, permisos, optimización y evidencia están documentadas en [Seguimiento de órdenes de producción](./seguimiento-ordenes-produccion.md).
+Se agrega **Producción → Seguimiento** con filtros por código, fecha y estados, avance producido/recibido, pendientes de recepción y detalle cronológico de etapas, entregas y responsables. El filtro inicial prioriza `BORRADOR`, `EMITIDA` y `EN_PROCESO`; los estados finalizados permanecen disponibles para consultas históricas. La consulta se actualiza cada 30 segundos y respeta las áreas autorizadas. Las reglas de cálculo, permisos, optimización y evidencia están documentadas en [Seguimiento de órdenes de producción](./seguimiento-ordenes-produccion.md).

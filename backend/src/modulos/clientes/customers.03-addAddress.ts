@@ -1,33 +1,13 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { hash } from 'bcryptjs';
-import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
-import { paginate, PaginatedResponse } from '../../compartido/dto/pagination-query.dto';
 import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../seguridad/auditoria/audit.service';
-import { Role } from '../seguridad/roles-permisos/entidades/role.entity';
-import { UserSession } from '../seguridad/autenticacion/entidades/user-session.entity';
 import { User } from '../seguridad/usuarios/entidades/user.entity';
 import { UserType } from '../seguridad/usuarios/entidades/user-type.enum';
-import { DistributionDay } from '../zonas-reparto/entidades/distribution-day.entity';
-import { Zone } from '../zonas-reparto/entidades/zone.entity';
-import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
-import {
-  CreateCustomerAccountDto,
-  UpdateCustomerAccountDto,
-} from './dto/customer-account.dto';
-import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
-import { CustomerQueryDto } from './dto/customer-query.dto';
+import { CreateAddressDto } from './dto/address.dto';
+import { CreateCustomerAccountDto } from './dto/customer-account.dto';
 import { CustomerAddress } from './entidades/customer-address.entity';
-import { Customer } from './entidades/customer.entity';
 import { CustomerUser } from './entidades/customer-user.entity';
-import { PaymentCondition } from './entidades/customer.enums';
 import { CustomersServiceParte04 } from './customers.04-updateAccount';
 
 export abstract class CustomersServiceParte03 extends CustomersServiceParte04 {
@@ -40,7 +20,11 @@ export abstract class CustomersServiceParte03 extends CustomersServiceParte04 {
       await this.validateAddress(dto);
       const saved = await this.dataSource.transaction(async (manager) => {
         const repository = manager.getRepository(CustomerAddress);
-        if (dto.isPrimary) {
+        const hasPrimary = await repository.exists({
+          where: { customerId, isPrimary: true, status: RecordStatus.ACTIVE },
+        });
+        const isPrimary = dto.isPrimary || !hasPrimary;
+        if (isPrimary) {
           await repository.update({ customerId, isPrimary: true }, { isPrimary: false });
         }
         return repository.save(
@@ -53,7 +37,7 @@ export abstract class CustomersServiceParte03 extends CustomersServiceParte04 {
             longitude: dto.longitude?.toFixed(6) ?? null,
             zoneId: dto.zoneId ?? null,
             distributionDayId: dto.distributionDayId ?? null,
-            isPrimary: dto.isPrimary,
+            isPrimary,
           }),
         );
       });

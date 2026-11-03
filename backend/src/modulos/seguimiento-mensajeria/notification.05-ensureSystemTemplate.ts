@@ -1,31 +1,15 @@
-import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Brackets, DataSource, Repository } from 'typeorm';
-import { paginate, PaginationQueryDto } from '../../compartido/dto/pagination-query.dto';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { timingSafeEqual } from 'node:crypto';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
 import { sanitizeSecrets } from '../../compartido/utilidades/secret-sanitizer.util';
-import { AuditEvent } from '../seguridad/auditoria/entidades/audit-event.entity';
-import { AuditService } from '../seguridad/auditoria/audit.service';
-import { Order } from '../pedidos/entidades/order.entity';
-import { SaveChannelSettingDto, NotificationQueryDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, WebhookDto } from './dto/tracking.dto';
 import { ChannelSetting } from './entidades/channel-setting.entity';
 import { ChannelTestLog } from './entidades/channel-test-log.entity';
-import { EstimationSetting } from './entidades/estimation-setting.entity';
-import { NotificationAttempt } from './entidades/notification-attempt.entity';
 import { NotificationTemplate } from './entidades/notification-template.entity';
-import { NotificationWebhook } from './entidades/notification-webhook.entity';
 import { Notification } from './entidades/notification.entity';
 import { NotificationAttemptStatus, NotificationEvent, NotificationStatus } from './entidades/tracking.enums';
-import { TrackingLink } from './entidades/tracking-link.entity';
-import { ChannelTokenCipherService } from './channel-token-cipher.service';
-import { LimiteApiAdapter } from './limite-api.adapter';
-import { Payment } from '../ventas-cobranzas/entidades/payment.entity';
+import { NotificationServiceBase } from './notification.base';
 
 export const AUTHORIZED_TEMPLATE_VARIABLES = ['trackingUrl', 'orderReference', 'publicStatus', 'pendingStops', 'estimatedFrom', 'estimatedUntil', 'customerName', 'confirmationUrl', 'productList', 'orderTotal', 'deliveryDate', 'cancellationReason'] as const;
-
-type TemplateVariables = Partial<Record<(typeof AUTHORIZED_TEMPLATE_VARIABLES)[number], string>>;
 
 interface SystemTemplateDefinition {
   reference: string;
@@ -127,7 +111,6 @@ export interface ChannelSettingView {
   updatedAt: Date;
   updatedBy: { id: string; name: string };
 }
-import { NotificationServiceBase } from './notification.base';
 
 export abstract class NotificationServiceParte05 extends NotificationServiceBase {
   protected async ensureSystemTemplate(event: NotificationEvent, createdById: string): Promise<{ template: NotificationTemplate; created: boolean }> {
@@ -182,6 +165,14 @@ export abstract class NotificationServiceParte05 extends NotificationServiceBase
 
   protected activeChannelWithCredential(): Promise<ChannelSetting | null> {
     return this.channels.createQueryBuilder('channel').addSelect('channel.encryptedToken').leftJoinAndSelect('channel.updatedBy', 'updatedBy').where('channel.active = true').orderBy('channel.updatedAt', 'DESC').getOne();
+  }
+
+  protected latestChannelWithCredential(): Promise<ChannelSetting | null> {
+    return this.channels.createQueryBuilder('channel').addSelect('channel.encryptedToken').leftJoinAndSelect('channel.updatedBy', 'updatedBy').orderBy('channel.updatedAt', 'DESC').getOne();
+  }
+
+  protected channelSendingEnabled(): Promise<boolean> {
+    return this.channels.exists({ where: { active: true } });
   }
 
   protected toChannelView(channel: ChannelSetting): ChannelSettingView {

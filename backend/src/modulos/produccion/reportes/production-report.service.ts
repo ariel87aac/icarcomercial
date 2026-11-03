@@ -32,7 +32,12 @@ export interface DailyProductionReport {
   areaNames: string[];
   generatedAt: string;
   generatedBy: string;
-  metrics: { areaCount: number; productCount: number; deliveryCount: number; quantityByUnit: Array<{ unit: string; quantity: number }> };
+  metrics: {
+    areaCount: number;
+    productCount: number;
+    deliveryCount: number;
+    quantityByUnit: Array<{ unit: string; quantity: number }>;
+  };
   groups: Array<{ areaId: string | null; areaName: string; rows: DailyProductionRawRow[] }>;
 }
 
@@ -56,7 +61,8 @@ export class ProductionReportService {
 
   async daily(query: ProductionDailyReportQueryDto, actor: AuthenticatedUser): Promise<DailyProductionReport> {
     const areaIds = this.resolveAreaIds(query.productionAreaIds, actor);
-    const builder = this.deliveries.createQueryBuilder('delivery')
+    const builder = this.deliveries
+      .createQueryBuilder('delivery')
       .innerJoin('delivery.consolidatedDetail', 'detail')
       .innerJoin('detail.product', 'product')
       .leftJoin('detail.presentation', 'presentation')
@@ -75,29 +81,53 @@ export class ProductionReportService {
       .addSelect('MIN(delivery.deliveredAt)', 'firstDeliveredAt')
       .addSelect('MAX(delivery.deliveredAt)', 'lastDeliveredAt')
       .where("CAST(delivery.deliveredAt AT TIME ZONE 'America/La_Paz' AS date) = :date", { date: query.date })
-      .groupBy('area.id').addGroupBy('area.name').addGroupBy('category.name')
-      .addGroupBy('product.code').addGroupBy('product.name')
-      .addGroupBy('presentation.description').addGroupBy('unit.abbreviation')
-      .orderBy('area.name', 'ASC').addOrderBy('category.name', 'ASC').addOrderBy('product.code', 'ASC');
+      .groupBy('area.id')
+      .addGroupBy('area.name')
+      .addGroupBy('category.name')
+      .addGroupBy('product.code')
+      .addGroupBy('product.name')
+      .addGroupBy('presentation.description')
+      .addGroupBy('unit.abbreviation')
+      .orderBy('area.name', 'ASC')
+      .addOrderBy('category.name', 'ASC')
+      .addOrderBy('product.code', 'ASC');
     if (areaIds?.length) builder.andWhere('detail.productionAreaId IN (:...areaIds)', { areaIds });
     else if (areaIds) builder.andWhere('1 = 0');
     const rows = await builder.getRawMany<DailyProductionRawRow>();
-    const groups = [...rows.reduce((map, row) => {
-      const key = row.areaId ?? 'none';
-      const group = map.get(key) ?? { areaId: row.areaId, areaName: row.areaName ?? 'Sin área asignada', rows: [] as DailyProductionRawRow[] };
-      group.rows.push(row);
-      map.set(key, group);
-      return map;
-    }, new Map<string, { areaId: string | null; areaName: string; rows: DailyProductionRawRow[] }>()).values()];
-    const quantityByUnit = [...rows.reduce((totals, row) => totals.set(row.unitAbbreviation, (totals.get(row.unitAbbreviation) ?? 0) + Number(row.producedQuantity)), new Map<string, number>())]
-      .map(([unit, quantity]) => ({ unit, quantity }));
+    const groups = [
+      ...rows
+        .reduce((map, row) => {
+          const key = row.areaId ?? 'none';
+          const group = map.get(key) ?? {
+            areaId: row.areaId,
+            areaName: row.areaName ?? 'Sin área asignada',
+            rows: [] as DailyProductionRawRow[],
+          };
+          group.rows.push(row);
+          map.set(key, group);
+          return map;
+        }, new Map<string, { areaId: string | null; areaName: string; rows: DailyProductionRawRow[] }>())
+        .values(),
+    ];
+    const quantityByUnit = [
+      ...rows.reduce(
+        (totals, row) =>
+          totals.set(row.unitAbbreviation, (totals.get(row.unitAbbreviation) ?? 0) + Number(row.producedQuantity)),
+        new Map<string, number>(),
+      ),
+    ].map(([unit, quantity]) => ({ unit, quantity }));
     return {
       date: query.date,
       areaIds: areaIds ?? [],
       areaNames: groups.map((group) => group.areaName),
       generatedAt: new Date().toISOString(),
       generatedBy: actor.name,
-      metrics: { areaCount: groups.length, productCount: rows.length, deliveryCount: rows.reduce((sum, row) => sum + Number(row.deliveryCount), 0), quantityByUnit },
+      metrics: {
+        areaCount: groups.length,
+        productCount: rows.length,
+        deliveryCount: rows.reduce((sum, row) => sum + Number(row.deliveryCount), 0),
+        quantityByUnit,
+      },
       groups,
     };
   }
@@ -105,20 +135,36 @@ export class ProductionReportService {
   async export(query: ProductionDailyReportQueryDto, format: ProductionReportFormat, actor: AuthenticatedUser) {
     const report = await this.daily(query, actor);
     const options = this.reportOptions(report);
-    const content = format === ProductionReportFormat.PDF
-      ? await createIcarPdfReport(options)
-      : await createIcarXlsxReport(options);
-    await this.audit.record({ userId: actor.id, module: 'production', action: 'EXPORTAR_REPORTE_PRODUCCION', entity: 'reporte_diario_produccion', entityId: query.date, result: 'EXITOSO', metadata: { format, date: query.date, productionAreaIds: query.productionAreaIds ?? [] } });
+    const content =
+      format === ProductionReportFormat.PDF ? await createIcarPdfReport(options) : await createIcarXlsxReport(options);
+    await this.audit.record({
+      userId: actor.id,
+      module: 'production',
+      action: 'EXPORTAR_REPORTE_PRODUCCION',
+      entity: 'reporte_diario_produccion',
+      entityId: query.date,
+      result: 'EXITOSO',
+      metadata: { format, date: query.date, productionAreaIds: query.productionAreaIds ?? [] },
+    });
     return {
       filename: `icar-produccion-diaria-${query.date}.${format === ProductionReportFormat.PDF ? 'pdf' : 'xlsx'}`,
-      mime: format === ProductionReportFormat.PDF ? 'application/pdf' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      mime:
+        format === ProductionReportFormat.PDF
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       content,
     };
   }
 
   private reportOptions(report: DailyProductionReport): IcarReportOptions {
     const number = new Intl.NumberFormat('es-BO', { maximumFractionDigits: 6 });
-    const time = (value: Date) => new Intl.DateTimeFormat('es-BO', { timeZone: 'America/La_Paz', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(value));
+    const time = (value: Date) =>
+      new Intl.DateTimeFormat('es-BO', {
+        timeZone: 'America/La_Paz',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      }).format(new Date(value));
     const columns: IcarReportColumn[] = [
       { key: 'code', label: 'Código', width: 48, excelWidth: 11, align: 'center' },
       { key: 'product', label: 'Producto', width: 172, excelWidth: 28 },
@@ -129,7 +175,9 @@ export class ProductionReportService {
       { key: 'deliveries', label: 'Entregas', width: 55, excelWidth: 11, align: 'center' },
       { key: 'schedule', label: 'Horario', width: 83, excelWidth: 18, align: 'center' },
     ];
-    const dateLabel = new Intl.DateTimeFormat('es-BO', { dateStyle: 'long' }).format(new Date(`${report.date}T12:00:00`));
+    const dateLabel = new Intl.DateTimeFormat('es-BO', { dateStyle: 'long' }).format(
+      new Date(`${report.date}T12:00:00`),
+    );
     return {
       title: 'Reporte diario de producción',
       code: 'PROD-DIARIO',
@@ -146,28 +194,33 @@ export class ProductionReportService {
       ],
       groups: report.groups.map((group) => ({
         title: group.areaName,
-        rows: group.rows.map((row) => ({ values: {
-          code: row.productCode,
-          product: row.productName,
-          presentation: row.presentationDescription ?? 'Sin presentación',
-          category: row.categoryName ?? 'Sin categoría',
-          quantity: formatReportQuantity(row.producedQuantity, number),
-          unit: row.unitAbbreviation,
-          deliveries: Number(row.deliveryCount),
-          schedule: `${time(row.firstDeliveredAt)} - ${time(row.lastDeliveredAt)}`,
-        } })),
+        rows: group.rows.map((row) => ({
+          values: {
+            code: row.productCode,
+            product: row.productName,
+            presentation: row.presentationDescription ?? 'Sin presentación',
+            category: row.categoryName ?? 'Sin categoría',
+            quantity: formatReportQuantity(row.producedQuantity, number),
+            unit: row.unitAbbreviation,
+            deliveries: Number(row.deliveryCount),
+            schedule: `${time(row.firstDeliveredAt)} - ${time(row.lastDeliveredAt)}`,
+          },
+        })),
       })),
     };
   }
 
   private resolveAreaIds(requested: string[] | undefined, actor: AuthenticatedUser): string[] | null {
     const scope = this.actorAreaScope(actor);
-    if (scope && requested?.some((id) => !scope.includes(id))) throw new ForbiddenException('No tiene acceso a una de las áreas seleccionadas');
+    if (scope && requested?.some((id) => !scope.includes(id)))
+      throw new ForbiddenException('No tiene acceso a una de las áreas seleccionadas');
     return requested?.length ? requested : scope;
   }
 
   private actorAreaScope(actor: AuthenticatedUser): string[] | null {
-    return actor.roles.includes('PRODUCCION') && !actor.roles.includes('ADMINISTRADOR') ? actor.productionAreaIds ?? [] : null;
+    return actor.roles.includes('PRODUCCION') && !actor.roles.includes('ADMINISTRADOR')
+      ? (actor.productionAreaIds ?? [])
+      : null;
   }
 }
 

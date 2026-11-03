@@ -3,10 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { ChannelTokenCipherService } from './channel-token-cipher.service';
 
 describe('ChannelTokenCipherService', () => {
-  const service = new ChannelTokenCipherService({
-    get: (key: string, fallback: string) => key === 'CHANNEL_CREDENTIALS_KEY' ? 'clave-de-prueba-suficientemente-larga' : fallback,
-    getOrThrow: () => 'jwt-secret-de-prueba',
-  } as ConfigService);
+  const service = new ChannelTokenCipherService(new ConfigService({
+    CHANNEL_CREDENTIALS_KEY: 'clave-de-prueba-suficientemente-larga',
+    JWT_SECRET: 'jwt-secret-de-prueba',
+  }));
 
   it('cifra el token sin conservar el texto original y puede recuperarlo', () => {
     const token = 'token-secreto-limite-api-XYZ';

@@ -17,6 +17,7 @@ Un pedido en estado `BORRADOR` permanece asociado al carrito del cliente hasta q
 9. El modal ofrece únicamente **Seguir comprando** y **Enviar pedido**. Enviar guarda primero el borrador y luego cambia el pedido a `RECIBIDO`.
 10. Crear o modificar el borrador no genera WhatsApp. El mensaje, el detalle y el enlace de aprobación se generan al enviar.
 11. Los perfiles internos contables y comerciales con lectura de clientes y pedidos reciben acceso de lectura al Catálogo; modificar o enviar continúa sujeto a los permisos específicos de Pedidos.
+12. En el resumen del pedido, Domicilio de entrega se muestra sobre Fecha de entrega en todos los anchos; ambos selectores ocupan el ancho disponible.
 
 ## Casos de aceptación
 

@@ -4,14 +4,11 @@ Implementado y validado el 29 de octubre de 2026.
 
 ## Uso
 
-En **Producción → Seguimiento** se consultan las órdenes de todos los estados, con búsqueda por código, fecha de entrega y selección múltiple de estados. La tabla se pagina en el servidor (30, 60 o 90 registros) y se actualiza cada 30 segundos mientras la vista permanezca abierta. También dispone de actualización manual y avisa cuando una consulta falla.
+En **Producción → Seguimiento** se consultan las órdenes con búsqueda por código, fecha de entrega y selección múltiple de estados. Al abrir la pantalla, el filtro y la primera consulta incluyen por defecto `BORRADOR`, `EMITIDA` y `EN_PROCESO`, para priorizar el trabajo vigente. El usuario puede limpiar o modificar la selección para consultar órdenes completadas, completadas con faltantes o canceladas. La tabla se pagina en el servidor (30, 60 o 90 registros) y se actualiza cada 30 segundos mientras la vista permanezca abierta. También dispone de actualización manual y avisa cuando una consulta falla.
 
-Cada orden muestra su estado actual, cumplimiento producido, cumplimiento recibido por Almacén, entregas pendientes de recepción y la siguiente acción operativa. **Ver seguimiento** abre:
+Cada orden muestra su estado actual, cumplimiento producido, cumplimiento recibido por Almacén, entregas pendientes de recepción y la siguiente acción operativa. **Ver seguimiento** abre un resumen visual con el estado, la fecha de entrega, el responsable, las cuatro etapas y tres indicadores: productos, productos completados y recepciones pendientes. El avance de cada producto se presenta en una fila compacta con etapa, barra de progreso y cantidades planificada, producida y recibida.
 
-- Etapas de la orden con sus fechas registradas: Borrador, Emitida, En proceso y Completada, o su resultado de cancelación/cierre con faltantes.
-- Estado por producto, presentación, área, cantidades planificadas, producidas, recibidas y pendientes, y fechas reales de inicio y fin.
-- Cada entrega parcial/final, responsables y fechas de entrega y recepción, incidencias de Producción y observaciones de Almacén.
-- Historial cronológico con evento, responsable, fecha, observación y cambios de estado, según el permiso de historial.
+Las entregas parciales/finales, incidencias, responsables, fechas de recepción, observaciones de Almacén e historial cronológico permanecen disponibles en **Ver entregas, incidencias e historial técnico**, cerrado inicialmente para no sobrecargar la consulta principal. Los motivos de cancelación o cierre incompleto sí permanecen visibles en el resumen.
 
 Los estados se actualizan mediante las operaciones existentes de emisión, inicio, entrega, recepción, cierre y cancelación. El seguimiento consulta estos registros, sin crear otra fuente de estados ni exigir recapturarlos. Las órdenes anteriores también se pueden consultar.
 

@@ -1,0 +1,190 @@
+.tracking-overview {
+  display: grid;
+  gap: 1rem;
+}
+
+.milestones.compact {
+  margin: 0.75rem 0 0.4rem;
+}
+
+.milestones.compact li {
+  gap: 0.35rem;
+}
+
+.tracking-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.tracking-metrics > div {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 0.65rem;
+  background: var(--surface-ground, #f3f6f9);
+}
+
+.tracking-metrics span,
+.section-heading span {
+  color: var(--text-muted, #64748b);
+  font-size: 0.7rem;
+}
+
+.tracking-metrics strong {
+  color: var(--brand-700, #174b62);
+  font-size: 1rem;
+}
+
+.tracking-metrics .attention strong {
+  color: #9a6512;
+}
+
+.section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.2rem;
+}
+
+.section-heading h4 {
+  margin: 0;
+}
+
+.product-progress-list {
+  overflow: hidden;
+  border: 1px solid var(--surface-border, #dbe3eb);
+  border-radius: 0.7rem;
+}
+
+.product-progress-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 1.4fr) minmax(10rem, 1fr) minmax(13rem, 1fr);
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--surface-border, #e4ebf1);
+}
+
+.product-progress-row:last-child {
+  border-bottom: 0;
+}
+
+.product-identity,
+.product-stage {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.product-identity strong {
+  font-size: 0.8rem;
+  overflow-wrap: anywhere;
+}
+
+.product-identity small {
+  color: var(--text-muted, #64748b);
+  font-size: 0.68rem;
+  overflow-wrap: anywhere;
+}
+
+.product-stage p-tag {
+  justify-self: start;
+}
+
+.product-stage progress {
+  width: 100%;
+  height: 0.42rem;
+  border: 0;
+  border-radius: 1rem;
+  overflow: hidden;
+  background: #e6edf3;
+}
+
+.product-stage progress::-webkit-progress-bar {
+  background: #e6edf3;
+}
+
+.product-stage progress::-webkit-progress-value {
+  background: #278466;
+}
+
+.product-stage progress::-moz-progress-bar {
+  background: #278466;
+}
+
+.product-quantities {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+}
+
+.product-quantities span {
+  display: grid;
+  gap: 0.15rem;
+  color: var(--text-muted, #64748b);
+  font-size: 0.63rem;
+  text-align: center;
+}
+
+.product-quantities strong {
+  color: var(--text-color, #243746);
+  font-size: 0.76rem;
+}
+
+.technical-details {
+  border-top: 1px solid var(--surface-border, #dbe3eb);
+  padding-top: 0.7rem;
+}
+
+.technical-details summary {
+  padding: 0.55rem 0;
+  color: var(--brand-700, #174b62);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.technical-details[open] summary {
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 760px) {
+  .tracking-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .tracking-metrics > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .product-progress-row {
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .product-quantities span {
+    text-align: left;
+  }
+}
+
+@media (max-width: 440px) {
+  .tracking-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .tracking-metrics > div:last-child {
+    grid-column: auto;
+  }
+
+  .product-quantities {
+    gap: 0.25rem;
+  }
+}

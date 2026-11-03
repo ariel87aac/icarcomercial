@@ -1,33 +1,11 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { hash } from 'bcryptjs';
-import { Brackets, DataSource, QueryFailedError, Repository } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
+import { Brackets } from 'typeorm';
 import { paginate, PaginatedResponse } from '../../compartido/dto/pagination-query.dto';
-import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../seguridad/auditoria/audit.service';
-import { Role } from '../seguridad/roles-permisos/entidades/role.entity';
-import { UserSession } from '../seguridad/autenticacion/entidades/user-session.entity';
-import { User } from '../seguridad/usuarios/entidades/user.entity';
 import { UserType } from '../seguridad/usuarios/entidades/user-type.enum';
-import { DistributionDay } from '../zonas-reparto/entidades/distribution-day.entity';
-import { Zone } from '../zonas-reparto/entidades/zone.entity';
-import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
-import {
-  CreateCustomerAccountDto,
-  UpdateCustomerAccountDto,
-} from './dto/customer-account.dto';
-import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
+import { CreateCustomerDto } from './dto/customer.dto';
 import { CustomerQueryDto } from './dto/customer-query.dto';
-import { CustomerAddress } from './entidades/customer-address.entity';
 import { Customer } from './entidades/customer.entity';
-import { CustomerUser } from './entidades/customer-user.entity';
-import { PaymentCondition } from './entidades/customer.enums';
 import { CustomersServiceParte02 } from './customers.02-update';
 
 export abstract class CustomersServiceParte01 extends CustomersServiceParte02 {
@@ -44,6 +22,8 @@ export abstract class CustomersServiceParte01 extends CustomersServiceParte02 {
         .leftJoinAndSelect('customer.userLinks', 'accountLink')
         .leftJoinAndSelect('accountLink.user', 'accountUser')
         .orderBy('customer.code', 'ASC')
+        .addOrderBy('address.isPrimary', 'DESC')
+        .addOrderBy('address.createdAt', 'ASC')
         .skip((query.page - 1) * query.limit)
         .take(query.limit);
   

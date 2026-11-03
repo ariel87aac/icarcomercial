@@ -1,45 +1,13 @@
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { DestroyRef, inject, signal } from '@angular/core';
+import { Subject } from 'rxjs';
+import { AuthService } from '../../../../../nucleo/autenticacion/auth.service';
 import {
-  HttpClient,
-  HttpErrorResponse,
-  HttpParams,
-} from "@angular/common/http";
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from "@angular/core";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { FormsModule } from "@angular/forms";
-import { ButtonModule } from "primeng/button";
-import { DialogModule } from "primeng/dialog";
-import { InputTextModule } from "primeng/inputtext";
-import { MultiSelectModule } from "primeng/multiselect";
-import { TableModule } from "primeng/table";
-import { TagModule } from "primeng/tag";
-import { TableLazyLoadEvent } from "primeng/types/table";
-import {
-  EMPTY,
-  Subject,
-  catchError,
-  forkJoin,
-  merge,
-  of,
-  switchMap,
-  timer,
-} from "rxjs";
-import { AuthService } from "../../../../../nucleo/autenticacion/auth.service";
-import {
-  Paginated,
   ProductionConsolidation,
-  ProductionConsolidationDetail,
   ProductionConsolidationStatus,
-  ProductionDetailStage,
   ProductionHistory,
   ProductionTrackingOrder,
-} from "../../../../../compartido/modelos";
+} from '../../../../../compartido/modelos';
 
 const STATUS_LABELS: Record<ProductionConsolidationStatus, string> = {
   BORRADOR: "Borrador",
@@ -49,24 +17,11 @@ const STATUS_LABELS: Record<ProductionConsolidationStatus, string> = {
   CERRADA_INCOMPLETA: "Completada con faltantes",
   CANCELADA: "Cancelada",
 };
-const EVENT_LABELS: Record<ProductionHistory["event"], string> = {
-  GENERACION: "Orden generada",
-  RECALCULO: "Plan recalculado",
-  AJUSTE_LOTE: "Ajuste de lote",
-  PRODUCCION_ADICIONAL: "Producción adicional",
-  PRODUCTO_AGREGADO: "Producto agregado",
-  PRODUCTO_RETIRADO: "Producto retirado",
-  PROGRAMACION: "Programación actualizada",
-  EMISION: "Orden emitida a planta",
-  INICIO: "Producción iniciada",
-  AVANCE: "Avance registrado",
-  ENTREGA_PRODUCCION: "Entrega enviada a Almacén",
-  RECEPCION_ALMACEN: "Recepción en Almacén",
-  CANCELACION_PRODUCTO: "Producto cancelado",
-  CANCELACION_ORDEN: "Orden cancelada",
-  CIERRE_INCOMPLETO: "Orden completada con faltantes",
-  CIERRE: "Orden completada",
-};
+const DEFAULT_TRACKING_STATUSES: ProductionConsolidationStatus[] = [
+  "BORRADOR",
+  "EMITIDA",
+  "EN_PROCESO",
+];
 
 import { Directive } from '@angular/core';
 import { ProductionTrackingContratos01 } from './production-tracking.contratos-01';
@@ -85,7 +40,10 @@ protected readonly http = inject(HttpClient);
 
   protected selectedId: string | null = null;
 
-  protected appliedParams = new HttpParams();
+  protected appliedParams = new HttpParams().set(
+    "statuses",
+    DEFAULT_TRACKING_STATUSES.join(","),
+  );
 
   protected readonly orders = signal<ProductionTrackingOrder[]>([]);
 
@@ -123,5 +81,7 @@ protected readonly http = inject(HttpClient);
 
   protected deliveryDate = "";
 
-  protected statuses: ProductionConsolidationStatus[] = [];
+  protected statuses: ProductionConsolidationStatus[] = [
+    ...DEFAULT_TRACKING_STATUSES,
+  ];
 }

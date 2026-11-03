@@ -1,28 +1,10 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, EntityManager, In, Repository } from 'typeorm';
-import { paginate } from '../../compartido/dto/pagination-query.dto';
+import { EntityManager } from 'typeorm';
 import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
-import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../seguridad/auditoria/audit.service';
 import { ProductPresentation } from '../productos/catalogo/entidades/product-presentation.entity';
 import { ProductionArea } from '../produccion/entidades/production-area.entity';
-import {
-  CreateStockReplenishmentRequestDto,
-  SaveStockReplenishmentRequestDto,
-  StockReplenishmentPlanQueryDto,
-  StockReplenishmentRequestQueryDto,
-} from './dto/inventory.dto';
 import { StockReplenishmentRequestDetail } from './entidades/stock-replenishment-request-detail.entity';
-import { StockReplenishmentRequest } from './entidades/stock-replenishment-request.entity';
-import { StockReplenishmentRequestStatus } from './entidades/inventory.enums';
 import { projectedAvailableQuantity } from './inventory-calculations';
+import { StockReplenishmentRequestServiceBase } from './stock-replenishment-request.base';
 
 interface StockRequestMetrics {
   presentationId: string;
@@ -31,7 +13,6 @@ interface StockRequestMetrics {
   demandQuantity: string;
   shortageQuantity: string;
 }
-import { StockReplenishmentRequestServiceBase } from './stock-replenishment-request.base';
 
 export abstract class StockReplenishmentRequestServiceParte03 extends StockReplenishmentRequestServiceBase {
   protected async metrics(manager: EntityManager, requiredDate: string, presentationIds: string[]): Promise<StockRequestMetrics[]> {

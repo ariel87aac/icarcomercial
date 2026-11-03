@@ -31,6 +31,9 @@ Se agregó a **Seguimiento y mensajería → Canal** una prueba manual de Limite
 | CP-109 | Enviar una notificación a un cliente con código `+591` y teléfono local de ocho dígitos. | El destinatario enviado a LimiteAPI combina ambos valores, por ejemplo `59169413721`. |
 | CP-110 | Enviar una notificación cuando el teléfono ya incluye `591` o comienza con `+591`. | El sistema normaliza el número y no duplica el código de país. |
 | CP-111 | LimiteAPI responde con `providerMessageId`. | El identificador se guarda en la notificación y queda disponible para correlacionar respuestas y webhooks. |
+| CP-112 | Presionar **Deshabilitar envío** en Canal. | El estado queda auditado como deshabilitado, la configuración y el token se conservan, las pruebas quedan bloqueadas y cualquier pendiente o reintento previo se cierra sin envío. |
+| CP-113 | Generar eventos de pedidos o cobros con el canal deshabilitado y después habilitarlo. | Los eventos ocurridos durante la desactivación no crean notificaciones ni quedan esperando; después de habilitar sólo se encolan mensajes de eventos nuevos. |
+| CP-114 | Abrir y guardar la configuración mientras el envío está deshabilitado. | La API devuelve la configuración más reciente aunque esté inactiva, la interfaz conserva URL, número y máscara del token, y permite guardar sin exigir nuevamente la credencial. |
 
 ## Evidencia automatizada
 

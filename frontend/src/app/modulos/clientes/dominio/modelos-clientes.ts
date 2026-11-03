@@ -66,3 +66,13 @@ export interface Customer {
   createdAt: string;
   updatedAt: string;
 }
+
+export function activeCustomerAddresses(customer?: Customer): CustomerAddress[] {
+  return (customer?.addresses ?? [])
+    .filter((address) => address.status === 'ACTIVO')
+    .sort((left, right) => Number(right.isPrimary) - Number(left.isPrimary));
+}
+
+export function defaultCustomerAddress(customer?: Customer): CustomerAddress | undefined {
+  return activeCustomerAddresses(customer)[0];
+}

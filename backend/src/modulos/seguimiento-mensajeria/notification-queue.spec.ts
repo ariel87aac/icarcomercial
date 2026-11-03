@@ -48,6 +48,23 @@ function queueService(result: { ok: boolean; recoverable: boolean; status: numbe
 }
 
 describe('Cola de notificaciones', () => {
+  it('cierra sin envío la cola anterior cuando el canal está deshabilitado', async () => {
+    const update = vi.fn().mockResolvedValue(undefined);
+    const subject = Object.create(NotificationService.prototype) as NotificationService;
+    Object.assign(subject, {
+      activeChannelWithCredential: vi.fn().mockResolvedValue(null),
+      notifications: { update },
+    });
+    expect(await subject.processNext()).toBe(false);
+    expect(update).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        status: NotificationStatus.FAILED,
+        lastError: 'Envío omitido porque el canal está deshabilitado',
+      }),
+    );
+  });
+
   it('registra el intento exitoso y actualiza la notificación sin resincronizar sus relaciones', async () => {
     const { subject, attempts, notifications } = queueService({
       ok: true,

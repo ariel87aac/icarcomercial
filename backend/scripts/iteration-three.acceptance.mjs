@@ -254,8 +254,10 @@ try {
   assert.equal(exact.status, 'CERRADA');
   passed('CP-46', 'cierra automáticamente al recibir en Almacén la entrega final sin diferencia');
 
-  await confirmedOrder(dates[2], [{ presentationId: presentationA.id, quantity: 20 }], 'Faltante');
+  // Las recepciones previas cubren demanda ya comprometida; no son saldo libre para estos pedidos.
+  await confirmedOrder(dates[2], [{ presentationId: presentationA.id, quantity: 10 }], 'Faltante');
   let shortage = (await expectStatus('/api/production-consolidations', { method: 'POST', jar: commercialJar, body: { deliveryDate: dates[2] } }, 201, 'principal faltante')).payload;
+  assert.equal(Number(shortage.details[0].plannedQuantity), 10);
   shortage = (await expectStatus(`/api/production-consolidations/${shortage.id}/emit`, { method: 'POST', jar: commercialJar, body: {} }, 201, 'emitir faltante')).payload;
   shortage = (await expectStatus(`/api/production-consolidations/${shortage.id}/details/${shortage.details[0].id}/start`, { method: 'POST', jar: productionJar, body: {} }, 201, 'iniciar faltante')).payload;
   await expectStatus(`/api/production-consolidations/${shortage.id}/details/${shortage.details[0].id}/deliveries`, { method: 'POST', jar: productionJar, body: { quantity: 7, finalDelivery: true } }, 422, 'faltante sin incidencia');
@@ -266,8 +268,9 @@ try {
   assert.equal(Number(shortage.details[0].difference), -3);
   passed('CP-47', 'el faltante queda negativo y exige observación de cierre');
 
-  await confirmedOrder(dates[3], [{ presentationId: presentationA.id, quantity: 17 }], 'Excedente');
+  await confirmedOrder(dates[3], [{ presentationId: presentationA.id, quantity: 10 }], 'Excedente');
   let excess = (await expectStatus('/api/production-consolidations', { method: 'POST', jar: commercialJar, body: { deliveryDate: dates[3] } }, 201, 'principal excedente')).payload;
+  assert.equal(Number(excess.details[0].plannedQuantity), 10);
   excess = (await expectStatus(`/api/production-consolidations/${excess.id}/emit`, { method: 'POST', jar: commercialJar, body: {} }, 201, 'emitir excedente')).payload;
   excess = (await expectStatus(`/api/production-consolidations/${excess.id}/details/${excess.details[0].id}/start`, { method: 'POST', jar: productionJar, body: {} }, 201, 'iniciar excedente')).payload;
   excess = (await expectStatus(`/api/production-consolidations/${excess.id}/details/${excess.details[0].id}/deliveries`, { method: 'POST', jar: productionJar, body: { quantity: 12.5, finalDelivery: true, incident: 'Excedente de lote' } }, 201, 'entrega excedente')).payload;

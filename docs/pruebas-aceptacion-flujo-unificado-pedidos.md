@@ -2,6 +2,14 @@
 
 Fecha: 29 de octubre de 2026.
 
+## Revalidación del 2 de noviembre de 2026
+
+La suite se actualizó conforme a las reglas posteriores de `pruebas-aceptacion-carrito-borrador.md`: crear un borrador no encola WhatsApp; el mensaje se genera al enviarlo. Para preparar varios pedidos del mismo cliente, cada fixture sale del carrito mediante envío antes de crear el siguiente. Se comprueba que los cinco identificadores sean distintos y que no existan mensajes mientras permanecen en borrador. El enlace inicial se obtiene mediante la operación autenticada de generación de seguimiento.
+
+WF-01 comprueba ahora borrador silencioso, enlace protegido e historial. WF-14 comprueba mensajes únicos de **Recibido**, Confirmado, Salida de ruta y Entregado. La matriz inferior conserva la evidencia histórica del 29 de octubre, anterior al cambio del carrito.
+
+Resultado actual: **22 casos aprobados**, ejecutados con `npm --prefix backend run test:acceptance:isolated -- workflow` sobre PostgreSQL nuevo, sin migraciones locales de carga, sin puertos publicados y con trabajador WhatsApp desactivado. Evidencia local: `output/acceptance/icar-acceptance-1793623794068-48293/workflow.log`. El entorno temporal se retiró al finalizar.
+
 ## Entorno y alcance
 
 Se utilizó una copia aislada de la base local denominada `icar_workflow_validation`, con las migraciones 1720000049000 y 1720000050000 aplicadas. El backend de prueba se expuso únicamente en 127.0.0.1:3001 y la interfaz de prueba en 127.0.0.1:8081. El trabajador estuvo desactivado con `NOTIFICATION_WORKER_ENABLED=false`. La prueba exige ambos valores para evitar ejecutarse accidentalmente en la base operativa.

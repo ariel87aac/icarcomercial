@@ -1,8 +1,22 @@
-import type { ProductionConsolidationStatus, ProductionConsolidationType, ProductionDetailStage, RecordStatus } from '../../../compartido/modelos-base';
-import type { StockReplenishmentRequest, StockReplenishmentRequestDetail } from '../../almacen/dominio/modelos-almacen';
-import type { Order, OrderDetail } from '../../pedidos/dominio/modelos-pedidos';
-import type { Product, ProductCategory, ProductLine, ProductPresentation, UnitMeasure } from '../../productos/dominio/modelos-productos';
-import type { User } from '../../seguridad/dominio/modelos-seguridad';
+import type {
+  ProductionConsolidationStatus,
+  ProductionConsolidationType,
+  ProductionDetailStage,
+  RecordStatus,
+} from "../../../compartido/modelos-base";
+import type {
+  StockReplenishmentRequest,
+  StockReplenishmentRequestDetail,
+} from "../../almacen/dominio/modelos-almacen";
+import type { Order, OrderDetail } from "../../pedidos/dominio/modelos-pedidos";
+import type {
+  Product,
+  ProductCategory,
+  ProductLine,
+  ProductPresentation,
+  UnitMeasure,
+} from "../../productos/dominio/modelos-productos";
+import type { User } from "../../seguridad/dominio/modelos-seguridad";
 
 export interface ProductionConsolidationSource {
   id: string;
@@ -25,8 +39,8 @@ export interface ProductionProgress {
   id: string;
   consolidatedDetailId: string;
   quantity: string;
-  type: 'AVANCE';
-  user: Pick<User, 'id' | 'name' | 'email'>;
+  type: "AVANCE";
+  user: Pick<User, "id" | "name" | "email">;
   observation: string | null;
   occurredAt: string;
 }
@@ -51,9 +65,14 @@ export interface ProductionConsolidationDetail {
   productionRequiredQuantity: string;
   stockRequestedQuantity: string;
   stockRequestDetailId: string | null;
-  stockRequestDetail: (StockReplenishmentRequestDetail & {
-    request: Pick<StockReplenishmentRequest, 'id' | 'code' | 'requiredDate' | 'status'>;
-  }) | null;
+  stockRequestDetail:
+    | (StockReplenishmentRequestDetail & {
+        request: Pick<
+          StockReplenishmentRequest,
+          "id" | "code" | "requiredDate" | "status"
+        >;
+      })
+    | null;
   additionalProductionQuantity: string;
   plannedQuantity: string;
   additionalProductionReason: string | null;
@@ -65,7 +84,7 @@ export interface ProductionConsolidationDetail {
   startedAt: string | null;
   completedAt: string | null;
   canceledById: string | null;
-  canceledBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  canceledBy: Pick<User, "id" | "name" | "email"> | null;
   canceledAt: string | null;
   cancellationReason: string | null;
   difference: string;
@@ -90,11 +109,11 @@ export interface ProductionDelivery {
   deliveredQuantity: string;
   finalDelivery: boolean;
   productionIncident: string | null;
-  status: 'PENDIENTE' | 'ACEPTADA';
-  deliveredBy: Pick<User, 'id' | 'name'>;
+  status: "PENDIENTE" | "ACEPTADA";
+  deliveredBy: Pick<User, "id" | "name">;
   deliveredAt: string;
   receivedQuantity: string | null;
-  receivedBy: Pick<User, 'id' | 'name'> | null;
+  receivedBy: Pick<User, "id" | "name"> | null;
   receivedAt: string | null;
   warehouseObservation: string | null;
 }
@@ -107,14 +126,14 @@ export interface ProductionConsolidation {
   version: number;
   type: ProductionConsolidationType;
   status: ProductionConsolidationStatus;
-  generatedBy: Pick<User, 'id' | 'name' | 'email'>;
-  emittedBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  generatedBy: Pick<User, "id" | "name" | "email">;
+  emittedBy: Pick<User, "id" | "name" | "email"> | null;
   emittedAt: string | null;
-  closedBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  closedBy: Pick<User, "id" | "name" | "email"> | null;
   closedAt: string | null;
   incompleteCloseObservation: string | null;
   cancellationReason: string | null;
-  canceledBy: Pick<User, 'id' | 'name' | 'email'> | null;
+  canceledBy: Pick<User, "id" | "name" | "email"> | null;
   canceledAt: string | null;
   details: ProductionConsolidationDetail[];
   detailCount?: number;
@@ -140,8 +159,24 @@ export interface ProductionHistory {
   consolidationId: string;
   previousStatus: ProductionConsolidationStatus | null;
   newStatus: ProductionConsolidationStatus;
-  event: 'GENERACION' | 'RECALCULO' | 'AJUSTE_LOTE' | 'PRODUCCION_ADICIONAL' | 'PRODUCTO_AGREGADO' | 'PRODUCTO_RETIRADO' | 'EMISION' | 'PROGRAMACION' | 'INICIO' | 'AVANCE' | 'ENTREGA_PRODUCCION' | 'RECEPCION_ALMACEN' | 'CANCELACION_PRODUCTO' | 'CANCELACION_ORDEN' | 'CIERRE_INCOMPLETO' | 'CIERRE';
-  user: Pick<User, 'id' | 'name' | 'email'>;
+  event:
+    | "GENERACION"
+    | "RECALCULO"
+    | "AJUSTE_LOTE"
+    | "PRODUCCION_ADICIONAL"
+    | "PRODUCTO_AGREGADO"
+    | "PRODUCTO_RETIRADO"
+    | "EMISION"
+    | "PROGRAMACION"
+    | "INICIO"
+    | "AVANCE"
+    | "ENTREGA_PRODUCCION"
+    | "RECEPCION_ALMACEN"
+    | "CANCELACION_PRODUCTO"
+    | "CANCELACION_ORDEN"
+    | "CIERRE_INCOMPLETO"
+    | "CIERRE";
+  user: Pick<User, "id" | "name" | "email">;
   observation: string | null;
   occurredAt: string;
 }
@@ -204,5 +239,53 @@ export interface DailyProductionReport {
     deliveryCount: number;
     quantityByUnit: Array<{ unit: string; quantity: number }>;
   };
-  groups: Array<{ areaId: string | null; areaName: string; rows: DailyProductionReportRow[] }>;
+  groups: Array<{
+    areaId: string | null;
+    areaName: string;
+    rows: DailyProductionReportRow[];
+  }>;
+}
+
+export interface ProductionOrderReportOption {
+  id: string;
+  code: number;
+  status: ProductionConsolidationStatus;
+  deliveryDate: string;
+}
+
+export interface ProductionOrderReportRow {
+  categoryName: string | null;
+  productCode: string;
+  productName: string;
+  presentationDescription: string | null;
+  unitAbbreviation: string;
+  requestedQuantity: string;
+  preparedQuantity: string;
+  stage: ProductionDetailStage;
+}
+
+export interface ProductionOrderReport {
+  order: {
+    id: string;
+    code: number;
+    status: ProductionConsolidationStatus;
+    deliveryDate: string;
+  };
+  generatedAt: string;
+  generatedBy: string;
+  metrics: {
+    areaCount: number;
+    productCount: number;
+    completedCount: number;
+    quantityByUnit: Array<{
+      unit: string;
+      requested: number;
+      prepared: number;
+    }>;
+  };
+  groups: Array<{
+    areaId: string | null;
+    areaName: string;
+    rows: ProductionOrderReportRow[];
+  }>;
 }

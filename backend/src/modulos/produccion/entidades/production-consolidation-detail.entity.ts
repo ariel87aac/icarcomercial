@@ -99,7 +99,13 @@ export class ProductionConsolidationDetail extends AuditableEntity {
   @Column({ name: 'cantidad_recibida_almacen', type: 'numeric', precision: 18, scale: 6, default: 0 })
   receivedQuantity: string;
 
-  @Column({ name: 'etapa', type: 'enum', enum: ProductionDetailStage, enumName: 'etapa_detalle_produccion_enum', default: ProductionDetailStage.PENDING })
+  @Column({
+    name: 'etapa',
+    type: 'enum',
+    enum: ProductionDetailStage,
+    enumName: 'etapa_detalle_produccion_enum',
+    default: ProductionDetailStage.PENDING,
+  })
   stage: ProductionDetailStage;
 
   @Column({ name: 'fecha_programada', type: 'date' })

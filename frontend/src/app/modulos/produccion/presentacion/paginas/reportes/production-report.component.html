@@ -2,40 +2,288 @@
   <header class="report-heading">
     <div>
       <span class="eyebrow">Reportes de Producción</span>
-      <h3>Producción diaria por área</h3>
-      <p>Consolida las entregas registradas por la planta durante el día seleccionado.</p>
+      <h3>
+        {{
+          reportType() === "DAILY"
+            ? "Producción diaria por área"
+            : "Producción por orden"
+        }}
+      </h3>
+      <p>
+        {{
+          reportType() === "DAILY"
+            ? "Consolida las entregas registradas por la planta durante el día seleccionado."
+            : "Compara lo solicitado a planta con la cantidad efectivamente preparada."
+        }}
+      </p>
     </div>
     <div class="export-actions">
-      <p-button label="Descargar PDF" icon="pi pi-file-pdf" severity="danger" [outlined]="true" [loading]="exporting()==='PDF'" (onClick)="exportReport('PDF')" />
-      <p-button label="Descargar Excel" icon="pi pi-file-excel" severity="success" [outlined]="true" [loading]="exporting()==='XLSX'" (onClick)="exportReport('XLSX')" />
+      <p-button
+        label="Descargar PDF"
+        icon="pi pi-file-pdf"
+        severity="danger"
+        [outlined]="true"
+        [disabled]="reportType() === 'ORDER' && !orderReport()"
+        [loading]="exporting() === 'PDF'"
+        (onClick)="exportReport('PDF')"
+      />
+      <p-button
+        label="Descargar Excel"
+        icon="pi pi-file-excel"
+        severity="success"
+        [outlined]="true"
+        [disabled]="reportType() === 'ORDER' && !orderReport()"
+        [loading]="exporting() === 'XLSX'"
+        (onClick)="exportReport('XLSX')"
+      />
     </div>
   </header>
 
-  <div class="report-filters">
-    <label><span>Fecha de producción</span><input pInputText type="date" [ngModel]="reportDate()" (ngModelChange)="reportDate.set($event)" /></label>
-    <label><span>Áreas de Producción</span><p-multiselect [options]="areas()" optionLabel="name" optionValue="id" [ngModel]="areaIds()" (ngModelChange)="areaIds.set($event || [])" placeholder="Todas las áreas" display="chip" [showClear]="true" /></label>
-    <p-button label="Consultar" icon="pi pi-search" [loading]="loading()" (onClick)="loadReport()" />
+  <div class="report-filters" [class.order-filters]="reportType() === 'ORDER'">
+    <label>
+      <span>Tipo de reporte</span>
+      <p-select
+        [options]="reportTypes"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="reportType()"
+        (ngModelChange)="changeReportType($event)"
+      />
+    </label>
+    @if (reportType() === "DAILY") {
+      <label>
+        <span>Fecha de producción</span>
+        <input
+          pInputText
+          type="date"
+          [ngModel]="reportDate()"
+          (ngModelChange)="reportDate.set($event)"
+        />
+      </label>
+      <label>
+        <span>Áreas de Producción</span>
+        <p-multiselect
+          [options]="areas()"
+          optionLabel="name"
+          optionValue="id"
+          [ngModel]="areaIds()"
+          (ngModelChange)="areaIds.set($event || [])"
+          placeholder="Todas las áreas"
+          display="chip"
+          [showClear]="true"
+        />
+      </label>
+    } @else {
+      <label class="order-select">
+        <span>Orden de producción</span>
+        <p-select
+          [options]="orderSelectOptions()"
+          optionLabel="label"
+          optionValue="value"
+          [ngModel]="orderId()"
+          (ngModelChange)="orderId.set($event)"
+          placeholder="Seleccione una orden"
+          [filter]="true"
+          filterBy="label"
+          [showClear]="false"
+        />
+      </label>
+    }
+    <p-button
+      label="Consultar"
+      icon="pi pi-search"
+      [disabled]="reportType() === 'ORDER' && !orderId()"
+      [loading]="loading()"
+      (onClick)="loadReport()"
+    />
   </div>
 
-  @if (report(); as data) {
-    <div class="report-context"><strong>{{ reportDateLabel() }}</strong><span>{{ data.areaNames.length ? data.areaNames.join(', ') : 'Todas las áreas' }}</span><small>Formatos: PDF carta horizontal y Excel</small></div>
+  @if (reportType() === "DAILY" && dailyReport(); as data) {
+    <div class="report-context">
+      <strong>{{ reportDateLabel() }}</strong>
+      <span>{{
+        data.areaNames.length ? data.areaNames.join(", ") : "Todas las áreas"
+      }}</span>
+      <small>Formatos: PDF carta horizontal y Excel</small>
+    </div>
     <div class="report-metrics">
-      <article><span>Áreas con producción</span><strong>{{ data.metrics.areaCount }}</strong></article>
-      <article><span>Productos elaborados</span><strong>{{ data.metrics.productCount }}</strong></article>
-      <article><span>Entregas registradas</span><strong>{{ data.metrics.deliveryCount }}</strong></article>
-      <article class="unit-totals"><span>Cantidad por unidad</span><div>@for (total of data.metrics.quantityByUnit; track total.unit) { <b>{{ number(total.quantity) }} {{ total.unit }}</b> } @empty { <em>Sin producción</em> }</div></article>
+      <article>
+        <span>Áreas con producción</span
+        ><strong>{{ data.metrics.areaCount }}</strong>
+      </article>
+      <article>
+        <span>Productos elaborados</span
+        ><strong>{{ data.metrics.productCount }}</strong>
+      </article>
+      <article>
+        <span>Entregas registradas</span
+        ><strong>{{ data.metrics.deliveryCount }}</strong>
+      </article>
+      <article class="unit-totals">
+        <span>Cantidad por unidad</span>
+        <div>
+          @for (total of data.metrics.quantityByUnit; track total.unit) {
+            <b>{{ number(total.quantity) }} {{ total.unit }}</b>
+          } @empty {
+            <em>Sin producción</em>
+          }
+        </div>
+      </article>
     </div>
     <div class="report-table">
       <table>
-        <thead><tr><th>Código</th><th>Producto / presentación</th><th>Categoría</th><th>Producido</th><th>Unidad</th><th>Entregas</th><th>Horario</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Producto / presentación</th>
+            <th>Categoría</th>
+            <th>Producido</th>
+            <th>Unidad</th>
+            <th>Entregas</th>
+            <th>Horario</th>
+          </tr>
+        </thead>
         <tbody>
           @for (group of data.groups; track group.areaId || group.areaName) {
-            <tr class="area-row"><td colspan="7">Área: {{ group.areaName }}</td></tr>
-            @for (row of group.rows; track row.productCode + '-' + row.presentationDescription) {
-              <tr><td><strong>{{ row.productCode }}</strong></td><td><div class="stack"><strong>{{ row.productName }}</strong><small>{{ row.presentationDescription || 'Sin presentación' }}</small></div></td><td>{{ row.categoryName || 'Sin categoría' }}</td><td class="quantity">{{ number(row.producedQuantity) }}</td><td>{{ row.unitAbbreviation }}</td><td>{{ row.deliveryCount }}</td><td>{{ time(row.firstDeliveredAt) }} - {{ time(row.lastDeliveredAt) }}</td></tr>
+            <tr class="area-row">
+              <td colspan="7">Área: {{ group.areaName }}</td>
+            </tr>
+            @for (
+              row of group.rows;
+              track row.productCode + "-" + row.presentationDescription
+            ) {
+              <tr>
+                <td>
+                  <strong>{{ row.productCode }}</strong>
+                </td>
+                <td>
+                  <div class="stack">
+                    <strong>{{ row.productName }}</strong
+                    ><small>{{
+                      row.presentationDescription || "Sin presentación"
+                    }}</small>
+                  </div>
+                </td>
+                <td>{{ row.categoryName || "Sin categoría" }}</td>
+                <td class="quantity">{{ number(row.producedQuantity) }}</td>
+                <td>{{ row.unitAbbreviation }}</td>
+                <td>{{ row.deliveryCount }}</td>
+                <td>
+                  {{ time(row.firstDeliveredAt) }} -
+                  {{ time(row.lastDeliveredAt) }}
+                </td>
+              </tr>
             }
           } @empty {
-            <tr><td colspan="7"><div class="empty"><i class="pi pi-info-circle"></i><strong>Sin producción registrada</strong><span>No existen entregas para los filtros seleccionados.</span></div></td></tr>
+            <tr>
+              <td colspan="7">
+                <div class="empty">
+                  <i class="pi pi-info-circle"></i
+                  ><strong>Sin producción registrada</strong
+                  ><span
+                    >No existen entregas para los filtros seleccionados.</span
+                  >
+                </div>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (reportType() === "ORDER" && orderReport(); as data) {
+    <div class="report-context">
+      <strong>OP-{{ data.order.code }}</strong>
+      <span
+        >Entrega {{ shortDate(data.order.deliveryDate) }} ·
+        {{ statusLabel(data.order.status) }}</span
+      >
+      <small
+        >Solicitada = cantidad planificada en la orden, incluido el ajuste por
+        batch/capacidad.</small
+      >
+    </div>
+    <div class="report-metrics">
+      <article>
+        <span>Áreas involucradas</span
+        ><strong>{{ data.metrics.areaCount }}</strong>
+      </article>
+      <article>
+        <span>Productos solicitados</span
+        ><strong>{{ data.metrics.productCount }}</strong>
+      </article>
+      <article>
+        <span>Productos completados</span
+        ><strong>{{ data.metrics.completedCount }}</strong>
+      </article>
+      <article class="unit-totals">
+        <span>Solicitada / preparada por unidad</span>
+        <div>
+          @for (total of data.metrics.quantityByUnit; track total.unit) {
+            <b
+              >{{ number(total.requested) }} / {{ number(total.prepared) }}
+              {{ total.unit }}</b
+            >
+          } @empty {
+            <em>Sin productos</em>
+          }
+        </div>
+      </article>
+    </div>
+    <div class="report-table order-table">
+      <table>
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Producto / presentación</th>
+            <th>Categoría</th>
+            <th>Cantidad solicitada</th>
+            <th>Cantidad preparada</th>
+            <th>Unidad</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (group of data.groups; track group.areaId || group.areaName) {
+            <tr class="area-row">
+              <td colspan="7">Área: {{ group.areaName }}</td>
+            </tr>
+            @for (
+              row of group.rows;
+              track row.productCode + "-" + row.presentationDescription
+            ) {
+              <tr>
+                <td>
+                  <strong>{{ row.productCode }}</strong>
+                </td>
+                <td>
+                  <div class="stack">
+                    <strong>{{ row.productName }}</strong
+                    ><small>{{
+                      row.presentationDescription || "Sin presentación"
+                    }}</small>
+                  </div>
+                </td>
+                <td>{{ row.categoryName || "Sin categoría" }}</td>
+                <td class="quantity">{{ number(row.requestedQuantity) }}</td>
+                <td class="quantity prepared">
+                  {{ number(row.preparedQuantity) }}
+                </td>
+                <td>{{ row.unitAbbreviation }}</td>
+                <td>{{ stageLabel(row.stage) }}</td>
+              </tr>
+            }
+          } @empty {
+            <tr>
+              <td colspan="7">
+                <div class="empty">
+                  <i class="pi pi-info-circle"></i
+                  ><strong>Orden sin productos</strong
+                  ><span>No existen productos autorizados para mostrar.</span>
+                </div>
+              </td>
+            </tr>
           }
         </tbody>
       </table>

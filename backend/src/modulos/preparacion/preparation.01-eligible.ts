@@ -1,22 +1,10 @@
-import { workflowTransaction } from '../pedidos/order-workflow';
-import { attachOrderWorkflow, coverageForOrders } from '../pedidos/order-workflow';
-import { BadRequestException, ConflictException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, DataSource, EntityManager, In, Repository } from 'typeorm';
+import { NotFoundException } from '@nestjs/common';
+import { Brackets } from 'typeorm';
 import { paginate } from '../../compartido/dto/pagination-query.dto';
-import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { AuditEvent } from '../seguridad/auditoria/entidades/audit-event.entity';
-import { InventoryReservation } from '../almacen/entidades/inventory-reservation.entity';
-import { Stock } from '../almacen/entidades/stock.entity';
-import { OrderDetail } from '../pedidos/entidades/order-detail.entity';
-import { Order } from '../pedidos/entidades/order.entity';
 import { OrderStatus } from '../pedidos/entidades/order.enums';
-import { TrackingService } from '../seguimiento-mensajeria/tracking.service';
-import { CancelPreparationDto, ConfirmPreparationDto, CreatePreparationDto, PreparationQueryDto, RegisterPreparationProgressDto } from './dto/preparation.dto';
-import { OrderPreparationDetail } from './entidades/order-preparation-detail.entity';
+import { PreparationQueryDto } from './dto/preparation.dto';
 import { OrderPreparation } from './entidades/order-preparation.entity';
-import { PreparationHistory } from './entidades/preparation-history.entity';
-import { PreparationEvent, PreparationStatus } from './entidades/preparation.enums';
+import { PreparationStatus } from './entidades/preparation.enums';
 import { PreparationServiceParte02 } from './preparation.02-create';
 
 export abstract class PreparationServiceParte01 extends PreparationServiceParte02 {

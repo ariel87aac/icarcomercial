@@ -19,10 +19,21 @@ export class ProductionConsolidation extends AuditableEntity {
   @Column({ name: 'version', type: 'integer' })
   version: number;
 
-  @Column({ name: 'tipo', type: 'enum', enum: ProductionConsolidationType, enumName: 'tipo_consolidacion_produccion_enum' })
+  @Column({
+    name: 'tipo',
+    type: 'enum',
+    enum: ProductionConsolidationType,
+    enumName: 'tipo_consolidacion_produccion_enum',
+  })
   type: ProductionConsolidationType;
 
-  @Column({ name: 'estado', type: 'enum', enum: ProductionConsolidationStatus, enumName: 'estado_consolidacion_produccion_enum', default: ProductionConsolidationStatus.DRAFT })
+  @Column({
+    name: 'estado',
+    type: 'enum',
+    enum: ProductionConsolidationStatus,
+    enumName: 'estado_consolidacion_produccion_enum',
+    default: ProductionConsolidationStatus.DRAFT,
+  })
   status: ProductionConsolidationStatus;
 
   @Column({ name: 'generado_por', type: 'uuid' })

@@ -1,72 +1,5 @@
-import {
-  HttpClient,
-  HttpErrorResponse,
-  HttpParams,
-} from "@angular/common/http";
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from "@angular/core";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { FormsModule } from "@angular/forms";
-import { ButtonModule } from "primeng/button";
-import { DialogModule } from "primeng/dialog";
-import { InputTextModule } from "primeng/inputtext";
-import { MultiSelectModule } from "primeng/multiselect";
-import { TableModule } from "primeng/table";
-import { TagModule } from "primeng/tag";
-import { TableLazyLoadEvent } from "primeng/types/table";
-import {
-  EMPTY,
-  Subject,
-  catchError,
-  forkJoin,
-  merge,
-  of,
-  switchMap,
-  timer,
-} from "rxjs";
-import { AuthService } from "../../../../../nucleo/autenticacion/auth.service";
-import {
-  Paginated,
-  ProductionConsolidation,
-  ProductionConsolidationDetail,
-  ProductionConsolidationStatus,
-  ProductionDetailStage,
-  ProductionHistory,
-  ProductionTrackingOrder,
-} from "../../../../../compartido/modelos";
-
-const STATUS_LABELS: Record<ProductionConsolidationStatus, string> = {
-  BORRADOR: "Borrador",
-  EMITIDA: "Emitida",
-  EN_PROCESO: "En proceso",
-  CERRADA: "Completada",
-  CERRADA_INCOMPLETA: "Completada con faltantes",
-  CANCELADA: "Cancelada",
-};
-const EVENT_LABELS: Record<ProductionHistory["event"], string> = {
-  GENERACION: "Orden generada",
-  RECALCULO: "Plan recalculado",
-  AJUSTE_LOTE: "Ajuste de lote",
-  PRODUCCION_ADICIONAL: "Producción adicional",
-  PRODUCTO_AGREGADO: "Producto agregado",
-  PRODUCTO_RETIRADO: "Producto retirado",
-  PROGRAMACION: "Programación actualizada",
-  EMISION: "Orden emitida a planta",
-  INICIO: "Producción iniciada",
-  AVANCE: "Avance registrado",
-  ENTREGA_PRODUCCION: "Entrega enviada a Almacén",
-  RECEPCION_ALMACEN: "Recepción en Almacén",
-  CANCELACION_PRODUCTO: "Producto cancelado",
-  CANCELACION_ORDEN: "Orden cancelada",
-  CIERRE_INCOMPLETO: "Orden completada con faltantes",
-  CIERRE: "Orden completada",
-};
+import { HttpErrorResponse } from '@angular/common/http';
+import { ProductionConsolidation, ProductionConsolidationDetail } from '../../../../../compartido/modelos';
 import { ProductionTrackingBase } from './production-tracking.base';
 
 import { Directive } from '@angular/core';
@@ -84,6 +17,30 @@ export abstract class ProductionTrackingParte02 extends ProductionTrackingBase {
         0,
         Number(detail.plannedQuantity) - Number(detail.receivedQuantity),
       );
+    }
+
+  protected override completedProducts(order: ProductionConsolidation): number {
+      return order.details.filter((detail) =>
+        ["COMPLETADO", "CERRADO_CON_INCIDENCIA"].includes(detail.stage),
+      ).length;
+    }
+
+  protected override pendingReceipts(order: ProductionConsolidation): number {
+      return order.details.reduce(
+        (total, detail) =>
+          total + detail.deliveries.filter((delivery) => delivery.status === "PENDIENTE").length,
+        0,
+      );
+    }
+
+  protected override detailProgress(detail: ProductionConsolidationDetail): number {
+      const planned = Number(detail.plannedQuantity);
+      if (planned <= 0) return 0;
+      const current = Math.max(
+        Number(detail.preparedQuantity),
+        Number(detail.receivedQuantity),
+      );
+      return Math.min(100, Math.max(0, (current / planned) * 100));
     }
 
   protected override date(value: string | null, time = true): string {

@@ -24,12 +24,13 @@ Este documento registra la modificación solicitada después de la revisión fun
 | 14 | Cerrar una solicitud de abastecimiento incompleta. | Si queda cantidad pendiente, la orden y su solicitud asociada pasan a `CERRADA_INCOMPLETA` con observación obligatoria. |
 | 15 | Visibilizar solicitudes pendientes. | Producción dispone de una bandeja para ver las solicitudes enviadas por Almacén y generar la orden correspondiente. |
 | 16 | Simplificar la planificación para Producción. | El modal de la orden muestra únicamente fecha y secuencia, área y categoría, producto y presentación, planificado, producido, recibido, etapa y acciones. El desglose comercial no ocupa columnas operativas. |
-| 17 | Identificar y priorizar órdenes pendientes. | Cada orden recibe un código numérico automático. Planificación ordena por código descendente, filtra varios estados y abre mostrando `EMITIDA` y `EN_PROCESO`; su pestaña indica cuántas órdenes permanecen en esos estados. La tabla pagina en el servidor con 30 registros iniciales. |
+| 17 | Identificar y priorizar órdenes pendientes. | Cada orden recibe un código numérico automático. Planificación ordena por código descendente, filtra varios estados y abre mostrando `BORRADOR`, `EMITIDA` y `EN_PROCESO`; su pestaña indica cuántas órdenes permanecen pendientes. La tabla pagina en el servidor con 30 registros iniciales. |
 | 18 | Controlar entregas parciales con hora de fin. | El sistema determina automáticamente si la cantidad ingresada es parcial o final. Después de recibir un parcial, vuelve a habilitar **Entregar** sin exigir otro inicio. Cada entrega conserva su fecha y hora de fin de Producción, separada de la recepción. |
 | 19 | Abrir directamente el trabajo de planta. | Se elimina el listado intermedio y el botón **Procesar orden**. Producción en planta presenta directamente las órdenes emitidas o en proceso, reunidas por área, y conserva únicamente el filtro **Área de Producción**. |
 | 20 | Cerrar la producción con faltantes. | Cada orden visible ofrece **Cerrar producción**. Si todavía existe cantidad pendiente, el cierre usa `CERRADA_INCOMPLETA` y exige un motivo; no permite cerrar mientras Almacén tenga entregas pendientes. |
 | 21 | Ubicar la recepción en el módulo responsable. | La opción **Recepciones** se retira de Producción y se incorpora en **Almacén**, conservando permisos, doble validación, auditoría y movimiento de existencia. |
 | 22 | Retirar la generación general sin solicitud. | La cabecera de Órdenes de Producción ya no muestra **Generar orden de producción**; el responsable utiliza **Solicitudes pendientes → Aceptar solicitud**. |
+| 23 | Priorizar órdenes vigentes en Seguimiento. | La tabla de Seguimiento abre filtrada por `BORRADOR`, `EMITIDA` y `EN_PROCESO`; los demás estados permanecen disponibles en el selector. |
 
 ## Criterios de aceptación funcional
 
@@ -135,7 +136,7 @@ Si ya existe una recepción, la cancelación total se bloquea y debe utilizarse 
 
 **Dadas** órdenes en diferentes estados  
 **Cuando** el usuario abre **Planificación**  
-**Entonces** la tabla presenta **Código**, **Fecha de orden**, **Fecha de entrega**, **Estado** y **Acciones**, ordenada desde el código mayor al menor. Planificación sólo ofrece el filtro múltiple de estados, seleccionado por defecto en `EMITIDA` y `EN_PROCESO`; los filtros de fecha de entrega, área y categoría se conservan únicamente en las vistas operativas que los necesitan. La insignia informa el total pendiente y el paginador consulta 30 órdenes por página de manera predeterminada.
+**Entonces** la tabla presenta **Código**, **Fecha de orden**, **Fecha de entrega**, **Estado** y **Acciones**, ordenada desde el código mayor al menor. Planificación sólo ofrece el filtro múltiple de estados, seleccionado por defecto en `BORRADOR`, `EMITIDA` y `EN_PROCESO`; los filtros de fecha de entrega, área y categoría se conservan únicamente en las vistas operativas que los necesitan. La insignia informa el total pendiente y el paginador consulta 30 órdenes por página de manera predeterminada.
 
 ### PA-PROD-16 — Tablas por área y entregas parciales
 
@@ -190,6 +191,24 @@ La fecha solicitada permanece como referencia para obtener los pedidos y cantida
 **Cuando** Producción presiona **Devolver**, registra un motivo de al menos cinco caracteres y confirma.
 
 **Entonces** la solicitud vuelve a `BORRADOR`, desaparece de pendientes de Producción y Almacén muestra el motivo, responsable y fecha para corregirla y reenviarla. Si ya está `PROGRAMADA`, el sistema rechaza la devolución para proteger la trazabilidad de la orden.
+
+### PA-PROD-21 — Estados predeterminados de Seguimiento
+
+**Dadas** órdenes de Producción vigentes, completadas y canceladas
+
+**Cuando** el usuario abre **Producción → Seguimiento**
+
+**Entonces** el selector presenta marcados `BORRADOR`, `EMITIDA` y `EN_PROCESO`, y la primera consulta sólo muestra esos estados. El usuario puede limpiar o cambiar el filtro para consultar `CERRADA`, `CERRADA_INCOMPLETA` y `CANCELADA`.
+
+### PA-PROD-22 — Resumen visual del seguimiento
+
+**Dada** una orden con productos en distintas etapas y entregas parciales
+
+**Cuando** el usuario presiona **Ver seguimiento**
+
+**Entonces** el modal muestra primero el estado, fecha de entrega, responsable, etapas, total de productos, productos completados, recepciones pendientes y el avance compacto de cada producto. Las cantidades no se mezclan entre presentaciones: cada fila conserva su plan, producción y recepción.
+
+**Y** las entregas, incidencias y el historial técnico permanecen inicialmente contraídos, pero pueden desplegarse sin abandonar el modal. Una cancelación o cierre incompleto mantiene su motivo visible en el resumen.
 
 ## Evidencia automatizada
 

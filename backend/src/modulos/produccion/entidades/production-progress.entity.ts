@@ -18,7 +18,13 @@ export class ProductionProgress {
   @Column({ name: 'cantidad', type: 'numeric', precision: 18, scale: 6 })
   quantity: string;
 
-  @Column({ name: 'tipo', type: 'enum', enum: ProductionProgressType, enumName: 'tipo_avance_produccion_enum', default: ProductionProgressType.PROGRESS })
+  @Column({
+    name: 'tipo',
+    type: 'enum',
+    enum: ProductionProgressType,
+    enumName: 'tipo_avance_produccion_enum',
+    default: ProductionProgressType.PROGRESS,
+  })
   type: ProductionProgressType;
 
   @Column({ name: 'usuario_id', type: 'uuid' })

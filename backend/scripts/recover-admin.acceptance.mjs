@@ -1,0 +1,68 @@
+import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { Client } from 'pg';
+import { compare, hash } from 'bcryptjs';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { recoverAdmin, recoverySettings } from './recover-admin.mjs';
+assert.equal(process.env.NODE_ENV, 'test');
+assert.equal(process.env.DATABASE_NAME, 'icar_workflow_validation');
+const client = new Client({ host: process.env.DATABASE_HOST, port: Number(process.env.DATABASE_PORT), database: process.env.DATABASE_NAME, user: process.env.DATABASE_USER, password: process.env.DATABASE_PASSWORD });
+const settings = recoverySettings({ NODE_ENV: 'test', INITIAL_ADMIN_USERNAME: 'recovery.admin', INITIAL_ADMIN_EMAIL: 'recovery.admin@icar.local', INITIAL_ADMIN_PASSWORD: 'RecoveredAdmin123!' });
+const passed = (message) => console.log(`✓ ${message}`);
+async function login(password) {
+  return fetch(`${process.env.ACCEPTANCE_BASE_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: settings.username, password }) });
+}
+try {
+  await client.connect();
+  const created = await recoverAdmin(client, settings);
+  assert.equal(created.created, true);
+  assert.equal((await login(settings.password)).status, 200);
+  passed('crea administrador y permite iniciar sesión por HTTP');
+  const oldPassword = 'PreviousPassword123!';
+  await client.query("UPDATE usuarios SET password_hash=$2, status='INACTIVO', debe_cambiar_password=true WHERE id=$1", [created.id, await hash(oldPassword, 12)]);
+  await client.query('DELETE FROM usuarios_roles WHERE usuario_id=$1', [created.id]);
+  await client.query("INSERT INTO tokens_recuperacion(usuario_id, token_hash, expira_at) VALUES ($1, $2, now()+interval '1 hour')", [created.id, randomBytes(32).toString('hex')]);
+  const restored = await recoverAdmin(client, settings);
+  assert.equal(restored.id, created.id);
+  assert.equal(restored.created, false);
+  assert.ok(restored.revokedSessions >= 1);
+  assert.equal((await client.query('SELECT COUNT(*)::int AS total FROM tokens_recuperacion WHERE usuario_id=$1 AND usado_at IS NULL', [created.id])).rows[0].total, 0);
+  assert.equal((await login(oldPassword)).status, 401);
+  assert.equal((await login(settings.password)).status, 200);
+  passed('restablece contraseña, estado y rol; revoca sesiones y tokens anteriores');
+  await recoverAdmin(client, settings);
+  assert.equal((await client.query('SELECT COUNT(*)::int AS total FROM usuarios WHERE nombre_usuario=$1', [settings.username])).rows[0].total, 1);
+  passed('puede repetirse sin duplicar la cuenta');
+  await client.query("UPDATE usuarios SET nombre_usuario='renamed.admin', email='renamed@icar.local' WHERE id=$1", [created.id]);
+  assert.equal((await recoverAdmin(client, { ...settings, userId: created.id })).id, created.id);
+  passed('recupera por ID cuando se cambiaron usuario y correo');
+  const other = await recoverAdmin(client, { ...settings, username: 'other.admin', email: 'other@icar.local' });
+  await assert.rejects(recoverAdmin(client, { ...settings, email: 'other@icar.local' }), /cuentas distintas/);
+  await assert.rejects(recoverAdmin(client, { ...settings, userId: randomUUID() }), /cuentas distintas|no existe/);
+  assert.equal((await login(settings.password)).status, 200);
+  passed('rechaza colisiones y un ID incorrecto sin alterar el administrador');
+  await client.query("UPDATE usuarios SET tipo_usuario='CLIENTE' WHERE id=$1", [other.id]);
+  await assert.rejects(recoverAdmin(client, { ...settings, username: 'other.admin', email: 'other@icar.local' }), /cuenta de cliente/);
+  passed('no convierte cuentas de clientes en administradores');
+  const before = (await client.query('SELECT password_hash FROM usuarios WHERE id=$1', [created.id])).rows[0].password_hash;
+  const failingClient = { query: (sql, params) => {
+    if (sql.includes('INSERT INTO eventos_auditoria')) throw new Error('audit failure');
+    return client.query(sql, params);
+  } };
+  await assert.rejects(recoverAdmin(failingClient, { ...settings, password: 'MustRollback123!' }), /audit failure/);
+  const after = (await client.query('SELECT password_hash FROM usuarios WHERE id=$1', [created.id])).rows[0].password_hash;
+  assert.equal(after, before);
+  assert.equal(await compare(settings.password, after), true);
+  passed('revierte todos los cambios si falla la auditoría dentro de la transacción');
+  const audit = (await client.query("SELECT metadatos FROM eventos_auditoria WHERE accion='RECUPERAR_ADMIN_DESARROLLO' AND usuario_id=$1", [created.id])).rows;
+  assert.ok(audit.length >= 4);
+  assert.ok(!JSON.stringify(audit).includes(settings.password));
+  passed('registra auditoría sin contraseña');
+  const cli = await promisify(execFile)(process.execPath, ['scripts/recover-admin.mjs'], { env: { ...process.env, INITIAL_ADMIN_USERNAME: settings.username, INITIAL_ADMIN_EMAIL: settings.email, INITIAL_ADMIN_PASSWORD: settings.password } });
+  assert.match(cli.stdout, /Administrador restablecido/);
+  assert.ok(!cli.stdout.includes(settings.password));
+  assert.equal((await login(settings.password)).status, 200);
+  passed('el comando CLI utiliza las variables de entorno y no imprime la contraseña');
+  console.log('9 comprobaciones de recuperación de administrador aprobadas.');
+} finally { await client.end(); }

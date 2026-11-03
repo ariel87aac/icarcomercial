@@ -1,31 +1,13 @@
-import {
-  BadRequestException,
-  ConflictException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { hash } from 'bcryptjs';
-import { Brackets, DataSource, IsNull, QueryFailedError, Repository } from 'typeorm';
-import { paginate, PaginatedResponse } from '../../compartido/dto/pagination-query.dto';
+import { IsNull } from 'typeorm';
 import { RecordStatus } from '../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../seguridad/auditoria/audit.service';
-import { Role } from '../seguridad/roles-permisos/entidades/role.entity';
 import { UserSession } from '../seguridad/autenticacion/entidades/user-session.entity';
 import { User } from '../seguridad/usuarios/entidades/user.entity';
-import { UserType } from '../seguridad/usuarios/entidades/user-type.enum';
-import { DistributionDay } from '../zonas-reparto/entidades/distribution-day.entity';
-import { Zone } from '../zonas-reparto/entidades/zone.entity';
-import { CreateAddressDto, UpdateAddressDto } from './dto/address.dto';
-import {
-  CreateCustomerAccountDto,
-  UpdateCustomerAccountDto,
-} from './dto/customer-account.dto';
-import { CreateCustomerDto, UpdateCustomerDto } from './dto/customer.dto';
-import { CustomerQueryDto } from './dto/customer-query.dto';
+import { UpdateAddressDto } from './dto/address.dto';
+import { UpdateCustomerAccountDto } from './dto/customer-account.dto';
 import { CustomerAddress } from './entidades/customer-address.entity';
-import { Customer } from './entidades/customer.entity';
 import { CustomerUser } from './entidades/customer-user.entity';
 import { PaymentCondition } from './entidades/customer.enums';
 import { CustomersServiceParte05 } from './customers.05-assertNotDuplicate';
@@ -140,6 +122,10 @@ export abstract class CustomersServiceParte04 extends CustomersServiceParte05 {
       const address = await this.addressRepository.findOne({ where: { id: addressId, customerId } });
       if (!address) throw new NotFoundException('Domicilio no encontrado');
       const previousStatus = address.status;
+      const nextStatus = dto.status ?? address.status;
+      if (nextStatus === RecordStatus.INACTIVE && dto.isPrimary) {
+        throw new ConflictException('Un domicilio inactivo no puede ser predeterminado');
+      }
       await this.validateAddress({
         latitude: dto.latitude ?? (address.latitude ? Number(address.latitude) : undefined),
         longitude: dto.longitude ?? (address.longitude ? Number(address.longitude) : undefined),
@@ -148,17 +134,33 @@ export abstract class CustomersServiceParte04 extends CustomersServiceParte05 {
       });
       await this.dataSource.transaction(async (manager) => {
         const repository = manager.getRepository(CustomerAddress);
-        if (dto.isPrimary) {
+        if (dto.isPrimary && nextStatus === RecordStatus.ACTIVE) {
           await repository.update({ customerId, isPrimary: true }, { isPrimary: false });
         }
         Object.assign(address, {
           ...dto,
+          status: nextStatus,
+          isPrimary: nextStatus === RecordStatus.INACTIVE ? false : dto.isPrimary ?? address.isPrimary,
           ...(dto.latitude !== undefined ? { latitude: dto.latitude.toFixed(6) } : {}),
           ...(dto.longitude !== undefined ? { longitude: dto.longitude.toFixed(6) } : {}),
         });
         await repository.save(address);
+        const primaryExists = await repository.exists({
+          where: { customerId, isPrimary: true, status: RecordStatus.ACTIVE },
+        });
+        if (!primaryExists) {
+          const replacement = await repository.findOne({
+            where: { customerId, status: RecordStatus.ACTIVE },
+            order: { createdAt: 'ASC' },
+          });
+          if (replacement) await repository.update(replacement.id, { isPrimary: true });
+        }
       });
       const statusChanged = dto.status !== undefined && dto.status !== previousStatus;
+      const updatedAddress = await this.addressRepository.findOneOrFail({
+        where: { id: address.id },
+        relations: { zone: true, distributionDay: true },
+      });
       await this.auditService.record({
         userId: actor.id,
         module: 'customers',
@@ -174,13 +176,11 @@ export abstract class CustomersServiceParte04 extends CustomersServiceParte05 {
           customerId,
           fields: Object.keys(dto),
           previousStatus,
-          status: dto.status ?? address.status,
+          status: updatedAddress.status,
+          isPrimary: updatedAddress.isPrimary,
         },
       });
-      return this.addressRepository.findOneOrFail({
-        where: { id: address.id },
-        relations: { zone: true, distributionDay: true },
-      });
+      return updatedAddress;
     }
 
   async updateAddressById(

@@ -24,7 +24,13 @@ export class ProductionDelivery {
   @Column({ name: 'incidencia_produccion', type: 'varchar', length: 1000, nullable: true })
   productionIncident: string | null;
 
-  @Column({ name: 'estado', type: 'enum', enum: ProductionDeliveryStatus, enumName: 'estado_entrega_produccion_enum', default: ProductionDeliveryStatus.PENDING })
+  @Column({
+    name: 'estado',
+    type: 'enum',
+    enum: ProductionDeliveryStatus,
+    enumName: 'estado_entrega_produccion_enum',
+    default: ProductionDeliveryStatus.PENDING,
+  })
   status: ProductionDeliveryStatus;
 
   @Column({ name: 'entregado_por', type: 'uuid' })

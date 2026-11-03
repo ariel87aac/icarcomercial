@@ -1,45 +1,16 @@
-import {
-  HttpClient,
-  HttpErrorResponse,
-  HttpParams,
-} from "@angular/common/http";
-import {
-  ChangeDetectionStrategy,
-  Component,
-  DestroyRef,
-  OnInit,
-  inject,
-  signal,
-} from "@angular/core";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { FormsModule } from "@angular/forms";
-import { ButtonModule } from "primeng/button";
-import { DialogModule } from "primeng/dialog";
-import { InputTextModule } from "primeng/inputtext";
-import { MultiSelectModule } from "primeng/multiselect";
-import { TableModule } from "primeng/table";
-import { TagModule } from "primeng/tag";
-import { TableLazyLoadEvent } from "primeng/types/table";
-import {
-  EMPTY,
-  Subject,
-  catchError,
-  forkJoin,
-  merge,
-  of,
-  switchMap,
-  timer,
-} from "rxjs";
-import { AuthService } from "../../../../../nucleo/autenticacion/auth.service";
+import { HttpParams } from '@angular/common/http';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { TableLazyLoadEvent } from 'primeng/types/table';
+import { EMPTY, catchError, forkJoin, merge, of, switchMap, timer } from 'rxjs';
 import {
   Paginated,
   ProductionConsolidation,
-  ProductionConsolidationDetail,
   ProductionConsolidationStatus,
   ProductionDetailStage,
   ProductionHistory,
   ProductionTrackingOrder,
-} from "../../../../../compartido/modelos";
+} from '../../../../../compartido/modelos';
+import { ProductionTrackingParte02 } from './production-tracking.02-number';
 
 const STATUS_LABELS: Record<ProductionConsolidationStatus, string> = {
   BORRADOR: "Borrador",
@@ -67,7 +38,6 @@ const EVENT_LABELS: Record<ProductionHistory["event"], string> = {
   CIERRE_INCOMPLETO: "Orden completada con faltantes",
   CIERRE: "Orden completada",
 };
-import { ProductionTrackingParte02 } from './production-tracking.02-number';
 
 import { Directive } from '@angular/core';
 

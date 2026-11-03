@@ -5,10 +5,12 @@ La base de datos usa PostgreSQL 18 y se ejecuta exclusivamente dentro de Docker 
 ## Inicialización y migraciones
 
 - `init/`: scripts que PostgreSQL ejecuta solo al crear un volumen nuevo.
-- `../backend/src/database/migrations/`: cambios versionados del esquema de la aplicación.
+- `../backend/src/base-datos/migraciones/`: cambios versionados del esquema de la aplicación.
 - `backups/`: destino local ignorado por Git para copias de seguridad.
 
 El backend aplica las migraciones pendientes antes de arrancar. `synchronize` permanece desactivado para evitar cambios implícitos del esquema.
+
+El inicializador habilita `pgcrypto` y `uuid-ossp`; esta última es requerida por migraciones históricas que usan `uuid_generate_v4()`. Los scripts de inicialización solo se ejecutan al crear una base nueva: cambiar este archivo no modifica volúmenes existentes.
 
 ## Acceso administrativo
 

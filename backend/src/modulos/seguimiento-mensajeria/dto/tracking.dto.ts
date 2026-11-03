@@ -129,6 +129,11 @@ export class SaveChannelSettingDto {
   active = true;
 }
 
+export class UpdateChannelStatusDto {
+  @IsBoolean()
+  active: boolean;
+}
+
 export class TestNotificationChannelDto {
   @IsString()
   @Matches(/^\d{8,15}$/)

@@ -1,0 +1,40 @@
+import type { UserView } from './user.view';
+import type { OrderDetailView } from './order-detail.view';
+import type { CustomerView } from './customer.view';
+
+export interface OrderView {
+  id: string;
+  createdAt: Date;
+  updatedAt: Date;
+  code: string;
+  customerId: string;
+  customer: CustomerView;
+  addressId: string;
+  requestedDate: string;
+  orderCutoffAt: Date;
+  preparationAt: Date;
+  status: string;
+  origin: string;
+  observations: string | null;
+  total: string;
+  createdById: string;
+  createdBy: UserView;
+  confirmedById: string | null;
+  confirmedBy: UserView | null;
+  receivedAt: Date | null;
+  confirmedAt: Date | null;
+  canceledById: string | null;
+  canceledBy: UserView | null;
+  canceledAt: Date | null;
+  cancellationReason: string | null;
+  deletedAt: Date | null;
+  deletedById: string | null;
+  deletedBy: UserView | null;
+  deletionReason: string | null;
+  customerNameSnapshot: string | null;
+  customerTypeSnapshot: string | null;
+  addressSnapshot: string | null;
+  zoneSnapshot: string | null;
+  distributionWeekdaySnapshot: number | null;
+  details: OrderDetailView[];
+}

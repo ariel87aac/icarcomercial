@@ -15,6 +15,8 @@ El módulo compila, inicia correctamente en Docker y conserva las medidas princi
 - Destinatario almacenado enmascarado; no se almacena el cuerpo enviado ni el token.
 - Permiso `notifications.channel.manage` para ejecutar y `notifications.channel.read` para consultar registros.
 - Auditoría `PROBAR_CANAL` sin número completo, cuerpo ni credencial.
+- Botón global **Habilitar/Deshabilitar envío** con estado visible y auditoría. Al deshabilitar, se conservan URL, token y parámetros; los eventos no generan notificaciones, las pruebas quedan bloqueadas y cualquier pendiente o reintento anterior se cierra sin envío. Al habilitar sólo se procesan mensajes creados por eventos posteriores.
+- La consulta del canal recupera también la configuración inactiva. Esto permite volver a habilitarla o editarla sin perder los campos ni solicitar nuevamente el token almacenado.
 
 ## Componentes verificados como funcionales
 

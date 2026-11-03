@@ -1,8 +1,12 @@
-import type { DistributionRouteStatus, RecordStatus, VisitResultType } from '../../../compartido/modelos-base';
+import type {
+  DistributionRouteStatus,
+  RecordStatus,
+  VisitResultType,
+} from '../../../compartido/modelos-base';
 import type { Stock } from '../../almacen/dominio/modelos-almacen';
 import type { CustomerAddress, Zone } from '../../clientes/dominio/modelos-clientes';
 import type { Order } from '../../pedidos/dominio/modelos-pedidos';
-import type { OrderPreparation, OrderPreparationDetail, PendingDistributionPreparation } from '../../preparacion/dominio/modelos-preparacion';
+import type { OrderPreparation, OrderPreparationDetail } from '../../preparacion/dominio/modelos-preparacion';
 import type { User } from '../../seguridad/dominio/modelos-seguridad';
 
 export interface Vehicle {

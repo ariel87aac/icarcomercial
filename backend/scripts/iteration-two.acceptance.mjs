@@ -543,6 +543,6 @@ try {
   process.stderr.write(`\nFallo de aceptación: ${error.stack ?? error}\n`);
   process.exitCode = 1;
 } finally {
-  try { await cleanupAcceptanceData(); process.stdout.write('Datos temporales de la segunda iteración eliminados.\n'); }
+  try { await cleanupAcceptanceData(); process.stdout.write(process.env.ACCEPTANCE_KEEP_DATA === 'true' ? 'Datos conservados hasta retirar el entorno temporal.\n' : 'Datos temporales de la segunda iteración eliminados.\n'); }
   catch (cleanupError) { process.stderr.write(`No fue posible limpiar los datos temporales: ${cleanupError.stack ?? cleanupError}\n`); process.exitCode = 1; }
 }

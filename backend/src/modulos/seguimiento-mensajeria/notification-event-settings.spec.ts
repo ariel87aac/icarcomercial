@@ -4,7 +4,7 @@ import { NotificationEvent } from './entidades/tracking.enums';
 import { Order } from '../pedidos/entidades/order.entity';
 import { Payment } from '../ventas-cobranzas/entidades/payment.entity';
 
-function service(enabled: boolean) {
+function service(enabled: boolean, channelEnabled = true) {
   const subject = Object.create(NotificationService.prototype) as NotificationService;
   const query = vi.fn().mockResolvedValue([{ event: NotificationEvent.ORDER_DRAFT, enabled }]);
   const findOne = vi.fn().mockResolvedValue(enabled ? { id: 'template', body: '', allowedVariables: [] } : null);
@@ -12,6 +12,7 @@ function service(enabled: boolean) {
     dataSource: { query },
     templates: { findOne },
     audit: { record: vi.fn() },
+    channelSendingEnabled: vi.fn().mockResolvedValue(channelEnabled),
     enqueueWithTemplate: vi.fn().mockResolvedValue(null),
   });
   return { subject, query, findOne };
@@ -33,6 +34,12 @@ describe('Preferencias de envío por evento', () => {
   it('aplica también la preferencia a los mensajes automáticos de cobro', async () => {
     const { subject } = service(false);
     expect(await subject.enqueuePayment({} as Payment, 1)).toBeNull();
+  });
+
+  it('no genera notificaciones cuando el envío global está deshabilitado', async () => {
+    const { subject, findOne } = service(true, false);
+    expect(await subject.enqueue({} as Order, null, NotificationEvent.DELIVERED, 1, {})).toBeNull();
+    expect(findOne).not.toHaveBeenCalled();
   });
 
   it('permite buscar una plantilla activa al habilitar el evento', async () => {

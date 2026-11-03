@@ -1,11 +1,11 @@
-import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, ParseUUIDPipe, Patch, Post, Query, Req } from '@nestjs/common';
 import { Request } from 'express';
 import { CurrentUser } from '../../compartido/decoradores/current-user.decorator';
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
 import { Public } from '../../compartido/decoradores/public.decorator';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
 import { PaginationQueryDto } from '../../compartido/dto/pagination-query.dto';
-import { RequestOrderChangeDto, ResolveOrderChangeDto, SaveNotificationEventSettingDto, CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, WebhookDto } from './dto/tracking.dto';
+import { RequestOrderChangeDto, ResolveOrderChangeDto, SaveNotificationEventSettingDto, CreateTrackingLinkDto, NotificationQueryDto, SaveChannelSettingDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, TrackingEventDto, UpdateChannelStatusDto, WebhookDto } from './dto/tracking.dto';
 import { NotificationService } from './notification.service';
 import { TrackingService } from './tracking.service';
 
@@ -107,6 +107,12 @@ export class TrackingController {
   @RequirePermissions('notifications.channel.manage')
   saveChannel(@Body() dto: SaveChannelSettingDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.notifications.saveChannel(dto, actor);
+  }
+
+  @Patch('notification-channel/status')
+  @RequirePermissions('notifications.channel.manage')
+  updateChannelStatus(@Body() dto: UpdateChannelStatusDto, @CurrentUser() actor: AuthenticatedUser) {
+    return this.notifications.setChannelActive(dto.active, actor);
   }
 
   @Post('notification-channel/test')

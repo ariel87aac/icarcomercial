@@ -1,3 +1,16 @@
+import type {
+  GenerateProductionConsolidationCommand,
+  ScheduleProductionDetailCommand,
+  ProductionReasonCommand,
+  ProductionConsolidationQuery,
+  RegisterProductionProgressCommand,
+  AdjustProductionPlanCommand,
+  CreateProductionAreaCommand,
+  UpdateProductionAreaCommand,
+  RegisterProductionDeliveryCommand,
+  ReceiveProductionDeliveryCommand,
+  CloseProductionConsolidationCommand,
+} from '../aplicacion/production-inputs';
 import { Transform, Type } from 'class-transformer';
 import {
   ArrayUnique,
@@ -19,7 +32,7 @@ import { RecordStatus } from '../../../compartido/enumeraciones/record-status.en
 import { PaginationQueryDto } from '../../../compartido/dto/pagination-query.dto';
 import { ProductionConsolidationStatus, ProductionConsolidationType } from '../entidades/production.enums';
 
-export class GenerateProductionConsolidationDto {
+export class GenerateProductionConsolidationDto implements GenerateProductionConsolidationCommand {
   @IsDateString()
   deliveryDate: string;
 
@@ -28,7 +41,7 @@ export class GenerateProductionConsolidationDto {
   stockRequestId?: string;
 }
 
-export class ScheduleProductionDetailDto {
+export class ScheduleProductionDetailDto implements ScheduleProductionDetailCommand {
   @IsDateString()
   scheduledDate: string;
 
@@ -50,14 +63,14 @@ export class ScheduleProductionDetailDto {
   reason?: string;
 }
 
-export class ProductionReasonDto {
+export class ProductionReasonDto implements ProductionReasonCommand {
   @IsString()
   @MinLength(5)
   @MaxLength(1000)
   reason: string;
 }
 
-export class ProductionConsolidationQueryDto extends PaginationQueryDto {
+export class ProductionConsolidationQueryDto extends PaginationQueryDto implements ProductionConsolidationQuery {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -95,16 +108,16 @@ export class ProductionConsolidationQueryDto extends PaginationQueryDto {
   status?: ProductionConsolidationStatus;
 
   @IsOptional()
-  @Transform(({ value }) => (Array.isArray(value) ? value : String(value).split(','))
-    .map((item) => String(item).trim())
-    .filter(Boolean))
+  @Transform(({ value }) =>
+    (Array.isArray(value) ? value : String(value).split(',')).map((item) => String(item).trim()).filter(Boolean),
+  )
   @IsArray()
   @ArrayUnique()
   @IsEnum(ProductionConsolidationStatus, { each: true })
   statuses?: ProductionConsolidationStatus[];
 }
 
-export class RegisterProductionProgressDto {
+export class RegisterProductionProgressDto implements RegisterProductionProgressCommand {
   @IsUUID()
   consolidatedDetailId: string;
 
@@ -120,7 +133,7 @@ export class RegisterProductionProgressDto {
   observation?: string;
 }
 
-export class AdjustProductionPlanDto {
+export class AdjustProductionPlanDto implements AdjustProductionPlanCommand {
   @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 6 })
@@ -141,7 +154,7 @@ export class AdjustProductionPlanDto {
   reason?: string;
 }
 
-export class CreateProductionAreaDto {
+export class CreateProductionAreaDto implements CreateProductionAreaCommand {
   @IsString()
   @MaxLength(100)
   name: string;
@@ -152,7 +165,7 @@ export class CreateProductionAreaDto {
   categoryIds: string[];
 }
 
-export class UpdateProductionAreaDto {
+export class UpdateProductionAreaDto implements UpdateProductionAreaCommand {
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -169,7 +182,7 @@ export class UpdateProductionAreaDto {
   categoryIds?: string[];
 }
 
-export class RegisterProductionDeliveryDto {
+export class RegisterProductionDeliveryDto implements RegisterProductionDeliveryCommand {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 6 })
   @Min(0.000001)
@@ -185,7 +198,7 @@ export class RegisterProductionDeliveryDto {
   incident?: string;
 }
 
-export class ReceiveProductionDeliveryDto {
+export class ReceiveProductionDeliveryDto implements ReceiveProductionDeliveryCommand {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 6 })
   @Min(0.000001)
@@ -198,7 +211,7 @@ export class ReceiveProductionDeliveryDto {
   observation?: string;
 }
 
-export class CloseProductionConsolidationDto {
+export class CloseProductionConsolidationDto implements CloseProductionConsolidationCommand {
   @IsOptional()
   @IsString()
   @MaxLength(1000)

@@ -1,20 +1,9 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MessageService } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
-import { TextareaModule } from 'primeng/textarea';
-import { AuthService } from '../../../../../nucleo/autenticacion/auth.service';
-import { CartService } from '../../../../pedidos/carrito/cart.service';
+import { HttpParams } from '@angular/common/http';
 import {
   CommercialCatalogPresentation,
   CommercialCatalogProduct,
   Customer,
-  CustomerAddress,
+  activeCustomerAddresses,
   DeliveryOption,
   OrderScheduleSettings,
   Paginated,
@@ -177,7 +166,7 @@ export abstract class CommercialCatalogParte01 extends CommercialCatalogParte02 
     }
 
   protected override addressOptions(): {label: string; value: string}[] {
-      return (this.currentCustomer()?.addresses ?? []).filter((address) => address.status === 'ACTIVO').map((address) => ({
+      return activeCustomerAddresses(this.currentCustomer()).map((address) => ({
         label: `${address.label} · ${address.address}`,
         value: address.id,
       }));

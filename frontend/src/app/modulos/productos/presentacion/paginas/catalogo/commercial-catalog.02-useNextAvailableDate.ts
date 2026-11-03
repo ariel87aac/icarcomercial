@@ -1,25 +1,5 @@
-import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { FormBuilder, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
-import { MessageService } from 'primeng/api';
-import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { SelectModule } from 'primeng/select';
-import { TextareaModule } from 'primeng/textarea';
-import { AuthService } from '../../../../../nucleo/autenticacion/auth.service';
-import { CartService } from '../../../../pedidos/carrito/cart.service';
-import {
-  CommercialCatalogPresentation,
-  CommercialCatalogProduct,
-  Customer,
-  CustomerAddress,
-  DeliveryOption,
-  DraftCartOrder,
-  OrderScheduleSettings,
-  Paginated,
-} from '../../../../../compartido/modelos';
+import { HttpErrorResponse, HttpParams } from '@angular/common/http';
+import { activeCustomerAddresses, CustomerAddress, defaultCustomerAddress, DeliveryOption, DraftCartOrder } from '../../../../../compartido/modelos';
 import { CommercialCatalogParte03 } from './commercial-catalog.03-draft-flow';
 
 import { Directive } from '@angular/core';
@@ -71,8 +51,12 @@ export abstract class CommercialCatalogParte02 extends CommercialCatalogParte03 
             return;
           }
           this.cart.loadDraft(draft.id, draft.code, draft.details);
+          const activeAddresses = activeCustomerAddresses(this.currentCustomer());
+          const addressId = activeAddresses.some((address) => address.id === draft.addressId)
+            ? draft.addressId
+            : defaultCustomerAddress(this.currentCustomer())?.id ?? '';
           this.checkoutForm.reset({
-            addressId: draft.addressId,
+            addressId,
             requestedDate: draft.requestedDate,
             observations: draft.observations ?? '',
           });
@@ -93,13 +77,14 @@ export abstract class CommercialCatalogParte02 extends CommercialCatalogParte03 
     }
 
   protected override prepareCheckout(): void {
-      const address = this.currentCustomer()?.addresses.find((item) => item.status === 'ACTIVO');
+      const address = defaultCustomerAddress(this.currentCustomer());
       this.checkoutForm.reset({ addressId: address?.id ?? '', requestedDate: '', observations: '' });
       this.loadDeliveryOptions();
     }
 
   protected override currentAddress(): CustomerAddress | undefined {
-      return this.currentCustomer()?.addresses.find((address) => address.id === this.checkoutForm.controls.addressId.value);
+      return activeCustomerAddresses(this.currentCustomer())
+        .find((address) => address.id === this.checkoutForm.controls.addressId.value);
     }
 
   protected override loadDeliveryOptions(): void {

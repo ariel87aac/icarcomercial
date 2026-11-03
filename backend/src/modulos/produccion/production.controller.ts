@@ -1,3 +1,5 @@
+import { UseFilters } from '@nestjs/common';
+import { ProductionErrorFilter } from './presentacion/production-error.filter';
 import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query } from '@nestjs/common';
 import { CurrentUser } from '../../compartido/decoradores/current-user.decorator';
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
@@ -17,6 +19,7 @@ import {
 } from './dto/production.dto';
 import { ProductionService } from './production.service';
 
+@UseFilters(ProductionErrorFilter)
 @Controller('production-consolidations')
 export class ProductionConsolidationsController {
   constructor(private readonly production: ProductionService) {}
@@ -41,10 +44,7 @@ export class ProductionConsolidationsController {
 
   @Get('plant')
   @RequirePermissions('production.execution.manage')
-  plant(
-    @Query() query: ProductionConsolidationQueryDto,
-    @CurrentUser() actor: AuthenticatedUser,
-  ) {
+  plant(@Query() query: ProductionConsolidationQueryDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.production.plantBoard(query.productionAreaId, actor);
   }
 
@@ -179,6 +179,7 @@ export class ProductionConsolidationsController {
   }
 }
 
+@UseFilters(ProductionErrorFilter)
 @Controller('production-stock-requests')
 export class ProductionStockRequestsController {
   constructor(private readonly production: ProductionService) {}
@@ -200,17 +201,22 @@ export class ProductionStockRequestsController {
   }
 }
 
+@UseFilters(ProductionErrorFilter)
 @Controller('production-areas')
 export class ProductionAreasController {
   constructor(private readonly production: ProductionService) {}
 
   @Get()
   @RequirePermissions('production.areas.read')
-  findAll(@CurrentUser() actor: AuthenticatedUser) { return this.production.areas(actor); }
+  findAll(@CurrentUser() actor: AuthenticatedUser) {
+    return this.production.areas(actor);
+  }
 
   @Get('categories')
   @RequirePermissions('production.areas.read')
-  categories() { return this.production.productionCategories(); }
+  categories() {
+    return this.production.productionCategories();
+  }
 
   @Post()
   @RequirePermissions('production.areas.manage')
@@ -229,13 +235,16 @@ export class ProductionAreasController {
   }
 }
 
+@UseFilters(ProductionErrorFilter)
 @Controller('production-deliveries')
 export class ProductionDeliveriesController {
   constructor(private readonly production: ProductionService) {}
 
   @Get()
   @RequirePermissions('production.receipts.read')
-  findAll() { return this.production.pendingDeliveries(); }
+  findAll() {
+    return this.production.pendingDeliveries();
+  }
 
   @Post(':id/receive')
   @RequirePermissions('production.receipts.accept')
@@ -248,6 +257,7 @@ export class ProductionDeliveriesController {
   }
 }
 
+@UseFilters(ProductionErrorFilter)
 @Controller('production-requirements')
 export class ProductionRequirementsController {
   constructor(private readonly production: ProductionService) {}
@@ -259,6 +269,7 @@ export class ProductionRequirementsController {
   }
 }
 
+@UseFilters(ProductionErrorFilter)
 @Controller('production-summary')
 export class ProductionSummaryController {
   constructor(private readonly production: ProductionService) {}

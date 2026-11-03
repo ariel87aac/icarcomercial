@@ -1,24 +1,13 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, EntityManager, Repository } from 'typeorm';
-import { paginate, PaginatedResponse } from '../../../compartido/dto/pagination-query.dto';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { RecordStatus } from '../../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../../seguridad/auditoria/audit.service';
 import { ProductPresentation } from '../catalogo/entidades/product-presentation.entity';
 import { Product } from '../catalogo/entidades/product.entity';
 import { Customer } from '../../clientes/entidades/customer.entity';
 import { CustomerType } from '../../clientes/entidades/customer.enums';
 import { UserType } from '../../seguridad/usuarios/entidades/user-type.enum';
-import {
-  BulkUpdatePricesDto,
-  CatalogQueryDto,
-  CreateProductPriceDto,
-  PriceMatrixQueryDto,
-  PriceQueryDto,
-  UpdateProductPriceDto,
-} from './dto/pricing.dto';
 import { ProductPrice } from './entidades/product-price.entity';
+import { PricingServiceBase } from './pricing.base';
 
 export interface CatalogPresentation {
   id: string;
@@ -49,7 +38,6 @@ export interface PriceMatrixRow {
   prices: Record<CustomerType, string | null>;
   lastModifiedAt: Date | null;
 }
-import { PricingServiceBase } from './pricing.base';
 
 export abstract class PricingServiceParte03 extends PricingServiceBase {
   protected async requirePresentation(id: string): Promise<ProductPresentation> {

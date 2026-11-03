@@ -7,7 +7,7 @@ import {
   productionDifference,
   productionRequirement,
   roundForScale,
-} from './production-calculations';
+} from './dominio/production-calculations';
 
 describe('cálculos de consolidación para Producción', () => {
   it('convierte una presentación a la unidad base respetando la precisión de la unidad', () => {

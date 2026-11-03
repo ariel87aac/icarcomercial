@@ -1,34 +1,19 @@
-import {
-  BadRequestException,
-  ConflictException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-  ServiceUnavailableException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { createHash, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { BadRequestException } from '@nestjs/common';
 import { paginate, PaginationQueryDto } from '../../compartido/dto/pagination-query.dto';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { sanitizeSecrets } from '../../compartido/utilidades/secret-sanitizer.util';
 import { AuditEvent } from '../seguridad/auditoria/entidades/audit-event.entity';
-import { AuditService } from '../seguridad/auditoria/audit.service';
-import { Order } from '../pedidos/entidades/order.entity';
-import { SaveChannelSettingDto, NotificationQueryDto, SaveEstimationSettingDto, SaveNotificationTemplateDto, TestNotificationChannelDto, WebhookDto } from './dto/tracking.dto';
+import {
+  SaveChannelSettingDto,
+  SaveEstimationSettingDto,
+  SaveNotificationTemplateDto,
+} from './dto/tracking.dto';
 import { ChannelSetting } from './entidades/channel-setting.entity';
-import { ChannelTestLog } from './entidades/channel-test-log.entity';
 import { EstimationSetting } from './entidades/estimation-setting.entity';
-import { NotificationAttempt } from './entidades/notification-attempt.entity';
 import { NotificationTemplate } from './entidades/notification-template.entity';
-import { NotificationWebhook } from './entidades/notification-webhook.entity';
 import { Notification } from './entidades/notification.entity';
-import { NotificationAttemptStatus, NotificationEvent, NotificationStatus } from './entidades/tracking.enums';
-import { TrackingLink } from './entidades/tracking-link.entity';
-import { ChannelTokenCipherService } from './channel-token-cipher.service';
-import { LimiteApiAdapter } from './limite-api.adapter';
-import { Payment } from '../ventas-cobranzas/entidades/payment.entity';
+import { NotificationEvent, NotificationStatus } from './entidades/tracking.enums';
+import { In } from 'typeorm';
+import { NotificationServiceParte02 } from './notification.02-testChannel';
 
 export const AUTHORIZED_TEMPLATE_VARIABLES = [
   'trackingUrl',
@@ -44,72 +29,6 @@ export const AUTHORIZED_TEMPLATE_VARIABLES = [
   'deliveryDate',
   'cancellationReason',
 ] as const;
-
-type TemplateVariables = Partial<Record<(typeof AUTHORIZED_TEMPLATE_VARIABLES)[number], string>>;
-
-interface SystemTemplateDefinition {
-  reference: string;
-  body: string;
-  variables: string[];
-}
-
-const SYSTEM_NOTIFICATION_TEMPLATES: Record<NotificationEvent, SystemTemplateDefinition> = {
-  [NotificationEvent.IN_PREPARATION]: { reference: 'EN_PREPARACION_SISTEMA', body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está en preparación; estamos completando sus productos.', variables: ['customerName','orderReference'] },
-  [NotificationEvent.STOCK_READY]: { reference: 'DISPONIBLE_PREPARAR_SISTEMA', body: 'Hola {{customerName}}, todos los productos de tu pedido N° {{orderReference}} están disponibles para preparar.', variables: ['customerName','orderReference'] },
-  [NotificationEvent.PREPARED]: { reference: 'PREPARADO_SISTEMA', body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está preparado y fue entregado a Distribución.', variables: ['customerName','orderReference'] },
-  [NotificationEvent.ASSIGNED]: { reference: 'ASIGNADO_SISTEMA', body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue asignado a una ruta. Te avisaremos cuando esté en camino.', variables: ['customerName','orderReference'] },
-  [NotificationEvent.PARTIAL]: { reference: 'ENTREGA_PARCIAL_SISTEMA', body: 'Hola {{customerName}}, registramos una entrega parcial de tu pedido N° {{orderReference}}. Puedes solicitar atención desde el seguimiento.', variables: ['customerName','orderReference'] },
-  [NotificationEvent.ORDER_DRAFT]: {
-    reference: 'PEDIDO_BORRADOR_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue creado en estado borrador.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}\n\nConfirma tu pedido aquí: {{confirmationUrl}}',
-    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate', 'confirmationUrl'],
-  },
-  [NotificationEvent.ORDER_RECEIVED]: {
-    reference: 'PEDIDO_RECIBIDO_SISTEMA',
-    body: 'Hola {{customerName}}, recibimos tu pedido N° {{orderReference}} y se encuentra en revisión.\n\nProductos:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}',
-    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate'],
-  },
-  [NotificationEvent.ORDER_CONFIRMED]: {
-    reference: 'PEDIDO_CONFIRMADO_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue confirmado.\n\nProductos confirmados:\n{{productList}}\n\nTotal: Bs {{orderTotal}}\nFecha de entrega: {{deliveryDate}}',
-    variables: ['customerName', 'orderReference', 'productList', 'orderTotal', 'deliveryDate'],
-  },
-  [NotificationEvent.ORDER_CANCELED]: {
-    reference: 'PEDIDO_CANCELADO_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} fue cancelado.\nMotivo: {{cancellationReason}}',
-    variables: ['customerName', 'orderReference', 'cancellationReason'],
-  },
-  [NotificationEvent.RELEVANT_CHANGE]: {
-    reference: 'CAMBIO_RELEVANTE_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} cambió al estado {{publicStatus}}.',
-    variables: ['customerName', 'orderReference', 'publicStatus'],
-  },
-  [NotificationEvent.ROUTE_DEPARTURE]: {
-    reference: 'SALIDA_RUTA_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está en camino. Consulta tu turno actualizado en el enlace de seguimiento.',
-    variables: ['customerName', 'orderReference', 'estimatedFrom', 'estimatedUntil'],
-  },
-  [NotificationEvent.NEXT_DELIVERY]: {
-    reference: 'PROXIMA_ENTREGA_SISTEMA',
-    body: 'Hola {{customerName}}, tu pedido N° {{orderReference}} está próximo a entregarse. Paradas previas: {{pendingStops}}. Ventana estimada: {{estimatedFrom}} a {{estimatedUntil}}.',
-    variables: ['customerName', 'orderReference', 'pendingStops', 'estimatedFrom', 'estimatedUntil'],
-  },
-  [NotificationEvent.DELIVERED]: {
-    reference: 'PEDIDO_ENTREGADO_SISTEMA',
-    body: 'Hola {{customerName}}, registramos la entrega de tu pedido N° {{orderReference}}. Gracias por elegir ICAR.',
-    variables: ['customerName', 'orderReference'],
-  },
-  [NotificationEvent.DELIVERY_NOT_COMPLETED]: {
-    reference: 'ENTREGA_NO_COMPLETADA_SISTEMA',
-    body: 'Hola {{customerName}}, no fue posible completar la entrega de tu pedido N° {{orderReference}}. Nuestro equipo revisará el caso.',
-    variables: ['customerName', 'orderReference'],
-  },
-  [NotificationEvent.PAYMENT_RECEIVED]: {
-    reference: 'PAGO_RECIBIDO_SISTEMA',
-    body: 'Hola {{customerName}}, registramos el pago asociado a tu pedido N° {{orderReference}}.',
-    variables: ['customerName', 'orderReference'],
-  },
-};
 
 export interface ChannelSettingView {
   id: string;
@@ -127,7 +46,6 @@ export interface ChannelSettingView {
   updatedAt: Date;
   updatedBy: { id: string; name: string };
 }
-import { NotificationServiceParte02 } from './notification.02-testChannel';
 
 export abstract class NotificationServiceParte01 extends NotificationServiceParte02 {
   async listSettings(): Promise<EstimationSetting[]> {
@@ -234,12 +152,12 @@ export abstract class NotificationServiceParte01 extends NotificationServicePart
     }
 
   async getChannel(): Promise<ChannelSettingView | null> {
-      const channel = await this.channels.findOne({ where: { active: true }, relations: { updatedBy: true }, order: { updatedAt: 'DESC' } });
+      const [channel] = await this.channels.find({ relations: { updatedBy: true }, order: { updatedAt: 'DESC' }, take: 1 });
       return channel ? this.toChannelView(channel) : null;
     }
 
   async saveChannel(dto: SaveChannelSettingDto, actor: AuthenticatedUser): Promise<ChannelSettingView> {
-      const previous = await this.activeChannelWithCredential();
+      const previous = await this.latestChannelWithCredential();
       const receivedToken = dto.token?.trim() || null;
       if (!receivedToken && !previous?.encryptedToken) {
         throw new BadRequestException('Debe ingresar el token de LimiteAPI para configurar el canal');
@@ -248,7 +166,7 @@ export abstract class NotificationServiceParte01 extends NotificationServicePart
       const tokenLast3 = receivedToken ? receivedToken.slice(-3) : previous!.tokenLast3;
       const id = await this.dataSource.transaction(async (manager) => {
         const repository = manager.getRepository(ChannelSetting);
-        if (dto.active) await repository.update({ active: true }, { active: false });
+        await repository.update({ active: true }, { active: false });
         const channel = await repository.save(repository.create({
           provider: 'LIMITEAPI',
           apiUrl: dto.apiUrl,
@@ -266,6 +184,37 @@ export abstract class NotificationServiceParte01 extends NotificationServicePart
       });
       await this.audit.record({ userId: actor.id, module: 'notifications', action: 'CONFIGURAR_CANAL', entity: 'configuraciones_canal', entityId: id, result: 'EXITOSO', metadata: { provider: 'LIMITEAPI', apiUrl: dto.apiUrl, credentialChanged: Boolean(receivedToken), enabledNumber: dto.enabledNumber, licenseReference: dto.licenseReference ?? null, timeoutMs: dto.timeoutMs, maxRetries: dto.maxRetries, retryDelaySeconds: dto.retryDelaySeconds, active: dto.active } });
       const saved = await this.channels.findOneOrFail({ where: { id }, relations: { updatedBy: true } });
+      return this.toChannelView(saved);
+    }
+
+  async setChannelActive(active: boolean, actor: AuthenticatedUser): Promise<ChannelSettingView> {
+      const [current] = await this.channels.find({ order: { updatedAt: 'DESC' }, take: 1 });
+      if (!current) throw new BadRequestException('Primero configure el canal de WhatsApp');
+      const omitted = await this.dataSource.transaction(async (manager) => {
+        const repository = manager.getRepository(ChannelSetting);
+        await repository.update({ active: true }, { active: false });
+        await repository.update(current.id, { active, updatedById: actor.id });
+        if (active) return 0;
+        const result = await manager.getRepository(Notification).update(
+          { status: In([NotificationStatus.PENDING, NotificationStatus.RETRY]) },
+          {
+            status: NotificationStatus.FAILED,
+            processedAt: new Date(),
+            lastError: 'Envío omitido porque el canal fue deshabilitado',
+          },
+        );
+        return result.affected ?? 0;
+      });
+      await this.audit.record({
+        userId: actor.id,
+        module: 'notifications',
+        action: active ? 'HABILITAR_CANAL' : 'DESHABILITAR_CANAL',
+        entity: 'configuraciones_canal',
+        entityId: current.id,
+        result: 'EXITOSO',
+        metadata: { active, omitted },
+      });
+      const saved = await this.channels.findOneOrFail({ where: { id: current.id }, relations: { updatedBy: true } });
       return this.toChannelView(saved);
     }
 

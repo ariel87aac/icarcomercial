@@ -1,12 +1,4 @@
-import { Type } from 'class-transformer';
-import {
-  IsDateString,
-  IsIn,
-  IsOptional,
-  IsString,
-  IsUUID,
-  MaxLength,
-} from 'class-validator';
+import { IsDateString, IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../../compartido/dto/pagination-query.dto';
 
 export class AuditQueryDto extends PaginationQueryDto {

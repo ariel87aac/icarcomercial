@@ -50,7 +50,7 @@ Separar la cantidad adicional solicitada por el área Comercial para mantener st
 | SA-15 | Aunque para la fecha exista una orden emitida o cerrada, Comercial puede crear y enviar otra solicitud; Producción la recibe pendiente y genera una orden complementaria independiente. |
 | SA-16 | El filtro **Solo negativos** muestra exclusivamente disponibilidades menores que cero; al volver a **Ver todos** mantiene intactas las cantidades para stock y observaciones ya ingresadas. |
 | SA-17 | Producción devuelve una solicitud enviada con motivo obligatorio; desaparece de pendientes, Almacén ve el motivo, la corrige y puede reenviarla. Una solicitud ya programada rechaza la devolución. |
-| SA-18 | En Solicitudes pendientes, **Ver detalle** abre los productos sin aceptar ni modificar la solicitud y muestra código, presentación, categoría, área, saldos, faltante, cantidad para stock, total y observación. |
+| SA-18 | En Solicitudes pendientes, **Ver detalle** abre los productos sin aceptar ni modificar la solicitud y muestra código, presentación, categoría, área, únicamente **Total requerido** como cantidad y la observación. No muestra Físico, Reservado, Faltante ni Para stock. |
 | SA-19 | Al ingresar una cantidad mayor que cero en **Para stock**, la fila se resalta con el color institucional, una franja lateral y la etiqueta **Agregado para stock**; al volver a cero, la identificación desaparece sin ocultar alertas de disponibilidad negativa. |
 
 ## Evidencia automatizada

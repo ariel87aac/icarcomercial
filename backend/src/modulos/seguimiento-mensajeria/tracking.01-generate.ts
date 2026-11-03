@@ -1,23 +1,11 @@
-import { BadRequestException, ConflictException, HttpException, HttpStatus, Injectable, NotFoundException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { InjectRepository } from '@nestjs/typeorm';
-import { createHash, randomBytes } from 'node:crypto';
-import { DataSource, Repository } from 'typeorm';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { randomBytes } from 'node:crypto';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../seguridad/auditoria/audit.service';
-import { DistributionRouteStatus, VisitResultType } from '../distribucion/entidades/distribution.enums';
-import { RouteDelivery } from '../distribucion/entidades/route-delivery.entity';
-import { VisitResult } from '../distribucion/entidades/visit-result.entity';
 import { Order } from '../pedidos/entidades/order.entity';
-import { OrderStatus } from '../pedidos/entidades/order.enums';
-import { OrderPreparation } from '../preparacion/entidades/order-preparation.entity';
-import { PreparationStatus } from '../preparacion/entidades/preparation.enums';
 import { UserType } from '../seguridad/usuarios/entidades/user-type.enum';
-import { ChannelTokenCipherService } from './channel-token-cipher.service';
-import { NotificationService } from './notification.service';
 import { NotificationEvent, PublicTrackingStatus, TrackingLinkStatus } from './entidades/tracking.enums';
 import { TrackingLink } from './entidades/tracking-link.entity';
-import { TrackingUpdate } from './entidades/tracking-update.entity';
+import { TrackingServiceParte02 } from './tracking.02-captureOrder';
 
 export interface TrackingSnapshot {
   protectedReference: string;
@@ -36,7 +24,6 @@ export interface TrackingSnapshot {
     occurredAt: Date;
   }>;
 }
-import { TrackingServiceParte02 } from './tracking.02-captureOrder';
 
 export abstract class TrackingServiceParte01 extends TrackingServiceParte02 {
   async generate(orderId: string, expiresAtValue: string, actor: AuthenticatedUser) {

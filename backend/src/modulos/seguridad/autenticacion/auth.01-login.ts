@@ -1,23 +1,14 @@
-import { createHash, randomBytes } from 'node:crypto';
-import {
-  Injectable,
-  UnauthorizedException,
-} from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { JwtService } from '@nestjs/jwt';
-import { InjectRepository } from '@nestjs/typeorm';
+import { randomBytes } from 'node:crypto';
+import { UnauthorizedException } from '@nestjs/common';
 import { compare, hash } from 'bcryptjs';
-import { IsNull, MoreThan, Repository } from 'typeorm';
+import { IsNull, MoreThan } from 'typeorm';
 import { RecordStatus } from '../../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../auditoria/audit.service';
-import { User } from '../usuarios/entidades/user.entity';
 import { UserType } from '../usuarios/entidades/user-type.enum';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { ConfirmRecoveryDto, RequestRecoveryDto } from './dto/recovery.dto';
+import { RequestRecoveryDto } from './dto/recovery.dto';
 import { LoginDto } from './dto/login.dto';
-import { PasswordResetToken } from './entidades/password-reset-token.entity';
-import { UserSession } from './entidades/user-session.entity';
+import { AuthServiceParte02 } from './auth.02-confirmRecovery';
 
 export interface SessionView {
   user: {
@@ -45,7 +36,6 @@ interface RequestContext {
   ipAddress?: string | null;
   userAgent?: string | null;
 }
-import { AuthServiceParte02 } from './auth.02-confirmRecovery';
 
 export abstract class AuthServiceParte01 extends AuthServiceParte02 {
   async login(dto: LoginDto, context: RequestContext): Promise<IssuedSession> {

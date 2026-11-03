@@ -81,18 +81,28 @@ try {
 
   const api=async(path,body,method=body===undefined?'GET':'POST',status=body===undefined?200:201)=>(await expectStatus(path,{method,body,jar:adminJar},status,path)).payload;
   const stage=async(id)=>(await api(`/api/pedidos/${id}`)).operationalStatus;
-  const tokenFor=async(id)=>{const row=await db.query(`SELECT cuerpo_renderizado FROM notificaciones WHERE pedido_id=$1 AND evento='PEDIDO_BORRADOR'`,[id]);const match=row.rows[0]?.cuerpo_renderizado.match(/\/seguimiento\/([A-Za-z0-9_-]+)/);assert(match,'borrador debe incluir enlace de seguimiento');return match[1]};
+  const tokenFor=async(id)=>{
+    const link=await api(`/api/orders/${id}/tracking-link`,{expiresAt:new Date(Date.now()+90*86400000).toISOString()});
+    return link.url.split('/').at(-1);
+  };
   const publicState=async(token)=>(await expectStatus(`/api/public/tracking/${token}`,{},200,'seguimiento público')).payload;
-  for(const event of ['PEDIDO_BORRADOR','PEDIDO_CONFIRMADO','SALIDA_RUTA','ENTREGADO'])await api('/api/notification-event-settings',{event,enabled:true});
+  for(const event of ['PEDIDO_RECIBIDO','PEDIDO_CONFIRMADO','SALIDA_RUTA','ENTREGADO'])await api('/api/notification-event-settings',{event,enabled:true});
   for(const event of ['EN_PREPARACION','DISPONIBLE_PARA_PREPARAR','PREPARADO','ASIGNADO','ENTREGA_PARCIAL'])await api('/api/notification-event-settings',{event,enabled:false});
+  await api('/api/notification-event-settings',{event:'PEDIDO_BORRADOR',enabled:true});
   const orders=[];const tokens=[];
   for(let i=0;i<5;i++){
-    const order=await api('/api/pedidos',{customerId:customer.id,addressId:address.id,requestedDate:deliveryDate,details:[{presentationId:presentation.id,quantity:10}],observations:marker});orders.push(order);tokens.push(await tokenFor(order.id));
+    const order=await api('/api/pedidos',{customerId:customer.id,addressId:address.id,requestedDate:deliveryDate,details:[{presentationId:presentation.id,quantity:10}],observations:marker});
+    orders.push(order);tokens.push(await tokenFor(order.id));
+    assert.equal((await publicState(tokens[i])).status,'BORRADOR');
+    assert.equal(Number((await db.query('SELECT count(*) FROM notificaciones WHERE pedido_id=$1',[order.id])).rows[0].count),0);
+    if(i===0)await db.query('UPDATE enlaces_seguimiento SET token_cifrado=NULL WHERE pedido_id=$1',[order.id]);
+    // Leave the reusable cart before creating the next independent order.
+    await api(`/api/pedidos/${order.id}/enviar`,{});
   }
-  assert.equal((await publicState(tokens[0])).status,'BORRADOR');
-  await db.query('UPDATE enlaces_seguimiento SET token_cifrado=NULL WHERE pedido_id=$1',[orders[0].id]);passed('WF-01','borrador genera enlace e historial sin confirmar');
+  assert.equal(new Set(orders.map(order=>order.id)).size,5);
+  passed('WF-01','borrador silencioso, enlace protegido e historial; envío permite crear otro pedido');
   // Confirm the newer order first: stock priority must still use the original creation date.
-  for(const index of [1,0,2,3,4]){await api(`/api/pedidos/${orders[index].id}/enviar`,{});await api(`/api/pedidos/${orders[index].id}/confirmar`,{});}
+  for(const index of [1,0,2,3,4])await api(`/api/pedidos/${orders[index].id}/confirmar`,{});
   assert.equal((await publicState(tokens[0])).status,'EN_PREPARACION');
   assert.equal(await stage(orders[0].id),'EN_PREPARACION');
   let stock=(await api(`/api/inventario/existencias?productId=${product.id}`)).data[0];
@@ -140,7 +150,7 @@ try {
   const resolved=await publicState(renewedToken);assert.equal(resolved.changeRequests[0].status,'RESUELTA');assert.equal(resolved.status,'ENTREGADO');passed('WF-13','solicitud y resolución trazables sin alterar entrega ni inventario');
   await api('/api/tracking-events',{orderId:orders[3].id,sourceEvent:`test.flush:${suffix}`});
   const sent=await db.query(`SELECT evento, cuerpo_renderizado FROM notificaciones WHERE pedido_id=$1`,[orders[3].id]);
-  for(const event of ['PEDIDO_BORRADOR','PEDIDO_CONFIRMADO','SALIDA_RUTA','ENTREGADO'])assert.equal(sent.rows.filter(x=>x.evento===event).length,1,`mensaje único ${event}`);
+  for(const event of ['PEDIDO_RECIBIDO','PEDIDO_CONFIRMADO','SALIDA_RUTA','ENTREGADO'])assert.equal(sent.rows.filter(x=>x.evento===event).length,1,`mensaje único ${event}`);
   assert(sent.rows.find(x=>x.evento==='ENTREGADO').cuerpo_renderizado.includes('cambio de productos'));
   assert(sent.rows.every(x=>x.cuerpo_renderizado.includes('/seguimiento/')));passed('WF-14','cuatro mensajes principales únicos con enlace y opción de cambio');
   await api('/api/notification-event-settings',{event:'PEDIDO_BORRADOR',enabled:false});
@@ -150,8 +160,11 @@ try {
   await api('/api/notification-templates/defaults',{});assert.equal((await api('/api/notification-event-settings')).find(x=>x.event==='PEDIDO_BORRADOR').enabled,false);passed('WF-15','check desactivado omite mensaje y conserva historial; plantillas no lo reactivan');
   assert.equal(Number((await db.query(`SELECT count(*) FROM notificaciones_intentos a JOIN notificaciones n ON n.id=a.notificacion_id WHERE n.pedido_id=ANY($1::uuid[])`,[orders.map(x=>x.id)])).rows[0].count),0);passed('WF-16','ningún WhatsApp real enviado durante la prueba');
 
-  const create=async(details)=>api('/api/pedidos',{customerId:customer.id,addressId:address.id,requestedDate:deliveryDate,details,observations:marker});
-  const approve=async(order)=>{await api(`/api/pedidos/${order.id}/enviar`,{});await api(`/api/pedidos/${order.id}/confirmar`,{});};
+  const create=async(details)=>{
+    const order=await api('/api/pedidos',{customerId:customer.id,addressId:address.id,requestedDate:deliveryDate,details,observations:marker});
+    await api(`/api/pedidos/${order.id}/enviar`,{});return order;
+  };
+  const approve=async(order)=>api(`/api/pedidos/${order.id}/confirmar`,{});
   const oldest=await create([{presentationId:presentation.id,quantity:10}]);
   const younger=await create([{presentationId:presentation.id,quantity:10}]);
   await api('/api/inventario/movimientos',{presentationId:presentation.id,type:'INGRESO',quantity:10,reason:marker});

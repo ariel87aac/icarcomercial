@@ -86,80 +86,139 @@
 </p-table>
 </div>
 <p class="scope-note"> El cumplimiento es el promedio por presentación, limitado al 100 % de cada producto. Solo incluye productos de las áreas autorizadas; el estado corresponde a la orden completa. </p>
-<p-dialog [visible]="dialog()" (visibleChange)="!$event && close()" [modal]="true" [style]="{ width: 'min(1150px, 97vw)' }" [header]=" selected() ? 'Seguimiento · orden ' + selected()!.code : 'Seguimiento de producción' " [draggable]="false" >
-<div class="detail-toolbar">
-<span class="refresh-note"> @if (detailUpdatedAt()) { Última consulta: {{ date(detailUpdatedAt()) }} } @else { Consultando seguimiento… }</span >
-<p-button label="Actualizar" icon="pi pi-refresh" size="small" [text]="true" [loading]="detailLoading()" (onClick)="refresh()" />
-</div> @if (detailError()) { <p class="error-note" role="alert"> {{ detailError() }} Los datos no se han actualizado. </p> } @if (selected(); as order) { <div class="order-summary">
-<p-tag [severity]="severity(order.status)" [value]="statusLabel(order.status)" />
-<span >Entrega: <strong>{{ date(order.deliveryDate, false) }}</strong>
-</span >
-<span >Creada por: <strong>{{ order.generatedBy.name }}</strong>
-</span >
-</div>
-<ol class="milestones" aria-label="Etapas de la orden"> @for (step of milestones(order); track $index) { <li [class.reached]="step.at" [class.current]="step.current" [class.cancelled]="step.current && order.status === 'CANCELADA'" [class.incomplete]=" step.current && order.status === 'CERRADA_INCOMPLETA' " [attr.aria-current]="step.current ? 'step' : null" >
-<span class="milestone-dot" >
-<i [class]=" step.current && order.status === 'CANCELADA' ? 'pi pi-times' : step.at ? 'pi pi-check' : 'pi pi-circle' " >
-</i>
-</span >
-<strong>{{ step.label }}</strong >
-<small>{{ step.at ? date(step.at) : "Sin registro" }}</small>
-</li> } </ol> @if (order.incompleteCloseObservation || order.cancellationReason) { <p class="incident-note">
-<strong>Motivo:</strong> {{ order.incompleteCloseObservation || order.cancellationReason }} </p> } <h4>Estado por producto</h4>
-<div class="product-table">
-<table>
-<thead>
-<tr>
-<th>Producto / presentación</th>
-<th>Área</th>
-<th>Etapa</th>
-<th>Plan</th>
-<th>Producido</th>
-<th>Recibido</th>
-<th>Falta recibir</th>
-<th>Inicio / fin de producción</th>
-</tr>
-</thead>
-<tbody> @for (detail of order.details; track detail.id) { <tr>
-<td>
-<div class="stack">
-<strong>{{ detail.product.name }}</strong >
-<small>{{ detail.presentation?.description || detail.baseUnit.abbreviation }}</small >
-<small >Programado: {{ date(detail.scheduledDate, false) }}</small >
-</div>
-</td>
-<td>{{ detail.productionArea?.name || "Sin área" }}</td>
-<td>
-<p-tag [severity]="stageSeverity(detail.stage)" [value]="stageLabel(detail.stage)" />
-</td>
-<td>{{ number(detail.plannedQuantity) }}</td>
-<td>{{ number(detail.preparedQuantity) }}</td>
-<td>{{ number(detail.receivedQuantity) }}</td>
-<td>{{ number(pending(detail)) }}</td>
-<td>
-<div class="stack">
-<small>Inicio: {{ date(detail.startedAt) }}</small >
-<small>Fin: {{ date(detail.completedAt) }}</small>
-</div>
-</td>
-</tr> } </tbody>
-</table>
-</div>
-<p class="scope-note"> Las cantidades conservan la presentación de cada producto. Una entrega pendiente todavía no ingresó a las existencias de Almacén. </p>
-<h4>Entregas y recepciones</h4>
-<div class="delivery-groups"> @for (detail of order.details; track detail.id) { <section class="delivery-group">
-<strong >{{ detail.product.name }} · {{ detail.presentation?.description || detail.baseUnit.abbreviation }}</strong > @if (detail.cancellationReason) { <p class="incident-note"> Cancelación: {{ detail.cancellationReason }} </p> } @for ( delivery of detail.deliveries; track delivery.id; let index = $index ) { <div class="delivery">
-<div class="stack">
-<strong >Entrega {{ index + 1 }} · {{ delivery.finalDelivery ? "Final" : "Parcial" }}</strong >
-<span >{{ number(delivery.deliveredQuantity) }} entregado(s) · {{ delivery.deliveredBy.name }}</span >
-<small>{{ date(delivery.deliveredAt) }}</small> @if (delivery.productionIncident) { <small class="incident-text" >Incidencia: {{ delivery.productionIncident }}</small > } </div>
-<div class="stack">
-<p-tag [severity]=" delivery.status === 'ACEPTADA' ? 'success' : 'warn' " [value]=" delivery.status === 'ACEPTADA' ? 'Recibida por Almacén' : 'Pendiente de recepción' " /> @if (delivery.status === "ACEPTADA") { <span >{{ number(delivery.receivedQuantity || 0) }} recibido(s) · {{ delivery.receivedBy?.name }}</span >
-<small>{{ date(delivery.receivedAt) }}</small> } @if (delivery.warehouseObservation) { <small class="incident-text" >Observación: {{ delivery.warehouseObservation }}</small > } </div>
-</div> } @empty { <p class="muted">Sin entregas registradas.</p> } </section> } </div> @if (auth.can("production.history.read")) { <h4>Historial de la orden</h4> @if (historyError()) { <p class="error-note" role="alert"> No se pudo cargar el historial: {{ historyError() }} </p> } <ol class="timeline"> @for (event of history(); track event.id) { <li>
-<span class="timeline-dot" [class.transition]="event.previousStatus !== event.newStatus" >
-</span>
-<div class="stack">
-<strong>{{ eventLabel(event.event) }}</strong >
-<small >{{ date(event.occurredAt) }} · {{ event.user.name }}</small > @if (event.previousStatus !== event.newStatus) { <span class="transition-label" >{{ event.previousStatus ? statusLabel(event.previousStatus) + " → " : "" }}{{ statusLabel(event.newStatus) }}</span > } @if (event.observation) { <p>{{ event.observation }}</p> } </div>
-</li> } @empty { @if (!historyError()) { <li>Sin eventos registrados.</li> } } </ol> } } </p-dialog>
+<p-dialog
+  [visible]="dialog()"
+  (visibleChange)="!$event && close()"
+  [modal]="true"
+  [style]="{ width: 'min(900px, 96vw)' }"
+  [header]="selected() ? 'Seguimiento · orden ' + selected()!.code : 'Seguimiento de producción'"
+  [draggable]="false"
+>
+  <div class="detail-toolbar">
+    <span class="refresh-note">
+      @if (detailUpdatedAt()) { Actualizado: {{ date(detailUpdatedAt()) }} }
+      @else { Consultando seguimiento… }
+    </span>
+    <p-button label="Actualizar" icon="pi pi-refresh" size="small" [text]="true" [loading]="detailLoading()" (onClick)="refresh()" />
+  </div>
+
+  @if (detailError()) {
+    <p class="error-note" role="alert">{{ detailError() }} Los datos no se han actualizado.</p>
+  }
+
+  @if (selected(); as order) {
+    <div class="tracking-overview">
+      <div class="order-summary">
+        <p-tag [severity]="severity(order.status)" [value]="statusLabel(order.status)" />
+        <span>Entrega: <strong>{{ date(order.deliveryDate, false) }}</strong></span>
+        <span>Responsable: <strong>{{ order.generatedBy.name }}</strong></span>
+      </div>
+
+      <ol class="milestones compact" aria-label="Etapas de la orden">
+        @for (step of milestones(order); track $index) {
+          <li
+            [class.reached]="step.at"
+            [class.current]="step.current"
+            [class.cancelled]="step.current && order.status === 'CANCELADA'"
+            [class.incomplete]="step.current && order.status === 'CERRADA_INCOMPLETA'"
+            [attr.aria-current]="step.current ? 'step' : null"
+          >
+            <span class="milestone-dot">
+              <i [class]="step.current && order.status === 'CANCELADA' ? 'pi pi-times' : step.at ? 'pi pi-check' : 'pi pi-circle'"></i>
+            </span>
+            <strong>{{ step.label }}</strong>
+          </li>
+        }
+      </ol>
+
+      @if (order.incompleteCloseObservation || order.cancellationReason) {
+        <p class="incident-note"><strong>Motivo:</strong> {{ order.incompleteCloseObservation || order.cancellationReason }}</p>
+      }
+
+      <div class="tracking-metrics">
+        <div><span>Productos</span><strong>{{ order.details.length }}</strong></div>
+        <div><span>Completados</span><strong>{{ completedProducts(order) }} de {{ order.details.length }}</strong></div>
+        <div [class.attention]="pendingReceipts(order) > 0"><span>Pendientes de recepción</span><strong>{{ pendingReceipts(order) }}</strong></div>
+      </div>
+
+      <div class="section-heading">
+        <h4>Avance por producto</h4>
+        <span>Plan, producción y recepción</span>
+      </div>
+      <div class="product-progress-list">
+        @for (detail of order.details; track detail.id) {
+          <article class="product-progress-row">
+            <div class="product-identity">
+              <strong>{{ detail.product.name }}</strong>
+              <small>{{ detail.presentation?.description || detail.baseUnit.abbreviation }} · {{ detail.productionArea?.name || "Sin área" }}</small>
+            </div>
+            <div class="product-stage">
+              <p-tag [severity]="stageSeverity(detail.stage)" [value]="stageLabel(detail.stage)" />
+              <progress [value]="detailProgress(detail)" max="100" [attr.aria-label]="'Avance de ' + detail.product.name"></progress>
+            </div>
+            <div class="product-quantities">
+              <span>Plan <strong>{{ number(detail.plannedQuantity) }}</strong></span>
+              <span>Producido <strong>{{ number(detail.preparedQuantity) }}</strong></span>
+              <span>Recibido <strong>{{ number(detail.receivedQuantity) }}</strong></span>
+            </div>
+          </article>
+        }
+      </div>
+
+      <details class="technical-details">
+        <summary>Ver entregas, incidencias e historial técnico</summary>
+        <h4>Entregas e incidencias</h4>
+        <div class="delivery-groups">
+          @for (detail of order.details; track detail.id) {
+            @if (detail.deliveries.length || detail.cancellationReason) {
+              <section class="delivery-group">
+                <strong>{{ detail.product.name }} · {{ detail.presentation?.description || detail.baseUnit.abbreviation }}</strong>
+                @if (detail.cancellationReason) {
+                  <p class="incident-note">Cancelación: {{ detail.cancellationReason }}</p>
+                }
+                @for (delivery of detail.deliveries; track delivery.id; let index = $index) {
+                  <div class="delivery">
+                    <div class="stack">
+                      <strong>Entrega {{ index + 1 }} · {{ delivery.finalDelivery ? "Final" : "Parcial" }}</strong>
+                      <span>{{ number(delivery.deliveredQuantity) }} · {{ delivery.deliveredBy.name }}</span>
+                      <small>{{ date(delivery.deliveredAt) }}</small>
+                      @if (delivery.productionIncident) { <small class="incident-text">Incidencia: {{ delivery.productionIncident }}</small> }
+                    </div>
+                    <div class="stack">
+                      <p-tag [severity]="delivery.status === 'ACEPTADA' ? 'success' : 'warn'" [value]="delivery.status === 'ACEPTADA' ? 'Recibida por Almacén' : 'Pendiente de recepción'" />
+                      @if (delivery.status === "ACEPTADA") {
+                        <span>{{ number(delivery.receivedQuantity || 0) }} · {{ delivery.receivedBy?.name }}</span>
+                        <small>{{ date(delivery.receivedAt) }}</small>
+                      }
+                      @if (delivery.warehouseObservation) { <small class="incident-text">Observación: {{ delivery.warehouseObservation }}</small> }
+                    </div>
+                  </div>
+                }
+              </section>
+            }
+          }
+        </div>
+
+        @if (auth.can("production.history.read")) {
+          <h4>Historial de la orden</h4>
+          @if (historyError()) { <p class="error-note" role="alert">No se pudo cargar el historial: {{ historyError() }}</p> }
+          <ol class="timeline">
+            @for (event of history(); track event.id) {
+              <li>
+                <span class="timeline-dot" [class.transition]="event.previousStatus !== event.newStatus"></span>
+                <div class="stack">
+                  <strong>{{ eventLabel(event.event) }}</strong>
+                  <small>{{ date(event.occurredAt) }} · {{ event.user.name }}</small>
+                  @if (event.previousStatus !== event.newStatus) {
+                    <span class="transition-label">{{ event.previousStatus ? statusLabel(event.previousStatus) + " → " : "" }}{{ statusLabel(event.newStatus) }}</span>
+                  }
+                  @if (event.observation) { <p>{{ event.observation }}</p> }
+                </div>
+              </li>
+            } @empty { @if (!historyError()) { <li>Sin eventos registrados.</li> } }
+          </ol>
+        }
+      </details>
+    </div>
+  }
+</p-dialog>

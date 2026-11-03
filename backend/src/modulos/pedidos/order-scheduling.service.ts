@@ -9,14 +9,8 @@ import { UserType } from '../seguridad/usuarios/entidades/user-type.enum';
 import { UpdateOrderSchedulingDto } from './dto/order-scheduling.dto';
 import { OrderSchedulingSetting } from './entidades/order-scheduling-setting.entity';
 
-export interface OrderScheduleWindow {
-  deliveryDate: string;
-  weekday: number;
-  orderCutoffAt: Date;
-  preparationAt: Date;
-  zoneId: string;
-  zoneName: string;
-}
+import { OrderScheduleWindow } from './aplicacion/puertos/order-scheduling.port';
+export type { OrderScheduleWindow } from './aplicacion/puertos/order-scheduling.port';
 
 @Injectable()
 export class OrderSchedulingService {

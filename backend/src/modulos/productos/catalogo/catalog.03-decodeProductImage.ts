@@ -1,27 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Brackets, Repository } from 'typeorm';
-import { paginate, PaginatedResponse } from '../../../compartido/dto/pagination-query.dto';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { Repository } from 'typeorm';
 import { RecordStatus } from '../../../compartido/enumeraciones/record-status.enum';
 import { AuthenticatedUser } from '../../../compartido/interfaces/authenticated-user.interface';
-import { AuditService } from '../../seguridad/auditoria/audit.service';
-import {
-  CreateNamedCatalogItemDto,
-  CreateProductDto,
-  CreateProductPresentationDto,
-  CreateUnitMeasureDto,
-  ProductQueryDto,
-  UpdateNamedCatalogItemDto,
-  UpdateProductImageDto,
-  UpdateProductDto,
-  UpdateProductPresentationDto,
-  UpdateUnitMeasureDto,
-} from './dto/catalog.dto';
-import { ProductCategory } from './entidades/product-category.entity';
-import { ProductLine } from './entidades/product-line.entity';
-import { ProductPresentation } from './entidades/product-presentation.entity';
-import { Product } from './entidades/product.entity';
-import { UnitMeasure } from './entidades/unit-measure.entity';
 import { CatalogServiceBase } from './catalog.base';
 
 export abstract class CatalogServiceParte03 extends CatalogServiceBase {

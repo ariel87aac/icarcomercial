@@ -15,10 +15,21 @@ export class ProductionConsolidationHistory {
   @JoinColumn({ name: 'consolidacion_id' })
   consolidation: ProductionConsolidation;
 
-  @Column({ name: 'estado_anterior', type: 'enum', enum: ProductionConsolidationStatus, enumName: 'estado_consolidacion_produccion_enum', nullable: true })
+  @Column({
+    name: 'estado_anterior',
+    type: 'enum',
+    enum: ProductionConsolidationStatus,
+    enumName: 'estado_consolidacion_produccion_enum',
+    nullable: true,
+  })
   previousStatus: ProductionConsolidationStatus | null;
 
-  @Column({ name: 'estado_nuevo', type: 'enum', enum: ProductionConsolidationStatus, enumName: 'estado_consolidacion_produccion_enum' })
+  @Column({
+    name: 'estado_nuevo',
+    type: 'enum',
+    enum: ProductionConsolidationStatus,
+    enumName: 'estado_consolidacion_produccion_enum',
+  })
   newStatus: ProductionConsolidationStatus;
 
   @Column({ name: 'evento', type: 'enum', enum: ProductionHistoryEvent, enumName: 'evento_historial_produccion_enum' })

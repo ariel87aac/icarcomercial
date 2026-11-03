@@ -35,10 +35,22 @@ describe('plantilla institucional de reportes ICAR', () => {
     expect(pdf.toString('latin1')).toContain('/MediaBox [0 0 612 792]');
   });
 
+  it('inicia cada grupo en una página diferente cuando el reporte lo solicita', async () => {
+    const pdf = await createIcarPdfReport({
+      ...report,
+      pageBreakBetweenGroups: true,
+      groups: [
+        report.groups[0],
+        { title: 'Cárnicos', rows: [{ values: { code: '2001', product: 'Jamón', quantity: 8 } }] },
+      ],
+    });
+    expect(pdf.toString('latin1').match(/\/Type \/Page\b/g)).toHaveLength(2);
+  });
+
   it('genera un Excel con datos numéricos y configuración de impresión horizontal', async () => {
     const output = await createIcarXlsxReport(report);
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(output);
+    await workbook.xlsx.load(Uint8Array.from(output).buffer);
     const sheet = workbook.getWorksheet('Producción diaria');
 
     expect(sheet).toBeDefined();
@@ -62,7 +74,7 @@ describe('plantilla institucional de reportes ICAR', () => {
       } }] }],
     });
     const workbook = new ExcelJS.Workbook();
-    await workbook.xlsx.load(output);
+    await workbook.xlsx.load(Uint8Array.from(output).buffer);
     const sheet = workbook.getWorksheet('Kardex');
 
     expect(sheet?.getCell('A14').value).toBeInstanceOf(Date);

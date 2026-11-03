@@ -1,10 +1,23 @@
 import { ServiceUnavailableException } from '@nestjs/common';
+import { In } from 'typeorm';
 import { Notification } from './entidades/notification.entity';
 import { NotificationAttemptStatus, NotificationStatus } from './entidades/tracking.enums';
 import { NotificationServiceParte04 } from './notification.04-recoverInterruptedProcessing';
 
 export abstract class NotificationServiceProcessNext extends NotificationServiceParte04 {
   async processNext(): Promise<boolean> {
+    const channel = await this.activeChannelWithCredential();
+    if (!channel) {
+      await this.notifications.update(
+        { status: In([NotificationStatus.PENDING, NotificationStatus.RETRY]) },
+        {
+          status: NotificationStatus.FAILED,
+          processedAt: new Date(),
+          lastError: 'Envío omitido porque el canal está deshabilitado',
+        },
+      );
+      return false;
+    }
     const notificationId = await this.dataSource.transaction(async (manager) => {
       const item = await manager.getRepository(Notification).createQueryBuilder('notification')
         .setLock('pessimistic_write').setOnLocked('skip_locked')
@@ -18,11 +31,6 @@ export abstract class NotificationServiceProcessNext extends NotificationService
     });
     if (!notificationId) return false;
     const item = await this.findOne(notificationId);
-    const channel = await this.activeChannelWithCredential();
-    if (!channel) {
-      await this.finishFailure(item, null, {}, 'No existe un canal de WhatsApp activo', false, 0);
-      return true;
-    }
     let result;
     try {
       if (!channel.encryptedToken) throw new ServiceUnavailableException('El token de LimiteAPI no está configurado');
