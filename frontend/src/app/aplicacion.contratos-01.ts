@@ -1,4 +1,4 @@
-import { Customer, CustomerAccount, CustomerAddress, Role, User, Zone } from './compartido/modelos';
+import { Customer, CustomerAccount, CustomerAddress, DistributionDay, Role, User, Zone } from './compartido/modelos';
 
 type Section =
   | 'dashboard'
@@ -116,6 +116,14 @@ export abstract class AplicacionContratos01 {
   protected abstract openDay(zone: Zone): void;
 
   protected abstract saveDay(): void;
+
+  protected abstract activeDistributionDays(zone: Zone): DistributionDay[];
+
+  protected abstract requestDayDeletion(zone: Zone, day: DistributionDay): void;
+
+  protected abstract closeDayDeletion(visible: boolean): void;
+
+  protected abstract confirmDayDeletion(): void;
 
   protected abstract openAddress(customer: Customer, address?: CustomerAddress): void;
 

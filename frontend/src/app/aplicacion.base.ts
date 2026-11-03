@@ -4,7 +4,7 @@ import { FormBuilder } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import * as L from 'leaflet';
 import { AuthService } from './nucleo/autenticacion/auth.service';
-import { AuditEvent, Customer, Permission, ProductionArea, Role, User, Zone } from './compartido/modelos';
+import { AuditEvent, Customer, DistributionDay, Permission, ProductionArea, Role, User, Zone } from './compartido/modelos';
 import { Directive } from '@angular/core';
 import { AplicacionContratos01 } from './aplicacion.contratos-01';
 
@@ -142,6 +142,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly dayDialog = signal(false);
 
+  protected readonly dayDeleteDialog = signal(false);
+
   protected readonly addressDialog = signal(false);
 
   protected readonly accountDialog = signal(false);
@@ -169,6 +171,8 @@ protected readonly http = inject(HttpClient);
   protected readonly selectedZone = signal<Zone | null>(null);
 
   protected readonly zoneToDelete = signal<Zone | null>(null);
+
+  protected readonly dayToDelete = signal<{ zone: Zone; day: DistributionDay } | null>(null);
 
   protected readonly editingAddressId = signal<string | null>(null);
 

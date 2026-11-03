@@ -110,8 +110,25 @@ export class ZonesService {
   async addDay(zoneId: string, dto: CreateDistributionDayDto, actor: AuthenticatedUser) {
     await this.findZone(zoneId);
     this.validateSchedule(dto.startTime, dto.endTime);
-    if (await this.dayRepository.exists({ where: { zoneId, weekday: dto.weekday } })) {
+    const existing = await this.dayRepository.findOne({ where: { zoneId, weekday: dto.weekday } });
+    if (existing?.status === RecordStatus.ACTIVE) {
       throw new ConflictException('La zona ya tiene configurado ese día');
+    }
+    if (existing) {
+      existing.startTime = dto.startTime ?? null;
+      existing.endTime = dto.endTime ?? null;
+      existing.status = RecordStatus.ACTIVE;
+      const day = await this.dayRepository.save(existing);
+      await this.auditService.record({
+        userId: actor.id,
+        module: 'zones',
+        action: 'REACTIVAR_DIA_DISTRIBUCION',
+        entity: 'dias_distribucion',
+        entityId: day.id,
+        result: 'EXITOSO',
+        metadata: { zoneId, weekday: day.weekday },
+      });
+      return day;
     }
     const day = await this.dayRepository.save(
       this.dayRepository.create({
@@ -131,6 +148,27 @@ export class ZonesService {
       metadata: { zoneId, weekday: day.weekday },
     });
     return day;
+  }
+
+  async removeDay(
+    zoneId: string,
+    dayId: string,
+    actor: AuthenticatedUser,
+  ): Promise<{ id: string; status: RecordStatus }> {
+    const day = await this.dayRepository.findOne({ where: { id: dayId, zoneId } });
+    if (!day) throw new NotFoundException('Día de distribución no encontrado');
+    if (day.status === RecordStatus.INACTIVE) return { id: day.id, status: day.status };
+    await this.dayRepository.update(day.id, { status: RecordStatus.INACTIVE });
+    await this.auditService.record({
+      userId: actor.id,
+      module: 'zones',
+      action: 'DESACTIVAR_DIA_DISTRIBUCION',
+      entity: 'dias_distribucion',
+      entityId: day.id,
+      result: 'EXITOSO',
+      metadata: { zoneId, weekday: day.weekday, previousStatus: day.status, status: RecordStatus.INACTIVE },
+    });
+    return { id: day.id, status: RecordStatus.INACTIVE };
   }
 
   async updateDay(

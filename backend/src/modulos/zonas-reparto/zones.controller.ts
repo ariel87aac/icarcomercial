@@ -68,4 +68,17 @@ export class ZonesController {
   ) {
     return this.zonesService.updateDay(id, dayId, dto, actor);
   }
+
+  @Delete([
+    ':id/distribution-days/:dayId',
+    ':id/dias-distribucion/:dayId',
+  ])
+  @RequirePermissions('zones.update')
+  removeDay(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('dayId', ParseUUIDPipe) dayId: string,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.zonesService.removeDay(id, dayId, actor);
+  }
 }

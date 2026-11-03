@@ -74,3 +74,72 @@ describe('ZonesService.remove', () => {
     expect(auditService.record).not.toHaveBeenCalled();
   });
 });
+
+describe('ZonesService.removeDay', () => {
+  it('inactiva el día, conserva el registro y audita la operación', async () => {
+    const day = { id: 'day-1', zoneId: 'zone-1', weekday: 2, status: RecordStatus.ACTIVE };
+    const dayRepository = {
+      findOne: vi.fn().mockResolvedValue(day),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const auditService = { record: vi.fn().mockResolvedValue(undefined) };
+    const service = new ZonesService({} as never, dayRepository as never, auditService as never);
+
+    await expect(service.removeDay(day.zoneId, day.id, actor)).resolves.toEqual({
+      id: day.id,
+      status: RecordStatus.INACTIVE,
+    });
+    expect(dayRepository.update).toHaveBeenCalledWith(day.id, { status: RecordStatus.INACTIVE });
+    expect(auditService.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'DESACTIVAR_DIA_DISTRIBUCION',
+      entityId: day.id,
+      metadata: expect.objectContaining({ zoneId: day.zoneId, weekday: day.weekday }),
+    }));
+  });
+
+  it('mantiene idempotente la baja si el día ya estaba inactivo', async () => {
+    const day = { id: 'day-1', zoneId: 'zone-1', weekday: 2, status: RecordStatus.INACTIVE };
+    const dayRepository = {
+      findOne: vi.fn().mockResolvedValue(day),
+      update: vi.fn(),
+    };
+    const auditService = { record: vi.fn() };
+    const service = new ZonesService({} as never, dayRepository as never, auditService as never);
+
+    await expect(service.removeDay(day.zoneId, day.id, actor)).resolves.toEqual({
+      id: day.id,
+      status: RecordStatus.INACTIVE,
+    });
+    expect(dayRepository.update).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('ZonesService.addDay', () => {
+  it('reactiva el mismo día inactivo con el horario nuevo', async () => {
+    const zone = { id: 'zone-1', name: 'Centro', distributionDays: [] } as unknown as Zone;
+    const day = {
+      id: 'day-1', zoneId: zone.id, weekday: 3, startTime: '08:00', endTime: '12:00', status: RecordStatus.INACTIVE,
+    };
+    const zoneRepository = { findOne: vi.fn().mockResolvedValue(zone) };
+    const dayRepository = {
+      findOne: vi.fn().mockResolvedValue(day),
+      save: vi.fn().mockImplementation(async (value) => value),
+    };
+    const auditService = { record: vi.fn().mockResolvedValue(undefined) };
+    const service = new ZonesService(zoneRepository as never, dayRepository as never, auditService as never);
+
+    await service.addDay(zone.id, { weekday: 3, startTime: '09:00', endTime: '16:00' }, actor);
+
+    expect(dayRepository.save).toHaveBeenCalledWith(expect.objectContaining({
+      id: day.id,
+      startTime: '09:00',
+      endTime: '16:00',
+      status: RecordStatus.ACTIVE,
+    }));
+    expect(auditService.record).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'REACTIVAR_DIA_DISTRIBUCION',
+      entityId: day.id,
+    }));
+  });
+});

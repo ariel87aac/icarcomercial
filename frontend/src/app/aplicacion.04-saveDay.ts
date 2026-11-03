@@ -1,4 +1,4 @@
-import { Customer, CustomerAccount, CustomerAddress } from './compartido/modelos';
+import { Customer, CustomerAccount, CustomerAddress, DistributionDay, Zone } from './compartido/modelos';
 import { AplicacionParte05 } from './aplicacion.05-setAccountStatus';
 
 import { Directive } from '@angular/core';
@@ -13,6 +13,37 @@ export abstract class AplicacionParte04 extends AplicacionParte05 {
           this.saving.set(false);
           this.dayDialog.set(false);
           this.toast('success', 'Día programado', this.selectedZone()!.name);
+          this.loadZones();
+        },
+        error: (error) => this.handleSaveError(error),
+      });
+    }
+
+  protected override activeDistributionDays(zone: Zone): DistributionDay[] {
+      return zone.distributionDays.filter((day) => day.status === 'ACTIVO');
+    }
+
+  protected override requestDayDeletion(zone: Zone, day: DistributionDay): void {
+      this.dayToDelete.set({ zone, day });
+      this.dayDeleteDialog.set(true);
+    }
+
+  protected override closeDayDeletion(visible = false): void {
+      if (this.saving()) return;
+      this.dayDeleteDialog.set(visible);
+      if (!visible) this.dayToDelete.set(null);
+    }
+
+  protected override confirmDayDeletion(): void {
+      const target = this.dayToDelete();
+      if (!target) return;
+      this.saving.set(true);
+      this.http.delete(`/api/zones/${target.zone.id}/distribution-days/${target.day.id}`).subscribe({
+        next: () => {
+          this.saving.set(false);
+          this.dayDeleteDialog.set(false);
+          this.dayToDelete.set(null);
+          this.toast('success', 'Día eliminado del calendario', `${this.weekdayName(target.day.weekday)} · ${target.zone.name}`);
           this.loadZones();
         },
         error: (error) => this.handleSaveError(error),
