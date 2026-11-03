@@ -12,8 +12,9 @@ import { OrderPreparation } from '../preparacion/entidades/order-preparation.ent
 import { PreparationEvent, PreparationStatus } from '../preparacion/entidades/preparation.enums';
 import { RouteTransitionDto } from './dto/distribution.dto';
 import { DistributionRoute } from './entidades/distribution-route.entity';
-import { DistributionRouteStatus, RouteHistoryEvent } from './entidades/distribution.enums';
+import { DistributionRouteStatus, RouteHistoryEvent, VehicleDispatchStatus } from './entidades/distribution.enums';
 import { RouteDelivery } from './entidades/route-delivery.entity';
+import { VehicleDispatch } from './entidades/vehicle-dispatch.entity';
 import { DistributionServiceParte05 } from './distribution.05-completeFactoryDelivery';
 
 export abstract class DistributionServiceParte04 extends DistributionServiceParte05 {
@@ -21,6 +22,10 @@ export abstract class DistributionServiceParte04 extends DistributionServicePart
       await workflowTransaction(this.dataSource, async (manager) => {
         const route = await this.lockRoute(manager, id);
         this.assertRouteStatus(route, DistributionRouteStatus.PLANNED, 'La salida solo puede registrarse desde una ruta Planificada');
+        if (route.vehicleDispatchId) {
+          const activeDispatch = await manager.getRepository(VehicleDispatch).exists({ where: { id: route.vehicleDispatchId, status: VehicleDispatchStatus.ACTIVE } });
+          if (!activeDispatch) throw new ConflictException('El despacho del vehículo ya no está activo');
+        }
         const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: route.vehicleId, status: RecordStatus.ACTIVE } });
         if (!vehicle) throw new UnprocessableEntityException('El vehículo asignado ya no está activo');
         await this.assertVehicleCapacity(manager, route.id, vehicle);

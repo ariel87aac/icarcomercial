@@ -32,6 +32,7 @@ export interface IcarReportOptions {
   title: string;
   code: string;
   pdfLayout?: 'portrait' | 'landscape';
+  maxPdfRowHeight?: number;
   pageBreakBetweenGroups?: boolean;
   worksheetName?: string;
   periodLabel: string;

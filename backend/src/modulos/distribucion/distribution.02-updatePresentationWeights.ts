@@ -26,10 +26,12 @@ import {
   DistributionRouteStatus,
   RouteHistoryEvent,
   RouteResponsibleFunction,
+  VehicleDispatchStatus,
 } from './entidades/distribution.enums';
 import { RouteDelivery } from './entidades/route-delivery.entity';
 import { RouteResponsible } from './entidades/route-responsible.entity';
 import { DistributionServiceParte03 } from './distribution.03-reschedule';
+import { VehicleDispatch } from './entidades/vehicle-dispatch.entity';
 
 export abstract class DistributionServiceParte02 extends DistributionServiceParte03 {
   async updatePresentationWeights(dto: UpdatePresentationWeightsDto, actor: AuthenticatedUser) {
@@ -67,11 +69,18 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
       const id = await workflowTransaction(this.dataSource, async (manager) => {
         const zone = await manager.getRepository(Zone).findOne({ where: { id: dto.zoneId, status: RecordStatus.ACTIVE } });
         if (!zone) throw new NotFoundException('Zona no encontrada o inactiva');
-        const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: dto.vehicleId, status: RecordStatus.ACTIVE } });
-        if (!vehicle) throw new UnprocessableEntityException('El vehículo debe estar activo');
+        const dispatch = await manager.getRepository(VehicleDispatch).findOne({
+          where: { id: dto.vehicleDispatchId, status: VehicleDispatchStatus.ACTIVE },
+          relations: { vehicle: true, responsible: true, zones: true },
+        });
+        if (!dispatch) throw new UnprocessableEntityException('Seleccione un despacho de vehículo activo');
+        if (!dispatch.zones.some((item) => item.id === zone.id)) throw new UnprocessableEntityException('El despacho activo no está autorizado para la zona seleccionada');
+        const vehicle = dispatch.vehicle;
+        if (vehicle.status !== RecordStatus.ACTIVE) throw new UnprocessableEntityException('El vehículo asignado ya no está activo');
         if (!vehicle.capacityKg || Number(vehicle.capacityKg) <= 0) throw new UnprocessableEntityException('El vehículo debe tener una capacidad válida en kg');
         const responsibleIds = [...new Set(dto.responsibleIds)];
-        if (responsibleIds.length !== dto.responsibleIds.length || !responsibleIds.includes(dto.principalResponsibleId)) {
+        if (dto.vehicleId !== vehicle.id || dto.principalResponsibleId !== dispatch.responsibleId) throw new BadRequestException('El vehículo y responsable deben corresponder al despacho activo');
+        if (responsibleIds.length !== dto.responsibleIds.length || !responsibleIds.includes(dispatch.responsibleId)) {
           throw new BadRequestException('Debe identificar un responsable principal dentro de la asignación');
         }
         const users = await manager.getRepository(User).createQueryBuilder('user')
@@ -89,6 +98,7 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
           date: dto.date,
           zoneId: dto.zoneId,
           vehicleId: dto.vehicleId,
+          vehicleDispatchId: dispatch.id,
           status: DistributionRouteStatus.DRAFT,
           createdById: actor.id,
           observation: dto.observation?.trim() || null,
@@ -106,7 +116,7 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
           cancellationReason: null,
         }));
         for (const userId of responsibleIds) {
-          const isPrincipal = userId === dto.principalResponsibleId;
+          const isPrincipal = userId === dispatch.responsibleId;
           await manager.getRepository(RouteResponsible).save(manager.getRepository(RouteResponsible).create({
             routeId: route.id,
             userId,
@@ -120,7 +130,7 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
           await this.assignPreparations(manager, route, preparationIds, actor.id);
           await this.saveHistory(manager, route.id, route.status, route.status, RouteHistoryEvent.ASSIGNMENT, actor.id, 'Preparaciones agregadas al crear la ruta', { preparationIds, operationalDate: route.date });
         }
-        await this.saveAudit(manager, actor.id, 'CREAR_RUTA', route.id, { date: route.date, zoneId: route.zoneId, vehicleId: route.vehicleId, preparationIds });
+        await this.saveAudit(manager, actor.id, 'CREAR_RUTA', route.id, { date: route.date, zoneId: route.zoneId, vehicleId: route.vehicleId, vehicleDispatchId: dispatch.id, preparationIds });
         return route.id;
       });
       return this.findOne(id);
@@ -130,6 +140,7 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
       await workflowTransaction(this.dataSource, async (manager) => {
         const route = await this.lockRoute(manager, id);
         this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'El vehículo sólo puede cambiarse mientras la ruta está en Borrador');
+        if (route.vehicleDispatchId) throw new ConflictException('El vehículo pertenece al despacho activo. Reasigne o cancele la ruta para cambiarlo');
         const vehicle = await manager.getRepository(Vehicle).findOne({ where: { id: dto.vehicleId, status: RecordStatus.ACTIVE } });
         if (!vehicle) throw new UnprocessableEntityException('El vehículo debe estar activo');
         if (!vehicle.capacityKg || Number(vehicle.capacityKg) <= 0) throw new UnprocessableEntityException('El vehículo debe tener una capacidad válida en kg');
@@ -153,6 +164,10 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
       await workflowTransaction(this.dataSource, async (manager) => {
         const route = await this.lockRoute(manager, id);
         this.assertRouteStatus(route, DistributionRouteStatus.DRAFT, 'Solo una ruta en Borrador admite pedidos');
+        if (route.vehicleDispatchId) {
+          const active = await manager.getRepository(VehicleDispatch).exists({ where: { id: route.vehicleDispatchId, status: VehicleDispatchStatus.ACTIVE } });
+          if (!active) throw new ConflictException('El despacho del vehículo ya no está activo');
+        }
         const preparationIds = [...new Set(dto.preparationIds)];
         if (preparationIds.length !== dto.preparationIds.length) throw new BadRequestException('No puede repetir una preparación');
         await this.assignPreparations(manager, route, preparationIds, actor.id);

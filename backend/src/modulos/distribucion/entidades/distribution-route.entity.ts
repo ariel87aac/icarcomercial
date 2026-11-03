@@ -7,6 +7,7 @@ import { DistributionRouteStatus } from './distribution.enums';
 import { RouteDelivery } from './route-delivery.entity';
 import { RouteHistory } from './route-history.entity';
 import { RouteResponsible } from './route-responsible.entity';
+import { VehicleDispatch } from './vehicle-dispatch.entity';
 
 @Entity({ name: 'rutas_distribucion' })
 export class DistributionRoute extends AuditableEntity {
@@ -29,6 +30,13 @@ export class DistributionRoute extends AuditableEntity {
   @ManyToOne(() => Vehicle, { onDelete: 'RESTRICT' })
   @JoinColumn({ name: 'vehiculo_id' })
   vehicle: Vehicle;
+
+  @Column({ name: 'despacho_vehiculo_id', type: 'uuid', nullable: true })
+  vehicleDispatchId: string | null;
+
+  @ManyToOne(() => VehicleDispatch, (dispatch) => dispatch.routes, { nullable: true, onDelete: 'RESTRICT' })
+  @JoinColumn({ name: 'despacho_vehiculo_id' })
+  vehicleDispatch: VehicleDispatch | null;
 
   @Column({ name: 'estado', type: 'enum', enum: DistributionRouteStatus, enumName: 'estado_ruta_enum', default: DistributionRouteStatus.DRAFT })
   status: DistributionRouteStatus;

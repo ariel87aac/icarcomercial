@@ -7,6 +7,12 @@ export enum DistributionRouteStatus {
   CANCELED = 'CANCELADA',
 }
 
+export enum VehicleDispatchStatus {
+  PENDING = 'PENDIENTE',
+  ACTIVE = 'ACTIVO',
+  RETURNED = 'DEVUELTO',
+}
+
 export enum RouteResponsibleFunction {
   PRINCIPAL = 'PRINCIPAL',
   SUPPORT = 'APOYO',

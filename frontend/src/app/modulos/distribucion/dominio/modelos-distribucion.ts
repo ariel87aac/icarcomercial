@@ -19,6 +19,30 @@ export interface Vehicle {
   updatedAt: string;
 }
 
+export type VehicleDispatchStatus = 'PENDIENTE' | 'ACTIVO' | 'DEVUELTO';
+
+export interface VehicleDispatch {
+  id: string;
+  code: number;
+  vehicleId: string;
+  vehicle: Vehicle;
+  responsibleId: string;
+  responsible: User;
+  zones: Zone[];
+  status: VehicleDispatchStatus;
+  handedOverBy: Pick<User, 'id' | 'name'> | null;
+  handedOverAt: string | null;
+  initialOdometer: string | null;
+  handoverObservation: string | null;
+  returnRegisteredBy: Pick<User, 'id' | 'name'> | null;
+  returnedAt: string | null;
+  finalOdometer: string | null;
+  returnObservation: string | null;
+  routeCount?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface RouteResponsible {
   id: string;
   routeId: string;
@@ -106,6 +130,8 @@ export interface DistributionRoute {
   zone: Zone;
   vehicleId: string;
   vehicle: Vehicle;
+  vehicleDispatchId: string | null;
+  vehicleDispatch: VehicleDispatch | null;
   status: DistributionRouteStatus;
   createdBy: Pick<User, 'id' | 'name'>;
   observation: string | null;

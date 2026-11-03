@@ -12,7 +12,7 @@ import {
 } from '../../../../../compartido/modelos';
 import { DistributionParte02 } from './distribution.02-loadVehicleOptions';
 
-type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
+type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
 
 import { Directive } from '@angular/core';
 
@@ -39,7 +39,8 @@ export abstract class DistributionParte01 extends DistributionParte02 {
   protected override selectInitialView(): void {
       if (this.standaloneView()) { this.view.set(this.standaloneView()!); return; }
       if (this.mode() === 'warehouse') { this.view.set('preparations'); return; }
-      if (this.auth.can('distribution.routes.read')) this.view.set('pending');
+      if (this.auth.can('distribution.vehicle_dispatches.read')) this.view.set('dispatches');
+      else if (this.auth.can('distribution.routes.read')) this.view.set('pending');
       else if (this.auth.can('vehicles.read')) this.view.set('vehicles');
       else if (this.auth.can('distribution.routes.assigned.read')) this.view.set('assigned');
       else if (this.auth.can('distribution.routes.read')) this.view.set('routes');
@@ -51,6 +52,7 @@ export abstract class DistributionParte01 extends DistributionParte02 {
 
   protected override reload(): void {
       if (this.view() === 'pending') this.loadPendingDeliveries();
+      if (this.view() === 'dispatches') this.loadVehicleDispatches();
       if (this.view() === 'preparations') this.loadPreparations();
       if (this.view() === 'vehicles') this.loadVehicles();
       if (this.view() === 'weights') this.loadWeights();
@@ -63,6 +65,7 @@ export abstract class DistributionParte01 extends DistributionParte02 {
       if (this.auth.can('zones.read')) this.http.get<Zone[]>('/api/zones').subscribe({ next: (items) => this.zones.set(items.filter((item) => item.status === 'ACTIVO')) });
       if (this.mode() === 'distribution' && this.auth.can('vehicles.read')) { this.loadVehicles(); this.loadVehicleOptions(); }
       if (this.auth.can('distribution.routes.create')) this.http.get<User[]>('/api/distribution-routes/responsible-options').subscribe({ next: (items) => this.responsibles.set(items) });
+      if (this.auth.can('distribution.routes.create')) this.loadActiveVehicleDispatches();
     }
 
   protected override loadPendingDeliveries(): void {
@@ -115,7 +118,7 @@ export abstract class DistributionParte01 extends DistributionParte02 {
       if (zoneIds.length !== 1) return this.messages.add({ severity: 'warn', summary: 'Selección incompatible', detail: 'Seleccione pedidos pertenecientes a una sola zona.' });
       const deliveryDate = [...selected].sort((a, b) => a.order.requestedDate.localeCompare(b.order.requestedDate))[0].order.requestedDate;
       this.routeDraftPreparations.set(selected);
-      this.routeForm.reset({ date: deliveryDate, zoneId: zoneIds[0], vehicleId: '', responsibleIds: [], principalResponsibleId: '', observation: '' });
+      this.routeForm.reset({ date: deliveryDate, zoneId: zoneIds[0], vehicleDispatchId: '', vehicleId: '', responsibleIds: [], principalResponsibleId: '', observation: '' });
       this.routeDialog.set(true);
     }
 

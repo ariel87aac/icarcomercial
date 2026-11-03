@@ -65,18 +65,18 @@ function drawTableHeader(doc: PDFKit.PDFDocument, columns: IcarReportColumn[], y
   return y + 24;
 }
 
-function rowHeight(doc: PDFKit.PDFDocument, columns: IcarReportColumn[], row: IcarReportRow): number {
+function rowHeight(doc: PDFKit.PDFDocument, columns: IcarReportColumn[], row: IcarReportRow, maximum = 36): number {
   const padding = compactPage(doc) ? 3 : 4;
   doc.font('Helvetica').fontSize(compactPage(doc) ? 5.8 : 6.8);
   const height = columns.reduce((maximum, column) => {
     const text = displayValue(row.values[column.key]);
     return Math.max(maximum, doc.heightOfString(text, { width: column.width - padding * 2, align: column.align ?? 'left' }) + 9);
   }, 21);
-  return Math.min(Math.max(height, 21), 36);
+  return Math.min(Math.max(height, 21), maximum);
 }
 
-function drawRow(doc: PDFKit.PDFDocument, columns: IcarReportColumn[], row: IcarReportRow, y: number, alternate: boolean): number {
-  const height = rowHeight(doc, columns, row);
+function drawRow(doc: PDFKit.PDFDocument, columns: IcarReportColumn[], row: IcarReportRow, y: number, alternate: boolean, maximum?: number): number {
+  const height = rowHeight(doc, columns, row, maximum);
   if (alternate) doc.rect(MARGIN, y, columns.reduce((sum, column) => sum + column.width, 0), height).fill('#F7FAFC');
   let x = MARGIN;
   const padding = compactPage(doc) ? 3 : 4;
@@ -122,13 +122,13 @@ export function createIcarPdfReport(options: IcarReportOptions): Promise<Buffer>
     }
     y = drawGroup(doc, group.title, options.columns, y, options.groupLabel);
     for (const row of group.rows) {
-      const required = rowHeight(doc, options.columns, row);
+      const required = rowHeight(doc, options.columns, row, options.maxPdfRowHeight);
       if (y + required > contentBottom(doc)) {
         doc.addPage();
         y = drawTableHeader(doc, options.columns, drawHeader(doc, options, true));
         y = drawGroup(doc, `${group.title} (continuación)`, options.columns, y, options.groupLabel);
       }
-      y = drawRow(doc, options.columns, row, y, alternate);
+      y = drawRow(doc, options.columns, row, y, alternate, options.maxPdfRowHeight);
       alternate = !alternate;
     }
   }

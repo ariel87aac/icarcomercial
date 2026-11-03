@@ -100,7 +100,7 @@ export abstract class DistributionOperacionesRutaA extends DistributionOperacion
 
   protected override changeSummaryPage(event: PaginatorState): void { this.applyPageSize(event); this.summaryPage.set((event.page ?? 0) + 1); this.loadSummary(); }
 
-  protected override openRoute(): void { this.routeDraftPreparations.set([]); this.routeForm.reset({ date: this.dateFilter(), zoneId: this.zoneFilter() ?? '', vehicleId: '', responsibleIds: [], principalResponsibleId: '', observation: '' }); this.routeDialog.set(true); }
+  protected override openRoute(): void { this.routeDraftPreparations.set([]); this.routeForm.reset({ date: this.dateFilter(), zoneId: this.zoneFilter() ?? '', vehicleDispatchId: '', vehicleId: '', responsibleIds: [], principalResponsibleId: '', observation: '' }); this.routeDialog.set(true); }
 
   protected override createRoute(): void {
         if (this.routeForm.invalid) return this.routeForm.markAllAsTouched();

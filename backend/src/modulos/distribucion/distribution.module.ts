@@ -24,6 +24,10 @@ import { VisitResultDetail } from './entidades/visit-result-detail.entity';
 import { VisitResult } from './entidades/visit-result.entity';
 import { WarehouseReturnOrderDetail } from './entidades/warehouse-return-order-detail.entity';
 import { WarehouseReturnOrder } from './entidades/warehouse-return-order.entity';
+import { VehicleDispatch } from './entidades/vehicle-dispatch.entity';
+import { VehicleDispatchController } from './vehicle-dispatch.controller';
+import { VehicleDispatchService } from './vehicle-dispatch.service';
+import { VehicleDispatchReportService } from './reportes/vehicle-dispatch-report.service';
 
 @Module({
   imports: [TrackingModule, CommercialModule, TypeOrmModule.forFeature([
@@ -47,9 +51,10 @@ import { WarehouseReturnOrder } from './entidades/warehouse-return-order.entity'
     ProductPresentation,
     WarehouseReturnOrder,
     WarehouseReturnOrderDetail,
+    VehicleDispatch,
   ])],
-  controllers: [DistributionRoutesController, RouteDeliveriesController, FactoryDeliveriesController, WarehouseReturnOrdersController],
-  providers: [DistributionService],
+  controllers: [DistributionRoutesController, RouteDeliveriesController, FactoryDeliveriesController, WarehouseReturnOrdersController, VehicleDispatchController],
+  providers: [DistributionService, VehicleDispatchService, VehicleDispatchReportService],
   exports: [DistributionService, TypeOrmModule],
 })
 export class DistributionModule {}

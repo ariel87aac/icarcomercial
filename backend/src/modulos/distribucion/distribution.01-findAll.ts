@@ -58,6 +58,7 @@ export abstract class DistributionServiceParte01 extends DistributionServicePart
         relations: {
           zone: true,
           vehicle: true,
+          vehicleDispatch: { responsible: true, zones: true },
           createdBy: true,
           rescheduledBy: true,
           canceledBy: true,

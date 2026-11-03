@@ -11,7 +11,7 @@ import { SelectModule } from 'primeng/select';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
 import { TextareaModule } from 'primeng/textarea';
-import { DistributionParte01 } from './distribution.01-preparationDetails';
+import { DistributionVehicleDispatches } from './distribution.00-vehicleDispatches';
 
 @Component({
   selector: 'app-distribution',
@@ -35,4 +35,4 @@ import { DistributionParte01 } from './distribution.01-preparationDetails';
   styleUrl: './distribution.component.scss',
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
-export class DistributionComponent extends DistributionParte01 {}
+export class DistributionComponent extends DistributionVehicleDispatches {}

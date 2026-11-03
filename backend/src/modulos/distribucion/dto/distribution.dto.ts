@@ -49,6 +49,9 @@ export class CreateDistributionRouteDto {
   zoneId: string;
 
   @IsUUID()
+  vehicleDispatchId: string;
+
+  @IsUUID()
   vehicleId: string;
 
   @IsArray()

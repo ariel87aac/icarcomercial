@@ -15,11 +15,13 @@ import {
   RouteDelivery,
   User,
   Vehicle,
+  VehicleDispatch,
+  VehicleDispatchStatus,
   VisitResultType,
   Zone,
 } from '../../../../../compartido/modelos';
 
-type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
+type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
 
 import { Directive } from '@angular/core';
 import { DistributionContratos02 } from './distribution.contratos-02';
@@ -50,6 +52,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly saving = signal(false);
 
+  protected readonly reportVehicleId = signal<string | null>(null);
+
   protected readonly dateFilter = signal('');
 
   protected readonly zoneFilter = signal<string | null>(null);
@@ -72,6 +76,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly weightPage = signal(1);
 
+  protected readonly dispatchPage = signal(1);
+
   protected readonly pageSize = signal(25);
 
   protected readonly pendingMeta = signal({ page: 1, limit: 25, total: 0, totalPages: 1 });
@@ -88,6 +94,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly weightMeta = signal({ page: 1, limit: 25, total: 0, totalPages: 1 });
 
+  protected readonly dispatchMeta = signal({ page: 1, limit: 25, total: 0, totalPages: 1 });
+
   protected readonly workOrders = signal<PreparationWorkOrder[]>([]);
 
   protected readonly pendingPreparations = signal<PendingDistributionPreparation[]>([]);
@@ -99,6 +107,10 @@ protected readonly http = inject(HttpClient);
   protected readonly vehicles = signal<Vehicle[]>([]);
 
   protected readonly allVehicles = signal<Vehicle[]>([]);
+
+  protected readonly vehicleDispatches = signal<VehicleDispatch[]>([]);
+
+  protected readonly activeVehicleDispatches = signal<VehicleDispatch[]>([]);
 
   protected readonly zones = signal<Zone[]>([]);
 
@@ -128,6 +140,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly selectedDelivery = signal<RouteDelivery | null>(null);
 
+  protected readonly selectedVehicleDispatch = signal<VehicleDispatch | null>(null);
+
   protected readonly preparationDialog = signal(false);
 
   protected readonly vehicleDialog = signal(false);
@@ -148,6 +162,12 @@ protected readonly http = inject(HttpClient);
 
   protected readonly routeCancelDialog = signal(false);
 
+  protected readonly dispatchDialog = signal(false);
+
+  protected readonly dispatchHandoverDialog = signal(false);
+
+  protected readonly dispatchReturnDialog = signal(false);
+
   protected readonly editingVehicleId = signal<string | null>(null);
 
   protected readonly settlementLabels = signal<string[]>([]);
@@ -157,6 +177,10 @@ protected readonly http = inject(HttpClient);
   protected readonly routeVehicleId = signal<string | null>(null);
 
   protected readonly routeDraftPreparations = signal<PendingDistributionPreparation[]>([]);
+
+  protected readonly dispatchSearch = signal('');
+
+  protected readonly dispatchStatusFilter = signal<VehicleDispatchStatus | null>(null);
 
   protected readonly preparationStatuses = [
       { label: 'Pendiente', value: 'PENDIENTE' }, { label: 'En preparación', value: 'EN_PREPARACION' },
@@ -178,6 +202,12 @@ protected readonly http = inject(HttpClient);
 
   protected readonly recordStatuses = [{ label: 'Activo', value: 'ACTIVO' }, { label: 'Inactivo', value: 'INACTIVO' }];
 
+  protected readonly dispatchStatuses = [
+      { label: 'Pendiente de entrega', value: 'PENDIENTE' },
+      { label: 'En custodia', value: 'ACTIVO' },
+      { label: 'Devuelto', value: 'DEVUELTO' },
+    ];
+
   protected readonly preparationForm = this.fb.nonNullable.group({ details: this.fb.array([]) });
 
   protected readonly vehicleForm = this.fb.group({
@@ -188,8 +218,20 @@ protected readonly http = inject(HttpClient);
     });
 
   protected readonly routeForm = this.fb.nonNullable.group({
-      date: ['', Validators.required], zoneId: ['', Validators.required], vehicleId: ['', Validators.required],
+      date: ['', Validators.required], zoneId: ['', Validators.required], vehicleDispatchId: ['', Validators.required], vehicleId: ['', Validators.required],
       responsibleIds: [[] as string[], Validators.required], principalResponsibleId: ['', Validators.required], observation: [''],
+    });
+
+  protected readonly dispatchForm = this.fb.nonNullable.group({
+      vehicleId: ['', Validators.required], responsibleId: ['', Validators.required], zoneIds: [[] as string[], Validators.required],
+    });
+
+  protected readonly dispatchHandoverForm = this.fb.group({
+      initialOdometer: [null as number | null, [Validators.required, Validators.min(0)]], observation: [''],
+    });
+
+  protected readonly dispatchReturnForm = this.fb.group({
+      finalOdometer: [null as number | null, [Validators.required, Validators.min(0)]], observation: [''],
     });
 
   protected readonly visitForm = this.fb.nonNullable.group({ result: ['ENTREGADA' as VisitResultType, Validators.required], observation: [''], details: this.fb.array([]) });

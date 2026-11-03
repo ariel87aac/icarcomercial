@@ -6,9 +6,10 @@ import {
   PendingDistributionPreparation,
   PreparationWorkOrder,
   Vehicle,
+  VehicleDispatch,
 } from '../../../../../compartido/modelos';
 
-type DistributionView = 'preparations' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
+type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
 
 import { Directive } from '@angular/core';
 
@@ -105,6 +106,34 @@ export abstract class DistributionContratos01 {
   protected abstract changeVehiclePage(event: PaginatorState): void;
 
   protected abstract loadVehicleOptions(): void;
+
+  protected abstract loadVehicleDispatches(): void;
+
+  protected abstract loadActiveVehicleDispatches(): void;
+
+  protected abstract openVehicleDispatch(): void;
+
+  protected abstract createVehicleDispatch(): void;
+
+  protected abstract openDispatchHandover(item: VehicleDispatch): void;
+
+  protected abstract handoverVehicleDispatch(): void;
+
+  protected abstract openDispatchReturn(item: VehicleDispatch): void;
+
+  protected abstract returnVehicleDispatch(): void;
+
+  protected abstract availableVehicleDispatches(): VehicleDispatch[];
+
+  protected abstract onRouteZoneChange(): void;
+
+  protected abstract onRouteDispatchChange(id: string | null): void;
+
+  protected abstract dispatchStatusLabel(value: string): string;
+
+  protected abstract dispatchStatusSeverity(value: string): 'info' | 'warn' | 'success' | 'secondary';
+
+  protected abstract changeDispatchPage(event: PaginatorState): void;
 
   protected abstract activeVehicles(): Vehicle[];
 
