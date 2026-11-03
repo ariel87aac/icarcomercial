@@ -39,6 +39,13 @@ export interface VehicleDispatch {
   finalOdometer: string | null;
   returnObservation: string | null;
   routeCount?: number;
+  assignedOrderCount?: number;
+  deliveredOrderCount?: number;
+  pendingOrderCount?: number;
+  pendingReturnCount?: number;
+  openRouteCount?: number;
+  canClose?: boolean;
+  closeBlockReason?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -160,6 +167,7 @@ export interface DistributionRoute {
     acceptedReturnQuantity: string;
   };
   settlement?: RouteSettlement | null;
+  warehouseReturnOrder: WarehouseReturnOrder | null;
   generatedSale?: {
     id: string;
     code: number;

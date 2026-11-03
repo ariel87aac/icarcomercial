@@ -9,7 +9,7 @@ import {
   VehicleDispatch,
 } from '../../../../../compartido/modelos';
 
-type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
+type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'routes' | 'assigned' | 'summary';
 
 import { Directive } from '@angular/core';
 
@@ -114,6 +114,10 @@ export abstract class DistributionContratos01 {
   protected abstract openVehicleDispatch(): void;
 
   protected abstract createVehicleDispatch(): void;
+
+  protected abstract openDispatchZones(item: VehicleDispatch): void;
+
+  protected abstract saveDispatchZones(): void;
 
   protected abstract openDispatchHandover(item: VehicleDispatch): void;
 

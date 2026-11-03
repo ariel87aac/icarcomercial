@@ -8,6 +8,7 @@ import { RouteDelivery } from './route-delivery.entity';
 import { RouteHistory } from './route-history.entity';
 import { RouteResponsible } from './route-responsible.entity';
 import { VehicleDispatch } from './vehicle-dispatch.entity';
+import type { WarehouseReturnOrder } from './warehouse-return-order.entity';
 
 @Entity({ name: 'rutas_distribucion' })
 export class DistributionRoute extends AuditableEntity {
@@ -118,4 +119,6 @@ export class DistributionRoute extends AuditableEntity {
   excessWeightKg: string;
 
   missingWeightPresentations: string[];
+
+  warehouseReturnOrder: WarehouseReturnOrder | null;
 }

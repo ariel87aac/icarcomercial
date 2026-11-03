@@ -12,7 +12,7 @@ import {
 } from '../../../../../compartido/modelos';
 import { DistributionParte02 } from './distribution.02-loadVehicleOptions';
 
-type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
+type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'routes' | 'assigned' | 'summary';
 
 import { Directive } from '@angular/core';
 
@@ -44,7 +44,6 @@ export abstract class DistributionParte01 extends DistributionParte02 {
       else if (this.auth.can('vehicles.read')) this.view.set('vehicles');
       else if (this.auth.can('distribution.routes.assigned.read')) this.view.set('assigned');
       else if (this.auth.can('distribution.routes.read')) this.view.set('routes');
-      else if (this.auth.can('distribution.weights.read')) this.view.set('weights');
       else this.view.set('summary');
     }
 
@@ -55,7 +54,6 @@ export abstract class DistributionParte01 extends DistributionParte02 {
       if (this.view() === 'dispatches') this.loadVehicleDispatches();
       if (this.view() === 'preparations') this.loadPreparations();
       if (this.view() === 'vehicles') this.loadVehicles();
-      if (this.view() === 'weights') this.loadWeights();
       if (this.view() === 'routes') this.loadRoutes();
       if (this.view() === 'assigned') this.loadAssigned();
       if (this.view() === 'summary') this.loadSummary();
@@ -118,7 +116,8 @@ export abstract class DistributionParte01 extends DistributionParte02 {
       if (zoneIds.length !== 1) return this.messages.add({ severity: 'warn', summary: 'Selección incompatible', detail: 'Seleccione pedidos pertenecientes a una sola zona.' });
       const deliveryDate = [...selected].sort((a, b) => a.order.requestedDate.localeCompare(b.order.requestedDate))[0].order.requestedDate;
       this.routeDraftPreparations.set(selected);
-      this.routeForm.reset({ date: deliveryDate, zoneId: zoneIds[0], vehicleDispatchId: '', vehicleId: '', responsibleIds: [], principalResponsibleId: '', observation: '' });
+      this.routeForm.reset({ date: deliveryDate, zoneId: zoneIds[0], vehicleDispatchId: '', observation: '' });
+      this.loadActiveVehicleDispatches();
       this.routeDialog.set(true);
     }
 
@@ -154,10 +153,10 @@ export abstract class DistributionParte01 extends DistributionParte02 {
 
   protected override routeDraftMissingWeights(): string[] { return [...new Set(this.routeDraftPreparations().flatMap((item) => item.missingWeightPresentations))]; }
 
-  protected override routeDraftCapacityExceeded(): boolean { const vehicle = this.activeVehicles().find((item) => item.id === this.routeForm.controls.vehicleId.value); return Boolean(vehicle?.capacityKg) && this.routeDraftWeight() > Number(vehicle!.capacityKg) + 0.0005; }
+  protected override routeDraftCapacityExceeded(): boolean { const vehicle = this.selectedRouteVehicleDispatch()?.vehicle; return Boolean(vehicle?.capacityKg) && this.routeDraftWeight() > Number(vehicle!.capacityKg) + 0.0005; }
 
   protected override routeDraftCapacityLabel(): string {
-      const vehicle = this.activeVehicles().find((item) => item.id === this.routeForm.controls.vehicleId.value);
+      const vehicle = this.selectedRouteVehicleDispatch()?.vehicle;
       if (!vehicle) return 'Seleccione un vehículo';
       if (!vehicle.capacityKg) return 'Sin capacidad configurada';
       const difference = Number(vehicle.capacityKg) - this.routeDraftWeight();

@@ -32,7 +32,7 @@ export abstract class DistributionContratos02 extends DistributionContratos01 {
 
   protected abstract changeRouteVehicle(): void;
 
-  protected abstract routeAction(action: 'plan' | 'departure' | 'finish'): void;
+  protected abstract routeAction(action: 'plan' | 'departure' | 'warehouse-return' | 'finish'): void;
 
   protected abstract openRouteReschedule(): void;
 

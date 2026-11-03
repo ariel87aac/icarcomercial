@@ -33,6 +33,13 @@ export class CreateVehicleDispatchDto {
   zoneIds: string[];
 }
 
+export class UpdateVehicleDispatchZonesDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  zoneIds: string[];
+}
+
 export class HandoverVehicleDispatchDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 1 })

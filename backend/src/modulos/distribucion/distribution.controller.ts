@@ -105,6 +105,12 @@ export class DistributionRoutesController {
     return this.distribution.finish(id, dto, actor);
   }
 
+  @Post(':id/warehouse-return')
+  @RequirePermissions('distribution.routes.finish')
+  warehouseReturn(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) {
+    return this.distribution.sendWarehouseReturn(id, actor);
+  }
+
   @Post(':id/settlement')
   @RequirePermissions('distribution.routes.settle')
   settlement(@Param('id', ParseUUIDPipe) id: string, @Body() dto: SettleRouteDto, @CurrentUser() actor: AuthenticatedUser) {

@@ -1,9 +1,9 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Put, Query, Res } from '@nestjs/common';
 import { Response } from 'express';
 import { CurrentUser } from '../../compartido/decoradores/current-user.decorator';
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
-import { ActiveVehicleDispatchQueryDto, CreateVehicleDispatchDto, HandoverVehicleDispatchDto, ReturnVehicleDispatchDto, VehicleDispatchQueryDto } from './dto/vehicle-dispatch.dto';
+import { ActiveVehicleDispatchQueryDto, CreateVehicleDispatchDto, HandoverVehicleDispatchDto, ReturnVehicleDispatchDto, UpdateVehicleDispatchZonesDto, VehicleDispatchQueryDto } from './dto/vehicle-dispatch.dto';
 import { VehicleDispatchService } from './vehicle-dispatch.service';
 import { VehicleDispatchReportService } from './reportes/vehicle-dispatch-report.service';
 
@@ -39,6 +39,16 @@ export class VehicleDispatchController {
   @RequirePermissions('distribution.vehicle_dispatches.create')
   create(@Body() dto: CreateVehicleDispatchDto, @CurrentUser() actor: AuthenticatedUser) {
     return this.dispatches.create(dto, actor);
+  }
+
+  @Put(':id/zones')
+  @RequirePermissions('distribution.vehicle_dispatches.create')
+  updateZones(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: UpdateVehicleDispatchZonesDto,
+    @CurrentUser() actor: AuthenticatedUser,
+  ) {
+    return this.dispatches.updateZones(id, dto, actor);
   }
 
   @Post(':id/handover')

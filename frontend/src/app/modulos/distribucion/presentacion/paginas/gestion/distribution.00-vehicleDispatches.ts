@@ -4,6 +4,8 @@ import { PaginatorState } from 'primeng/paginator';
 import { Paginated, Vehicle, VehicleDispatch } from '../../../../../compartido/modelos';
 import { DistributionParte01 } from './distribution.01-preparationDetails';
 
+type RouteVehicleDispatchOption = VehicleDispatch & { zoneUnavailable: boolean };
+
 @Directive()
 export abstract class DistributionVehicleDispatches extends DistributionParte01 {
   protected downloadVehicleReport(vehicle: Vehicle): void {
@@ -57,6 +59,29 @@ export abstract class DistributionVehicleDispatches extends DistributionParte01 
     });
   }
 
+  protected override openDispatchZones(item: VehicleDispatch): void {
+    this.selectedVehicleDispatch.set(item);
+    this.dispatchZonesForm.reset({ zoneIds: item.zones.map((zone) => zone.id) });
+    this.dispatchZonesDialog.set(true);
+  }
+
+  protected override saveDispatchZones(): void {
+    const item = this.selectedVehicleDispatch();
+    if (!item || this.dispatchZonesForm.invalid) return this.dispatchZonesForm.markAllAsTouched();
+    this.saving.set(true);
+    this.http.put<VehicleDispatch>(`/api/vehicle-dispatches/${item.id}/zones`, this.dispatchZonesForm.getRawValue()).subscribe({
+      next: (value) => {
+        this.saving.set(false);
+        this.dispatchZonesDialog.set(false);
+        this.selectedVehicleDispatch.set(value);
+        this.saved('Zonas actualizadas', `Despacho ${value.code}`);
+        this.loadVehicleDispatches();
+        this.loadActiveVehicleDispatches();
+      },
+      error: (error) => this.failSave(error),
+    });
+  }
+
   protected override openDispatchHandover(item: VehicleDispatch): void {
     this.selectedVehicleDispatch.set(item);
     this.dispatchHandoverForm.reset({ initialOdometer: null, observation: '' });
@@ -74,6 +99,9 @@ export abstract class DistributionVehicleDispatches extends DistributionParte01 
   }
 
   protected override openDispatchReturn(item: VehicleDispatch): void {
+    if (!item.canClose) {
+      return this.messages.add({ severity: 'warn', summary: 'Devolución pendiente', detail: item.closeBlockReason || 'Complete todas las rutas antes de devolver el vehículo.' });
+    }
     this.selectedVehicleDispatch.set(item);
     this.dispatchReturnForm.reset({ finalOdometer: item.initialOdometer ? Number(item.initialOdometer) : null, observation: '' });
     this.dispatchReturnDialog.set(true);
@@ -86,7 +114,7 @@ export abstract class DistributionVehicleDispatches extends DistributionParte01 
     if (Number(raw.finalOdometer) < Number(item.initialOdometer)) return this.messages.add({ severity: 'warn', summary: 'Kilometraje inválido', detail: 'El kilometraje final no puede ser menor al inicial.' });
     this.saving.set(true);
     this.http.post<VehicleDispatch>(`/api/vehicle-dispatches/${item.id}/return`, raw).subscribe({
-      next: (value) => { this.saving.set(false); this.dispatchReturnDialog.set(false); this.saved('Devolución registrada', `${this.number(Number(value.finalOdometer)-Number(value.initialOdometer))} km recorridos`); this.loadVehicleDispatches(); this.loadActiveVehicleDispatches(); },
+      next: (value) => { this.saving.set(false); this.dispatchReturnDialog.set(false); this.saved('Vehículo devuelto', `${this.number(Number(value.finalOdometer)-Number(value.initialOdometer))} km recorridos`); this.loadVehicleDispatches(); this.loadActiveVehicleDispatches(); },
       error: (error) => this.failSave(error),
     });
   }
@@ -96,6 +124,16 @@ export abstract class DistributionVehicleDispatches extends DistributionParte01 
     return this.activeVehicleDispatches().filter((item) => !zoneId || item.zones.some((zone) => zone.id === zoneId));
   }
 
+  protected routeVehicleDispatchOptions(): RouteVehicleDispatchOption[] {
+    const availableIds = new Set(this.availableVehicleDispatches().map((item) => item.id));
+    return this.activeVehicleDispatches().map((item) => ({ ...item, zoneUnavailable: !availableIds.has(item.id) }));
+  }
+
+  protected selectedRouteZoneName(): string {
+    const zoneId = this.routeForm.controls.zoneId.value;
+    return this.zones().find((zone) => zone.id === zoneId)?.name ?? 'seleccionada';
+  }
+
   protected override onRouteZoneChange(): void {
     const current = this.routeForm.controls.vehicleDispatchId.value;
     if (!this.availableVehicleDispatches().some((item) => item.id === current)) this.onRouteDispatchChange(null);
@@ -103,10 +141,6 @@ export abstract class DistributionVehicleDispatches extends DistributionParte01 
 
   protected override onRouteDispatchChange(id: string | null): void {
     this.routeForm.controls.vehicleDispatchId.setValue(id ?? '');
-    const dispatch = this.activeVehicleDispatches().find((item) => item.id === id);
-    this.routeForm.controls.vehicleId.setValue(dispatch?.vehicleId ?? '');
-    this.routeForm.controls.principalResponsibleId.setValue(dispatch?.responsibleId ?? '');
-    this.routeForm.controls.responsibleIds.setValue(dispatch ? [dispatch.responsibleId] : []);
   }
 
   protected override dispatchStatusLabel(value: string): string {

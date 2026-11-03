@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
+import { ArrayMaxSize, ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsInt, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, MinLength, ValidateNested } from 'class-validator';
 import { PaginationQueryDto } from '../../../compartido/dto/pagination-query.dto';
 import { DistributionRouteStatus, VisitResultType, WarehouseReturnStatus } from '../entidades/distribution.enums';
 
@@ -24,6 +24,13 @@ export class DistributionRouteQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsEnum(DistributionRouteStatus)
   status?: DistributionRouteStatus;
+
+  @IsOptional()
+  @Transform(({ value }) => Array.isArray(value) ? value : String(value).split(',').filter(Boolean))
+  @IsArray()
+  @ArrayMaxSize(6)
+  @IsEnum(DistributionRouteStatus, { each: true })
+  statuses?: DistributionRouteStatus[];
 }
 
 export class PendingDistributionQueryDto extends PaginationQueryDto {
@@ -50,17 +57,6 @@ export class CreateDistributionRouteDto {
 
   @IsUUID()
   vehicleDispatchId: string;
-
-  @IsUUID()
-  vehicleId: string;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @IsUUID('4', { each: true })
-  responsibleIds: string[];
-
-  @IsUUID()
-  principalResponsibleId: string;
 
   @IsOptional()
   @IsArray()

@@ -59,7 +59,7 @@ export abstract class DistributionServiceParte10 extends DistributionServiceBase
   protected async assertAssigned(manager: EntityManager, routeId: string, actor: AuthenticatedUser): Promise<void> {
       if (this.canControlAllDeliveries(actor)) return;
       const assignment = await manager.getRepository(RouteResponsible).findOne({ where: { routeId, userId: actor.id } });
-      if (!assignment) throw new ForbiddenException('Solo un responsable asignado puede registrar la visita');
+      if (!assignment) throw new ForbiddenException('Solo el distribuidor asignado puede operar esta ruta');
     }
 
   protected canControlAllDeliveries(actor: AuthenticatedUser): boolean {

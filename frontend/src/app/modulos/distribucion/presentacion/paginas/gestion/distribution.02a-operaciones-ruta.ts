@@ -81,7 +81,7 @@ export abstract class DistributionOperacionesRutaA extends DistributionOperacion
         let params = new HttpParams().set('page', page).set('limit', this.pageSize());
         if (this.dateFilter()) params = params.set('date', this.dateFilter());
         if (this.zoneFilter()) params = params.set('zoneId', this.zoneFilter()!);
-        if (this.routeStatusFilter()) params = params.set('status', this.routeStatusFilter()!);
+        if (this.routeStatusFilter().length) params = params.set('statuses', this.routeStatusFilter().join(','));
         if (this.searchFilter().trim()) params = params.set('q', this.searchFilter().trim());
         return params;
       }
@@ -100,12 +100,11 @@ export abstract class DistributionOperacionesRutaA extends DistributionOperacion
 
   protected override changeSummaryPage(event: PaginatorState): void { this.applyPageSize(event); this.summaryPage.set((event.page ?? 0) + 1); this.loadSummary(); }
 
-  protected override openRoute(): void { this.routeDraftPreparations.set([]); this.routeForm.reset({ date: this.dateFilter(), zoneId: this.zoneFilter() ?? '', vehicleDispatchId: '', vehicleId: '', responsibleIds: [], principalResponsibleId: '', observation: '' }); this.routeDialog.set(true); }
+  protected override openRoute(): void { this.routeDraftPreparations.set([]); this.routeForm.reset({ date: this.dateFilter(), zoneId: this.zoneFilter() ?? '', vehicleDispatchId: '', observation: '' }); this.loadActiveVehicleDispatches(); this.routeDialog.set(true); }
 
   protected override createRoute(): void {
         if (this.routeForm.invalid) return this.routeForm.markAllAsTouched();
         const raw = this.routeForm.getRawValue();
-        if (!raw.responsibleIds.includes(raw.principalResponsibleId)) return this.messages.add({ severity: 'warn', summary: 'Asignación incompleta', detail: 'El responsable principal debe estar incluido en los responsables asignados.' });
         if (this.routeDraftCapacityExceeded()) return this.messages.add({ severity: 'warn', summary: 'Capacidad excedida', detail: 'Seleccione un vehículo con capacidad suficiente para la carga.' });
         this.saving.set(true);
         const preparationIds = this.routeDraftPreparations().map((item) => item.id);
@@ -131,7 +130,7 @@ export abstract class DistributionOperacionesRutaA extends DistributionOperacion
 
   protected override changeRouteVehicle(): void { const route = this.selectedRoute(); const vehicleId = this.routeVehicleId(); if (!route || !vehicleId || vehicleId === route.vehicleId) return; this.saving.set(true); this.http.put<DistributionRoute>(`/api/distribution-routes/${route.id}/vehicle`, { vehicleId }).subscribe({ next: (value) => { this.saving.set(false); this.updateSelectedRoute(value); this.saved('Vehículo actualizado', value.vehicle.plate); this.loadRoutes(); }, error: (error) => this.failSave(error) }); }
 
-  protected override routeAction(action: 'plan'|'departure'|'finish'): void { const route = this.selectedRoute(); if (!route) return; this.saving.set(true); this.http.post<DistributionRoute>(`/api/distribution-routes/${route.id}/${action}`, {}).subscribe({ next: (value) => { this.saving.set(false); this.updateSelectedRoute(value); this.saved(action==='plan'?'Ruta planificada':action==='departure'?'Salida registrada':'Recorrido finalizado', value.code); this.loadRoutes(); }, error: (error) => this.failSave(error) }); }
+  protected override routeAction(action: 'plan'|'departure'|'warehouse-return'|'finish'): void { const route = this.selectedRoute(); if (!route) return; this.saving.set(true); this.http.post<DistributionRoute>(`/api/distribution-routes/${route.id}/${action}`, {}).subscribe({ next: (value) => { this.saving.set(false); this.updateSelectedRoute(value); const summary = action==='plan'?'Ruta planificada':action==='departure'?'Carga recibida y reparto iniciado':action==='warehouse-return'?'Devolución enviada a Almacén':'Recorrido finalizado y liquidado'; this.saved(summary, value.code); this.loadRoutes(); if (this.auth.can('distribution.routes.assigned.read')) this.loadAssigned(); }, error: (error) => this.failSave(error) }); }
 
   protected override openRouteReschedule(): void { const route = this.selectedRoute(); if (!route) return; this.rescheduleForm.reset({ date: route.date, reason: '' }); this.routeRescheduleDialog.set(true); }
 

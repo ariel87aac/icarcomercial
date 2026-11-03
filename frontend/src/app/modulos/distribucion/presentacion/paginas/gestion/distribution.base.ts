@@ -21,7 +21,7 @@ import {
   Zone,
 } from '../../../../../compartido/modelos';
 
-type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'weights' | 'routes' | 'assigned' | 'summary';
+type DistributionView = 'preparations' | 'dispatches' | 'pending' | 'vehicles' | 'routes' | 'assigned' | 'summary';
 
 import { Directive } from '@angular/core';
 import { DistributionContratos02 } from './distribution.contratos-02';
@@ -29,6 +29,10 @@ import { DistributionContratos02 } from './distribution.contratos-02';
 @Directive()
 export abstract class DistributionBase extends DistributionContratos02 {
 protected readonly http = inject(HttpClient);
+
+  protected selectedRouteVehicleDispatch(): VehicleDispatch | undefined {
+    return this.activeVehicleDispatches().find((item) => item.id === this.routeForm.controls.vehicleDispatchId.value);
+  }
 
   protected readonly fb = inject(FormBuilder);
 
@@ -58,7 +62,7 @@ protected readonly http = inject(HttpClient);
 
   protected readonly zoneFilter = signal<string | null>(null);
 
-  protected readonly routeStatusFilter = signal<DistributionRouteStatus | null>(null);
+  protected readonly routeStatusFilter = signal<DistributionRouteStatus[]>(['BORRADOR', 'PLANIFICADA', 'EN_REPARTO']);
 
   protected readonly searchFilter = signal('');
 
@@ -166,6 +170,8 @@ protected readonly http = inject(HttpClient);
 
   protected readonly dispatchHandoverDialog = signal(false);
 
+  protected readonly dispatchZonesDialog = signal(false);
+
   protected readonly dispatchReturnDialog = signal(false);
 
   protected readonly editingVehicleId = signal<string | null>(null);
@@ -218,13 +224,14 @@ protected readonly http = inject(HttpClient);
     });
 
   protected readonly routeForm = this.fb.nonNullable.group({
-      date: ['', Validators.required], zoneId: ['', Validators.required], vehicleDispatchId: ['', Validators.required], vehicleId: ['', Validators.required],
-      responsibleIds: [[] as string[], Validators.required], principalResponsibleId: ['', Validators.required], observation: [''],
+      date: ['', Validators.required], zoneId: ['', Validators.required], vehicleDispatchId: ['', Validators.required], observation: [''],
     });
 
   protected readonly dispatchForm = this.fb.nonNullable.group({
       vehicleId: ['', Validators.required], responsibleId: ['', Validators.required], zoneIds: [[] as string[], Validators.required],
     });
+
+  protected readonly dispatchZonesForm = this.fb.nonNullable.group({ zoneIds: [[] as string[], Validators.required] });
 
   protected readonly dispatchHandoverForm = this.fb.group({
       initialOdometer: [null as number | null, [Validators.required, Validators.min(0)]], observation: [''],

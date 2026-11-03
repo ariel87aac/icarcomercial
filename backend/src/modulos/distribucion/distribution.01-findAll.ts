@@ -13,6 +13,7 @@ import {
 import { DistributionRoute } from './entidades/distribution-route.entity';
 import { DistributionRouteStatus } from './entidades/distribution.enums';
 import { RouteResponsible } from './entidades/route-responsible.entity';
+import { WarehouseReturnOrder } from './entidades/warehouse-return-order.entity';
 import { DistributionServiceParte02 } from './distribution.02-updatePresentationWeights';
 
 export abstract class DistributionServiceParte01 extends DistributionServiceParte02 {
@@ -68,7 +69,7 @@ export abstract class DistributionServiceParte01 extends DistributionServicePart
   
       // Cargar las colecciones por separado evita el producto cartesiano entre
       // responsables, entregas, detalles e historial al consultar una ruta.
-      [route.responsibles, route.deliveries, route.history] = await Promise.all([
+      const [responsibles, deliveries, history, warehouseReturnOrder] = await Promise.all([
         this.dataSource.getRepository(RouteResponsible).find({
           where: { routeId: id },
           relations: { user: true },
@@ -80,7 +81,12 @@ export abstract class DistributionServiceParte01 extends DistributionServicePart
           relations: { user: true },
           order: { occurredAt: 'ASC' },
         }),
+        this.dataSource.getRepository(WarehouseReturnOrder).findOne({ where: { routeId: id } }),
       ]);
+      route.responsibles = responsibles;
+      route.deliveries = deliveries;
+      route.history = history;
+      route.warehouseReturnOrder = warehouseReturnOrder;
       await this.attachLoadMetrics(route);
       return route;
     }

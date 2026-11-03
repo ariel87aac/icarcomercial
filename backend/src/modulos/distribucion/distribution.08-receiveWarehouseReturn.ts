@@ -16,12 +16,10 @@ import { DistributionRoute } from './entidades/distribution-route.entity';
 import {
   DistributionRouteStatus,
   RouteHistoryEvent,
-  VisitResultType,
   WarehouseReturnStatus,
 } from './entidades/distribution.enums';
-import { RouteDelivery } from './entidades/route-delivery.entity';
 import { RouteHistory } from './entidades/route-history.entity';
-import { RouteSettlement } from './entidades/route-settlement.entity';
+import { RouteDelivery } from './entidades/route-delivery.entity';
 import { VisitResultDetail } from './entidades/visit-result-detail.entity';
 import { WarehouseReturnOrderDetail } from './entidades/warehouse-return-order-detail.entity';
 import { WarehouseReturnOrder } from './entidades/warehouse-return-order.entity';
@@ -37,6 +35,9 @@ export abstract class DistributionServiceParte08 extends DistributionServicePart
           .getOne();
         if (!returnOrder) throw new NotFoundException('Orden de retorno a Almacén no encontrada');
         if (returnOrder.status !== WarehouseReturnStatus.PENDING) throw new ConflictException('La orden de retorno ya fue recibida');
+        if (![DistributionRouteStatus.IN_DELIVERY, DistributionRouteStatus.FINISHED].includes(returnOrder.route.status)) {
+          throw new ConflictException('El recorrido no admite la recepción de devoluciones en su estado actual');
+        }
         const details = await manager.getRepository(WarehouseReturnOrderDetail).find({
           where: { returnOrderId: id },
           relations: {
@@ -91,33 +92,20 @@ export abstract class DistributionServiceParte08 extends DistributionServicePart
           throw new BadRequestException('Una recepción con diferencia requiere observación');
         }
   
-        const routeDeliveries = await manager.getRepository(RouteDelivery).find({ where: { routeId: returnOrder.routeId }, relations: { result: true } });
-        const counts = routeDeliveries.reduce((value, delivery) => {
-          if (delivery.result?.result === VisitResultType.DELIVERED) value.complete += 1;
-          if (delivery.result?.result === VisitResultType.PARTIAL) value.partial += 1;
-          if (delivery.result?.result === VisitResultType.NOT_DELIVERED) value.notDelivered += 1;
-          return value;
-        }, { complete: 0, partial: 0, notDelivered: 0 });
-        await manager.getRepository(RouteSettlement).save(manager.getRepository(RouteSettlement).create({
-          routeId: returnOrder.routeId,
-          completeDeliveries: counts.complete,
-          partialDeliveries: counts.partial,
-          notDelivered: counts.notDelivered,
-          acceptedReturnQuantity: receivedTotal.toFixed(3),
-          responsibleId: actor.id,
-          observation: dto.observation?.trim() || null,
-        }));
         returnOrder.status = WarehouseReturnStatus.RECEIVED;
         returnOrder.receivedQuantity = receivedTotal.toFixed(3);
         returnOrder.receivedById = actor.id;
         returnOrder.receivedAt = new Date();
         returnOrder.observation = dto.observation?.trim() || null;
         await manager.getRepository(WarehouseReturnOrder).save(returnOrder);
-        returnOrder.route.status = DistributionRouteStatus.SETTLED;
-        returnOrder.route.settledById = actor.id;
-        returnOrder.route.settledAt = new Date();
-        await manager.getRepository(DistributionRoute).save(returnOrder.route);
-        await this.saveHistory(manager, returnOrder.routeId, DistributionRouteStatus.FINISHED, DistributionRouteStatus.SETTLED, RouteHistoryEvent.SETTLEMENT, actor.id, dto.observation?.trim() || `Retorno N.º ${returnOrder.code} recibido por Almacén`, { ...counts, returnOrderId: returnOrder.id, expectedQuantity: returnOrder.expectedQuantity, receivedQuantity: receivedTotal.toFixed(3) });
+        const previousRouteStatus = returnOrder.route.status;
+        if (previousRouteStatus === DistributionRouteStatus.FINISHED) {
+          returnOrder.route.status = DistributionRouteStatus.IN_DELIVERY;
+          returnOrder.route.finishedById = null;
+          returnOrder.route.finishedAt = null;
+          await manager.getRepository(DistributionRoute).save(returnOrder.route);
+        }
+        await this.saveHistory(manager, returnOrder.routeId, previousRouteStatus, DistributionRouteStatus.IN_DELIVERY, RouteHistoryEvent.VISIT, actor.id, dto.observation?.trim() || `Retorno N.º ${returnOrder.code} recibido por Almacén; recorrido habilitado para finalizar`, { returnOrderId: returnOrder.id, expectedQuantity: returnOrder.expectedQuantity, receivedQuantity: receivedTotal.toFixed(3) });
         await this.saveAudit(manager, actor.id, 'RECIBIR_RETORNO_ALMACEN', returnOrder.routeId, { returnOrderId: returnOrder.id, expectedQuantity: returnOrder.expectedQuantity, receivedQuantity: receivedTotal.toFixed(3) });
       });
       return this.warehouseReturn(id);
@@ -132,7 +120,8 @@ export abstract class DistributionServiceParte08 extends DistributionServicePart
       if (query.date) builder.andWhere('route.date = :date', { date: query.date });
       if (query.zoneId) builder.andWhere('route.zoneId = :zoneId', { zoneId: query.zoneId });
       if (query.vehicleId) builder.andWhere('route.vehicleId = :vehicleId', { vehicleId: query.vehicleId });
-      if (query.status) builder.andWhere('route.status = :status', { status: query.status });
+      if (query.statuses?.length) builder.andWhere('route.status IN (:...statuses)', { statuses: query.statuses });
+      else if (query.status) builder.andWhere('route.status = :status', { status: query.status });
       if (query.q?.trim()) {
         builder.andWhere('(route.code ILIKE :query OR zone.name ILIKE :query OR vehicle.plate ILIKE :query)', { query: `%${query.q.trim()}%` });
       }

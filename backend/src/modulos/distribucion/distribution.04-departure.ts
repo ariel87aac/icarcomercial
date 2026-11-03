@@ -22,6 +22,7 @@ export abstract class DistributionServiceParte04 extends DistributionServicePart
       await workflowTransaction(this.dataSource, async (manager) => {
         const route = await this.lockRoute(manager, id);
         this.assertRouteStatus(route, DistributionRouteStatus.PLANNED, 'La salida solo puede registrarse desde una ruta Planificada');
+        await this.assertAssigned(manager, id, actor);
         if (route.vehicleDispatchId) {
           const activeDispatch = await manager.getRepository(VehicleDispatch).exists({ where: { id: route.vehicleDispatchId, status: VehicleDispatchStatus.ACTIVE } });
           if (!activeDispatch) throw new ConflictException('El despacho del vehículo ya no está activo');

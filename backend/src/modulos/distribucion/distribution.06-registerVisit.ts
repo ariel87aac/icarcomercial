@@ -17,10 +17,13 @@ import {
   RouteDeliveryStatus,
   RouteHistoryEvent,
   VisitResultType,
+  WarehouseReturnStatus,
 } from './entidades/distribution.enums';
 import { RouteDelivery } from './entidades/route-delivery.entity';
+import { RouteSettlement } from './entidades/route-settlement.entity';
 import { VisitResultDetail } from './entidades/visit-result-detail.entity';
 import { VisitResult } from './entidades/visit-result.entity';
+import { WarehouseReturnOrder } from './entidades/warehouse-return-order.entity';
 import { DistributionServiceParte07 } from './distribution.07-settle';
 
 export abstract class DistributionServiceParte06 extends DistributionServiceParte07 {
@@ -106,25 +109,75 @@ export abstract class DistributionServiceParte06 extends DistributionServicePart
       return route;
     }
 
-  async finish(id: string, dto: RouteTransitionDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
+  async sendWarehouseReturn(id: string, actor: AuthenticatedUser): Promise<DistributionRoute> {
       await workflowTransaction(this.dataSource, async (manager) => {
         const route = await this.lockRoute(manager, id);
-        this.assertRouteStatus(route, DistributionRouteStatus.IN_DELIVERY, 'Solo una ruta En reparto puede finalizarse');
+        this.assertRouteStatus(route, DistributionRouteStatus.IN_DELIVERY, 'Solo una ruta En reparto puede enviar devoluciones');
+        await this.assertAssigned(manager, id, actor);
         const deliveries = await manager.getRepository(RouteDelivery).find({
           where: { routeId: id },
           relations: { result: { details: { preparationDetail: true } } },
         });
-        if (!deliveries.length || deliveries.some((delivery) => delivery.status !== RouteDeliveryStatus.VISITED)) throw new UnprocessableEntityException('Todas las visitas deben tener un resultado antes de finalizar');
+        if (!deliveries.length || deliveries.some((delivery) => delivery.status !== RouteDeliveryStatus.VISITED)) {
+          throw new UnprocessableEntityException('Todas las entregas deben tener un resultado antes de enviar la devolución');
+        }
         const returnOrder = await this.createWarehouseReturnOrder(manager, route, deliveries, actor.id);
-        route.status = DistributionRouteStatus.FINISHED;
+        if (!returnOrder) throw new BadRequestException('El recorrido no tiene productos para devolver a Almacén');
+        if (returnOrder.status === WarehouseReturnStatus.RECEIVED) throw new ConflictException('La devolución ya fue recepcionada; puede finalizar el recorrido');
+        await this.saveHistory(manager, id, route.status, route.status, RouteHistoryEvent.VISIT, actor.id, `Devolución N.º ${returnOrder.code} enviada a Almacén`, {
+          returnOrderId: returnOrder.id,
+          returnedQuantity: returnOrder.expectedQuantity,
+        });
+      });
+      return this.findOne(id);
+    }
+
+  async finish(id: string, dto: RouteTransitionDto, actor: AuthenticatedUser): Promise<DistributionRoute> {
+      await workflowTransaction(this.dataSource, async (manager) => {
+        const route = await this.lockRoute(manager, id);
+        this.assertRouteStatus(route, DistributionRouteStatus.IN_DELIVERY, 'Solo una ruta En reparto puede finalizarse');
+        await this.assertAssigned(manager, id, actor);
+        const deliveries = await manager.getRepository(RouteDelivery).find({
+          where: { routeId: id },
+          relations: { result: { details: { preparationDetail: true } } },
+        });
+        if (!deliveries.length || deliveries.some((delivery) => delivery.status !== RouteDeliveryStatus.VISITED)) {
+          throw new UnprocessableEntityException('Todas las entregas deben tener un resultado antes de finalizar el recorrido');
+        }
+        const returnedQuantity = deliveries
+          .flatMap((delivery) => delivery.result?.details ?? [])
+          .reduce((total, detail) => total + Number(detail.returnedQuantity), 0);
+        const returnOrder = await manager.getRepository(WarehouseReturnOrder).findOne({ where: { routeId: id } });
+        if (returnedQuantity > 0 && !returnOrder) {
+          throw new ConflictException('Debe enviar los productos devueltos a Almacén antes de finalizar el recorrido');
+        }
+        if (returnOrder?.status === WarehouseReturnStatus.PENDING) {
+          throw new ConflictException('Almacén debe recepcionar la devolución antes de finalizar el recorrido');
+        }
+        const finishedAt = new Date();
+        route.status = DistributionRouteStatus.SETTLED;
         route.finishedById = actor.id;
-        route.finishedAt = new Date();
+        route.finishedAt = finishedAt;
+        route.settledById = actor.id;
+        route.settledAt = finishedAt;
+        const counts = deliveries.reduce((value, delivery) => {
+          if (delivery.result?.result === VisitResultType.DELIVERED) value.complete += 1;
+          if (delivery.result?.result === VisitResultType.PARTIAL) value.partial += 1;
+          if (delivery.result?.result === VisitResultType.NOT_DELIVERED) value.notDelivered += 1;
+          return value;
+        }, { complete: 0, partial: 0, notDelivered: 0 });
+        await manager.getRepository(RouteSettlement).save(manager.getRepository(RouteSettlement).create({
+          routeId: route.id, completeDeliveries: counts.complete, partialDeliveries: counts.partial,
+          notDelivered: counts.notDelivered, acceptedReturnQuantity: returnOrder?.receivedQuantity ?? '0.000', responsibleId: actor.id,
+          observation: dto.observation?.trim() || (returnOrder ? 'Recorrido liquidado después de la recepción de la devolución' : 'Recorrido sin devoluciones liquidado automáticamente'),
+        }));
         await manager.getRepository(DistributionRoute).save(route);
         await this.saveHistory(manager, id, DistributionRouteStatus.IN_DELIVERY, DistributionRouteStatus.FINISHED, RouteHistoryEvent.FINISH, actor.id, dto.observation?.trim() || 'Recorrido finalizado', {
           returnOrderId: returnOrder?.id ?? null,
-          returnedQuantity: returnOrder?.expectedQuantity ?? '0.000',
+          returnedQuantity: returnOrder?.receivedQuantity ?? '0.000',
         });
-        await this.saveAudit(manager, actor.id, 'FINALIZAR_RUTA', id, { deliveries: deliveries.length, returnOrderId: returnOrder?.id ?? null });
+        await this.saveHistory(manager, id, DistributionRouteStatus.FINISHED, DistributionRouteStatus.SETTLED, RouteHistoryEvent.SETTLEMENT, actor.id, returnOrder ? 'Devolución recepcionada y recorrido liquidado' : 'Recorrido sin devoluciones liquidado automáticamente');
+        await this.saveAudit(manager, actor.id, 'FINALIZAR_RUTA', id, { deliveries: deliveries.length, returnOrderId: returnOrder?.id ?? null, warehouseReturnReceived: returnOrder?.status === WarehouseReturnStatus.RECEIVED });
       });
       return this.findOne(id);
     }

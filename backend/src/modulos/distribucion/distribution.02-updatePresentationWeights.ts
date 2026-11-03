@@ -13,7 +13,6 @@ import { ProductPresentation } from '../productos/catalogo/entidades/product-pre
 import { Vehicle } from './flota/entidades/vehicle.entity';
 import { OrderPreparation } from '../preparacion/entidades/order-preparation.entity';
 import { PreparationEvent, PreparationStatus } from '../preparacion/entidades/preparation.enums';
-import { User } from '../seguridad/usuarios/entidades/user.entity';
 import { Zone } from '../zonas-reparto/entidades/zone.entity';
 import {
   AddRouteDeliveriesDto,
@@ -78,26 +77,15 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
         const vehicle = dispatch.vehicle;
         if (vehicle.status !== RecordStatus.ACTIVE) throw new UnprocessableEntityException('El vehículo asignado ya no está activo');
         if (!vehicle.capacityKg || Number(vehicle.capacityKg) <= 0) throw new UnprocessableEntityException('El vehículo debe tener una capacidad válida en kg');
-        const responsibleIds = [...new Set(dto.responsibleIds)];
-        if (dto.vehicleId !== vehicle.id || dto.principalResponsibleId !== dispatch.responsibleId) throw new BadRequestException('El vehículo y responsable deben corresponder al despacho activo');
-        if (responsibleIds.length !== dto.responsibleIds.length || !responsibleIds.includes(dispatch.responsibleId)) {
-          throw new BadRequestException('Debe identificar un responsable principal dentro de la asignación');
-        }
-        const users = await manager.getRepository(User).createQueryBuilder('user')
-          .leftJoinAndSelect('user.roles', 'role')
-          .where('user.id IN (:...ids)', { ids: responsibleIds })
-          .andWhere('user.status = :status', { status: RecordStatus.ACTIVE })
-          .andWhere('role.name IN (:...roles)', { roles: ['REPARTIDOR', 'DISTRIBUCION'] })
-          .getMany();
-        if (users.length !== responsibleIds.length) throw new UnprocessableEntityException('Todos los responsables deben estar activos y autorizados para distribución');
-        await this.assertResourceAvailability(manager, dto.date, dto.vehicleId, responsibleIds);
+        if (dispatch.responsible.status !== RecordStatus.ACTIVE) throw new UnprocessableEntityException('El distribuidor asignado ya no está activo');
+        await this.assertResourceAvailability(manager, dto.date, vehicle.id, [dispatch.responsibleId]);
         const sequence = await manager.query<{ value: string }[]>(`SELECT nextval('rutas_codigo_seq')::text AS value`);
         const repository = manager.getRepository(DistributionRoute);
         const route = await repository.save(repository.create({
           code: `RUTA-${dto.date.replaceAll('-', '')}-${sequence[0].value.padStart(4, '0')}`,
           date: dto.date,
           zoneId: dto.zoneId,
-          vehicleId: dto.vehicleId,
+          vehicleId: vehicle.id,
           vehicleDispatchId: dispatch.id,
           status: DistributionRouteStatus.DRAFT,
           createdById: actor.id,
@@ -115,22 +103,19 @@ export abstract class DistributionServiceParte02 extends DistributionServicePart
           canceledAt: null,
           cancellationReason: null,
         }));
-        for (const userId of responsibleIds) {
-          const isPrincipal = userId === dispatch.responsibleId;
-          await manager.getRepository(RouteResponsible).save(manager.getRepository(RouteResponsible).create({
-            routeId: route.id,
-            userId,
-            function: isPrincipal ? RouteResponsibleFunction.PRINCIPAL : RouteResponsibleFunction.SUPPORT,
-            isPrincipal,
-          }));
-        }
-        await this.saveHistory(manager, route.id, null, DistributionRouteStatus.DRAFT, RouteHistoryEvent.CREATION, actor.id, 'Ruta creada y recursos asignados', { responsibleIds });
+        await manager.getRepository(RouteResponsible).save(manager.getRepository(RouteResponsible).create({
+          routeId: route.id,
+          userId: dispatch.responsibleId,
+          function: RouteResponsibleFunction.PRINCIPAL,
+          isPrincipal: true,
+        }));
+        await this.saveHistory(manager, route.id, null, DistributionRouteStatus.DRAFT, RouteHistoryEvent.CREATION, actor.id, 'Ruta creada con el distribuidor del vehículo', { responsibleId: dispatch.responsibleId });
         const preparationIds = dto.preparationIds ?? [];
         if (preparationIds.length) {
           await this.assignPreparations(manager, route, preparationIds, actor.id);
           await this.saveHistory(manager, route.id, route.status, route.status, RouteHistoryEvent.ASSIGNMENT, actor.id, 'Preparaciones agregadas al crear la ruta', { preparationIds, operationalDate: route.date });
         }
-        await this.saveAudit(manager, actor.id, 'CREAR_RUTA', route.id, { date: route.date, zoneId: route.zoneId, vehicleId: route.vehicleId, vehicleDispatchId: dispatch.id, preparationIds });
+        await this.saveAudit(manager, actor.id, 'CREAR_RUTA', route.id, { date: route.date, zoneId: route.zoneId, vehicleId: vehicle.id, vehicleDispatchId: dispatch.id, responsibleId: dispatch.responsibleId, preparationIds });
         return route.id;
       });
       return this.findOne(id);

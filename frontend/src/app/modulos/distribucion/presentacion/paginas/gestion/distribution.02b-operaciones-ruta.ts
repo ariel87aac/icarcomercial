@@ -16,6 +16,10 @@ import { Directive } from '@angular/core';
 
 @Directive()
 export abstract class DistributionOperacionesRutaB extends DistributionParte03 {
+  protected routeAllVisitsCompleted(route: DistributionRoute): boolean {
+    return route.deliveries.length > 0 && route.deliveries.every((delivery) => delivery.status === 'VISITADA');
+  }
+
   protected override closeAssignedDialog(visible: boolean): void { this.assignedDialog.set(visible); if (!visible) this.destroyMap(); }
 
   protected override openVisit(delivery: RouteDelivery): void {
@@ -113,7 +117,19 @@ export abstract class DistributionOperacionesRutaB extends DistributionParte03 {
           const coordinate: L.LatLngExpression = [Number(delivery.address.latitude), Number(delivery.address.longitude)];
           bounds.push(coordinate);
           const color = delivery.status === 'VISITADA' ? '#168354' : '#ed1c24';
-          L.circleMarker(coordinate, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 }).addTo(this.map).bindTooltip(`${delivery.position ?? '—'}. ${delivery.order.code}<br>${delivery.address.address}`);
+          const customerName = delivery.order.customerNameSnapshot || delivery.order.customer.businessName;
+          const label = document.createElement('span');
+          label.textContent = `${delivery.position ?? '—'}. ${customerName}`;
+          const details = document.createElement('div');
+          const heading = document.createElement('strong');
+          const address = document.createElement('div');
+          heading.textContent = `${delivery.position ?? '—'}. ${customerName}`;
+          address.textContent = `${delivery.order.code} · ${delivery.address.address}`;
+          details.append(heading, address);
+          L.circleMarker(coordinate, { radius: 10, color: '#fff', weight: 3, fillColor: color, fillOpacity: 1 })
+            .addTo(this.map)
+            .bindTooltip(label, { permanent: true, direction: 'top', offset: [0, -8], className: 'route-customer-tooltip' })
+            .bindPopup(details);
         }
         if (bounds.length) this.map.fitBounds(L.latLngBounds(bounds), { padding: [35, 35], maxZoom: 15 });
         setTimeout(() => this.map?.invalidateSize(), 120);

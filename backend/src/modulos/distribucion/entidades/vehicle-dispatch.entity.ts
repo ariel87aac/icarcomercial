@@ -79,4 +79,18 @@ export class VehicleDispatch extends AuditableEntity {
   routes: DistributionRoute[];
 
   routeCount?: number;
+
+  assignedOrderCount?: number;
+
+  deliveredOrderCount?: number;
+
+  pendingOrderCount?: number;
+
+  pendingReturnCount?: number;
+
+  openRouteCount?: number;
+
+  canClose?: boolean;
+
+  closeBlockReason?: string | null;
 }
