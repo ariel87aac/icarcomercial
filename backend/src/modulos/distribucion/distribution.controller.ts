@@ -1,9 +1,11 @@
-import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Post, Put, Query, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { CurrentUser } from '../../compartido/decoradores/current-user.decorator';
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
 import { AddRouteDeliveriesDto, CancelRouteDto, CompleteFactoryDeliveryDto, CreateDistributionRouteDto, DistributionRouteQueryDto, PendingDistributionQueryDto, ReceiveWarehouseReturnDto, RegisterVisitResultDto, RescheduleRouteDto, RouteTransitionDto, SettleRouteDto, UpdatePresentationWeightsDto, UpdateRouteSequenceDto, UpdateRouteVehicleDto, WarehouseReturnQueryDto, WeightReadinessQueryDto } from './dto/distribution.dto';
 import { DistributionService } from './distribution.service';
+import { ThermalDeliveryTicketService } from './reportes/thermal-delivery-ticket.service';
 
 @Controller('distribution-routes')
 export class DistributionRoutesController {
@@ -124,7 +126,23 @@ export class DistributionRoutesController {
 
 @Controller('route-deliveries')
 export class RouteDeliveriesController {
-  constructor(private readonly distribution: DistributionService) {}
+  constructor(
+    private readonly distribution: DistributionService,
+    private readonly tickets: ThermalDeliveryTicketService,
+  ) {}
+
+  @Get(':id/ticket-80mm')
+  @RequirePermissions('distribution.visits.create')
+  async ticket(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Res() response: Response,
+  ) {
+    const file = await this.tickets.export(id, actor);
+    response.setHeader('Content-Type', file.mime);
+    response.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+    response.send(file.content);
+  }
 
   @Post(':id/result')
   @RequirePermissions('distribution.visits.create')

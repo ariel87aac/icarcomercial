@@ -73,6 +73,8 @@ Fuente: `backend/scripts/iteration-four.acceptance.mjs`.
 | PA-RPD-24 | Seleccionar pedidos de zonas diferentes. | El sistema informa que una ruta corresponde a una sola zona y bloquea la creación hasta corregir la selección. |
 | PA-RPD-25 | Seleccionar pedidos de una zona y abrir **Crear ruta con seleccionados**. | El modal conserva la zona, muestra carga y capacidad, y al confirmar crea la ruta con una secuencia inicial válida. |
 | PA-RPD-26 | Abrir una preparación, modificar verificaciones sin guardar, cerrarla y abrir otro pedido con cantidades diferentes. | El segundo pedido muestra sus propias cantidades y verificaciones; no hereda controles ni valores visuales del pedido anterior y **Preparar** se habilita al verificar sus productos. |
+| PA-RPD-27 | Iniciar sesión y volver a **Resumen** después de trabajar en otro módulo. | El encabezado muestra `Hola, <nombre completo>` y el dashboard vuelve a consultar sus métricas y procesos pendientes. |
+| PA-RPD-28 | Recorrer Resumen, Ventas y cobranza, Seguimiento y mensajería y el encabezado global. | Ninguna interfaz muestra rótulos de iteraciones; se utilizan nombres operativos del sistema. |
 
 ## Ejecución
 

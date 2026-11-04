@@ -114,7 +114,7 @@ export abstract class AplicacionParte01 extends AplicacionParte02 {
       this.activeSection.set(section);
       this.sidebarOpen.set(false);
       this.configurationOpen.set(this.isConfigurationSection(section));
-      if (section === 'dashboard') this.loadOperationalSummary();
+      if (section === 'dashboard') this.loadDashboard();
       if (section === 'customers') this.loadCustomers(1);
       if (section === 'users') { this.loadUsers(1); this.loadUserProductionAreas(); }
       if (section === 'roles') this.loadRoles();

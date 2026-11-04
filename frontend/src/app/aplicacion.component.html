@@ -102,7 +102,7 @@
       <header class="workspace-header">
         <div>
           <button type="button" class="mobile-menu" aria-label="Abrir menú" (click)="sidebarOpen.set(true)"><i class="pi pi-bars"></i></button>
-          <span class="workspace-header__context">Sexta iteración</span>
+          <span class="workspace-header__context">Sistema comercial</span>
           <h1>{{ sectionTitle() }}</h1>
         </div>
         <div class="workspace-header__actions">
@@ -118,7 +118,7 @@
         @switch (activeSection()) {
           @case ('dashboard') {
             <div class="hero-panel">
-              <div><span class="eyebrow">Control operativo</span><h2>Buenos días, {{ auth.user()?.name?.split(' ')?.[0] }}.</h2><p></p></div>
+              <div><span class="eyebrow">Control operativo</span><h2>Hola, {{ auth.user()?.name }}.</h2><p></p></div>
               <div class="hero-panel__stamp"><img src="/assets/icar-logo.jpg" alt="ICAR" width="800" height="800" /><span></span></div>
             </div>
             <div class="metric-grid">

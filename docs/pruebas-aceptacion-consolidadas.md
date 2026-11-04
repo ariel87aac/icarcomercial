@@ -399,6 +399,8 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | PA-RPD-24 | Seleccionar pedidos de zonas diferentes. | Se bloquea la creación de ruta y se solicita conservar una única zona. | Manual |
 | PA-RPD-25 | Crear una ruta desde una selección válida. | La zona queda fijada, se compara carga y capacidad, y la ruta nace con sus entregas y secuencia inicial. | Mixta |
 | PA-RPD-26 | Abrir una preparación, cambiar verificaciones sin guardar, cerrarla y abrir otro pedido. | El segundo pedido carga sus propias cantidades y verificaciones; no hereda valores visuales y **Preparar** se habilita al completar la verificación. | Manual |
+| PA-RPD-27 | Iniciar sesión y regresar a **Resumen** después de usar otro módulo. | El saludo muestra `Hola, <nombre completo>` y se actualizan nuevamente las métricas y los procesos pendientes del dashboard. | Mixta |
+| PA-RPD-28 | Recorrer las interfaces principales. | El encabezado global, Ventas y cobranza y Seguimiento y mensajería usan rótulos operativos y no muestran referencias a iteraciones. | Manual |
 
 ### 12.7 Vehículos, rutas y mapas
 
@@ -436,6 +438,16 @@ Los casos de esta sección que repiten una validación automatizada no se vuelve
 | CP-167 | Elegir Entrega en fábrica para un pedido preparado. | Se completa sin ruta ni vehículo y genera nota de venta por la entrega efectiva. | Automatizada; presentación visual manual |
 | CP-168 | Registrar una entrega parcial en fábrica. | Sólo se descuenta y factura lo retirado; la diferencia permanece en Almacén. | Automatizada |
 | CP-169 | Repetir una entrega en fábrica ya registrada. | Se rechaza la duplicidad y no se alteran inventario ni saldos. | Automatizada |
+| CP-176 | Abrir la tabla de Ventas y navegar entre páginas. | La primera carga muestra hasta 50 registros, el paginador usa el total del servidor y permite seleccionar 25, 50 o 100 sin perder los filtros. | Manual |
+| CP-177 | Abrir **Cobros** con más de 10 clientes y más de 20 cobros registrados. | Clientes por cobrar pagina de 10 en 10 y Cobros registrados de 20 en 20; la tabla de cobros no repite las notas aplicadas. | Manual |
+| CP-178 | Presionar **Ver** en un cobro registrado. | Se abre el detalle con cliente, fecha, importe, medio, referencia, estado, observación y notas aplicadas. | Manual |
+| CP-179 | Presionar **PDF** en un cobro registrado. | Se descarga un comprobante ICAR en Carta vertical con las notas aplicadas y se registra la exportación en auditoría. | Mixta |
+| CP-180 | Descargar en PDF Ventas, Cobros, Cuentas por cobrar, Trazabilidad o un comprobante interno de venta. | Todos los documentos usan la plantilla ICAR, tamaño Carta y orientación vertical, sin columnas cortadas ni contenido superpuesto. | Automatizada y visual |
+| CP-181 | Abrir **Reportes**, elegir un cliente activo y presionar **Generar PDF** en Estado de cuenta. | Se descarga el estado de cuenta del cliente seleccionado con saldo, ventas, cobros y movimientos de debe, haber y saldo; la exportación queda auditada. | Automatizada y manual |
+| CP-182 | Abrir el selector del reporte de Estado de cuenta con más de 100 clientes registrados. | El selector consulta todos los clientes activos, permite buscar por nombre, NIT/CI o código y no queda limitado a la primera página de clientes. | Manual |
+| CP-183 | Imprimir **Ticket 80 mm** antes de registrar el resultado de una visita. | Se genera una sola página continua de 80 mm de ancho con pedido, ruta, cliente, domicilio y cantidades preparadas, sin contenido cortado. | Automatizada y visual |
+| CP-184 | Registrar una entrega parcial y volver a imprimir el ticket. | El comprobante definitivo muestra cantidades efectivamente entregadas, devoluciones, total entregado, resultado, observación, responsable y los datos de la venta generada. | Automatizada y visual |
+| CP-185 | Imprimir desde un reparto asignado o completar una entrega en fábrica. | El repartidor sólo accede a sus rutas; Administrador y Comercialización conservan alcance global, la operación queda auditada y la entrega en fábrica descarga el comprobante definitivo. | Mixta |
 
 ### 12.10 Cobros por cliente
 

@@ -23,7 +23,7 @@ type View = 'requests' | 'links' | 'settings' | 'templates' | 'channel' | 'histo
   standalone: true,
   imports: [FormsModule, ButtonModule, CheckboxModule, DialogModule, InputNumberModule, InputTextModule, MultiSelectModule, SelectModule, TableModule, TagModule, TextareaModule],
   template: `
-    <div class="page-toolbar"><div><span class="eyebrow">{{ mode()==='full' ? 'Quinta iteración' : 'Configuraciones' }}</span><h2>{{ mode()==='templates' ? 'Plantillas de mensajes' : mode()==='channel' ? 'Canal' : 'Seguimiento y mensajería' }}</h2><p>{{ mode()==='templates' ? 'Configura el contenido de las notificaciones por estado o evento.' : mode()==='channel' ? 'Administra la conexión y las pruebas del proveedor WhatsApp.' : 'Enlaces protegidos, estimaciones referenciales y notificaciones WhatsApp mediante LimiteAPI.' }}</p></div></div>
+    <div class="page-toolbar"><div><span class="eyebrow">{{ mode()==='full' ? 'Comunicación operativa' : 'Configuraciones' }}</span><h2>{{ mode()==='templates' ? 'Plantillas de mensajes' : mode()==='channel' ? 'Canal' : 'Seguimiento y mensajería' }}</h2><p>{{ mode()==='templates' ? 'Configura el contenido de las notificaciones por estado o evento.' : mode()==='channel' ? 'Administra la conexión y las pruebas del proveedor WhatsApp.' : 'Enlaces protegidos, estimaciones referenciales y notificaciones WhatsApp mediante LimiteAPI.' }}</p></div></div>
     @if (mode()==='full') {
     <nav class="view-tabs">
       @if (auth.can('tracking.links.read')) { <button [class.active]="view()==='links'" (click)="selectView('links')"><i class="pi pi-link"></i> Enlaces</button> }

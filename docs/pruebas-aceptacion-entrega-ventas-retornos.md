@@ -18,6 +18,8 @@ Validar el recorrido integrado desde la nota de entrega utilizada por el respons
 - Desde Pedidos pendientes se elige entre **Enviar a reparto** y **Entrega en fábrica**. La entrega en fábrica no crea ruta, no asigna vehículo y usa la misma nota completa.
 - En una entrega parcial o rechazada en fábrica sólo sale de existencia lo efectivamente retirado; la diferencia nunca abandona Almacén y, por tanto, no genera una orden de retorno.
 - La entrega en fábrica completa o parcial genera la nota de venta con las mismas reglas de contado, crédito, vencimiento y bloqueo por saldo.
+- Cada visita puede generar un comprobante térmico previo o definitivo de 80 mm. El previo usa lo preparado y el definitivo usa únicamente lo entregado, identifica devoluciones y muestra la venta cuando fue emitida.
+- El comprobante usa una sola página de ancho físico 80 mm y altura variable, contenido monocromático, espacio para firma y texto explícito de documento interno no tributario.
 
 ## Matriz de aceptación
 
@@ -37,6 +39,9 @@ Validar el recorrido integrado desde la nota de entrega utilizada por el respons
 | CP-167 | Seleccionar un pedido preparado y elegir **Entrega en fábrica**. | Se registra la entrega sin ruta ni vehículo y se genera la nota de venta por lo entregado. | Automatizada; presentación visual manual |
 | CP-168 | Reducir la cantidad retirada en fábrica. | La venta usa la cantidad efectiva, el inventario descuenta sólo lo retirado y la diferencia permanece disponible. | Automatizada |
 | CP-169 | Intentar procesar nuevamente una preparación ya entregada en fábrica. | Se rechaza la duplicidad y el pedido no puede incorporarse posteriormente a una ruta. | Automatizada |
+| CP-183 | Generar el ticket antes de registrar la visita. | El PDF de 80 mm identifica pedido, ruta, cliente, domicilio y cantidades preparadas como entrega prevista. | Automatizada; presentación visual manual |
+| CP-184 | Generar el ticket después de una entrega parcial. | El PDF muestra cantidades reales, retornos, total entregado, resultado, responsable, observación, Cod-Venta y vencimiento. | Automatizada; presentación visual manual |
+| CP-185 | Intentar imprimir una entrega de una ruta ajena y luego imprimir una ruta asignada. | El primer intento se rechaza; el segundo genera el documento y registra `IMPRIMIR_TICKET_ENTREGA_80MM` en auditoría. | Mixta |
 
 ## API incorporada
 
@@ -46,6 +51,7 @@ Validar el recorrido integrado desde la nota de entrega utilizada por el respons
 | `GET` | `/api/inventario/retornos-ruta/:id` | Consultar productos y cantidades de una orden. |
 | `POST` | `/api/inventario/retornos-ruta/:id/receive` | Verificar el retorno, ingresar existencias y liquidar la ruta. |
 | `POST` | `/api/entregas-fabrica` | Registrar atómicamente la entrega directa, el movimiento de inventario y la nota de venta. |
+| `GET` | `/api/route-deliveries/:id/ticket-80mm` | Generar el comprobante térmico previo o definitivo de la entrega. |
 
 `POST /api/route-deliveries/:id/result` conserva su contrato operativo, pero para resultados completos o parciales devuelve además `generatedSale` con número, total y vencimiento.
 
@@ -57,6 +63,7 @@ La migración `1720000044000-add-warehouse-returns-and-automatic-sales.ts` crea 
 
 1. Salida de la suite de cuarta iteración con CP-156, CP-158, CP-159, CP-160, CP-161, CP-162, CP-164, CP-166, CP-167, CP-168 y CP-169 aprobados.
 2. Captura móvil de la nota de entrega completa y de un rechazo con motivo.
-3. Captura de la orden pendiente en Recepciones de Almacén.
-4. Captura de la nota de venta y de la cuenta por cobrar creada desde la entrega.
-5. Consulta de movimientos mostrando `SALIDA_DESPACHO` y el posterior `ENTRADA_DEVOLUCION` sin eliminar registros previos.
+3. PDF renderizado del ticket térmico que confirme 80 mm de ancho, una sola página continua y ausencia de cortes o superposiciones.
+4. Captura de la orden pendiente en Recepciones de Almacén.
+5. Captura de la nota de venta y de la cuenta por cobrar creada desde la entrega.
+6. Consulta de movimientos mostrando `SALIDA_DESPACHO` y el posterior `ENTRADA_DEVOLUCION` sin eliminar registros previos.

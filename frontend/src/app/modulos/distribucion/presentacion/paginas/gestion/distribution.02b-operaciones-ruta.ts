@@ -36,6 +36,24 @@ export abstract class DistributionOperacionesRutaB extends DistributionParte03 {
         this.visitDialog.set(true);
       }
 
+  protected override printDeliveryTicket(delivery: RouteDelivery, download = false): void {
+    this.http.get(`/api/route-deliveries/${delivery.id}/ticket-80mm`, { observe: 'response', responseType: 'blob' }).subscribe({
+      next: (response) => {
+        const disposition = response.headers.get('content-disposition') ?? '';
+        const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] ?? `icar-entrega-${delivery.order.code}-80mm.pdf`;
+        const url = URL.createObjectURL(response.body ?? new Blob([], { type: 'application/pdf' }));
+        const link = document.createElement('a');
+        link.href = url;
+        if (download) link.download = filename;
+        else { link.target = '_blank'; link.rel = 'noopener'; }
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 60_000);
+        this.messages.add({ severity: 'success', summary: 'Ticket de 80 mm generado', detail: `Pedido ${delivery.order.code}` });
+      },
+      error: (error) => this.fail(error),
+    });
+  }
+
   protected override registerVisit(rejected = false): void {
         const delivery = this.selectedDelivery();
         if (!delivery || this.visitForm.invalid) return this.visitForm.markAllAsTouched();
@@ -61,6 +79,7 @@ export abstract class DistributionOperacionesRutaB extends DistributionParte03 {
               this.selectedDelivery.set(response.delivery);
               this.clearPendingSelection();
               this.loadPendingDeliveries();
+              this.printDeliveryTicket(response.delivery, true);
               this.saved(response.generatedSale ? 'Entrega en fábrica y nota de venta registradas' : 'Pedido rechazado en fábrica', response.generatedSale ? `Venta ${response.generatedSale.code} · Bs ${response.generatedSale.total} · vence ${response.generatedSale.dueDate}` : delivery.order.code);
             },
             error: (error) => this.failSave(error),

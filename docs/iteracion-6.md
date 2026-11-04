@@ -6,6 +6,7 @@ La sexta iteración implementa exclusivamente el alcance de la sección 3.7 de l
 
 - Una venta se genera únicamente desde una visita con resultado `ENTREGADA` o `ENTREGA_PARCIAL` y usa las cantidades efectivamente entregadas.
 - Cada venta recibe un `Cod-Venta` numérico, automático e incremental desde 1. La consulta principal se ordena por este código de mayor a menor.
+- La tabla principal de Ventas usa paginación de servidor con 50 registros por página de forma predeterminada y permite seleccionar 25, 50 o 100 registros sin perder los filtros aplicados.
 - El detalle de venta, el comprobante interno, las aplicaciones de pago y los movimientos de cuenta referencian a la venta mediante `Cod-Venta`; el UUID queda reservado para identificar recursos en la API.
 - El registro de la visita y la emisión de la venta se confirman en la misma transacción; ya no requieren una acción manual separada en la interfaz.
 - La entrega directa en fábrica utiliza la misma regla: no crea recorrido ni asigna vehículo, pero registra la entrega efectiva y emite automáticamente la venta y cuenta pendiente.
@@ -15,6 +16,10 @@ La sexta iteración implementa exclusivamente el alcance de la sección 3.7 de l
 - Un cliente `CONTADO` con saldo pendiente no puede originar una nueva venta hasta que su pago sea confirmado; el rechazo revierte toda la transacción de la visita.
 - El comprobante usa serie y correlativo bloqueados dentro de la misma transacción e incluye la leyenda `DOCUMENTO INTERNO ICAR - NO CONSTITUYE FACTURA TRIBUTARIA`.
 - La interfaz funcional se denomina **Cobros**. Su primera tabla agrupa la deuda por cliente, muestra cantidad de notas, monto total, vencidos y vencimiento más antiguo; cualquier deuda vencida se resalta en rojo.
+- **Clientes por cobrar** muestra 10 clientes por página. **Cobros registrados** muestra 20 movimientos por página, elimina el detalle repetido de notas de la tabla principal y ofrece las acciones **Ver** y **PDF**.
+- El comprobante PDF individual de cobranza usa la plantilla institucional ICAR en hoja Carta vertical e incluye cliente, importe, medio, referencia y notas de venta aplicadas.
+- Los PDF de Ventas, Cobros, Cuentas por cobrar, Trazabilidad y el comprobante interno de venta usan la misma plantilla institucional ICAR en hoja Carta vertical, con logo, métricas, tabla y paginación.
+- En **Reportes comerciales** se puede seleccionar cualquier cliente activo y generar su **Estado de cuenta por cliente** en PDF. El documento presenta el período, saldo, ventas, cobros y el detalle cronológico de debe, haber y saldo; la descarga queda registrada en auditoría.
 - Al seleccionar el nombre del cliente se abre la cobranza con dos modalidades: un abono definido que se aplica desde la nota más antigua, o la selección de una o varias notas completas.
 - El cobro se registra primero como `REGISTRADO`. La suma de aplicaciones debe coincidir exactamente con su importe, sin anticipos ni saldos a favor.
 - La confirmación del cobro bloquea cliente, cobro y ventas; actualiza aplicaciones, saldos, estados, historial, cuenta corriente y evento de salida en una sola transacción.
@@ -41,6 +46,8 @@ La sexta iteración implementa exclusivamente el alcance de la sección 3.7 de l
 | `GET` | `/api/payment-methods` | Medios de pago activos |
 | `GET` | `/api/payments/collection-customers` | Agrupar clientes, deuda, notas pendientes y vencimientos |
 | `POST` | `/api/payments` | Registrar cobro por monto o por notas seleccionadas |
+| `GET` | `/api/payments/:id` | Consultar el detalle completo de un cobro |
+| `GET` | `/api/payments/:id/receipt` | Descargar el comprobante PDF individual de cobranza |
 | `POST` | `/api/payments/:id/confirm` | Confirmar y aplicar cobro |
 | `POST` | `/api/payments/:id/void` | Anular cobro con contramovimientos |
 | `GET` | `/api/customers/:id/account` | Estado de cuenta autorizado |
@@ -48,6 +55,8 @@ La sexta iteración implementa exclusivamente el alcance de la sección 3.7 de l
 | `GET` | `/api/receivables` | Cartera y antigüedad de saldos |
 | `GET` | `/api/reports/commercial/:type` | Reportes de ventas, cobros, cartera o trazabilidad |
 | `GET` | `/api/reports/commercial/:type/export` | Exportación CSV o PDF |
+| `GET` | `/api/reports/commercial/account-statements/customers` | Clientes activos disponibles para el reporte de estado de cuenta |
+| `GET` | `/api/reports/commercial/account-statements/:customerId/export` | Estado de cuenta PDF del cliente seleccionado |
 
 ## Persistencia
 

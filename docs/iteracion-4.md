@@ -4,7 +4,7 @@
 
 La cuarta iteración toma pedidos `CONFIRMADO`, registra su preparación individual y organiza su distribución mediante vehículos, responsables y rutas por fecha y zona. La salida de una ruta consume las reservas, descuenta la existencia física y registra movimientos de inventario. El responsable asignado registra el resultado de cada visita y, al finalizar el recorrido, Distribución realiza una liquidación exclusivamente operativa de las devoluciones aceptadas.
 
-Esta iteración no implementa seguimiento GPS, optimización automática de recorridos, seguimiento público, WhatsApp, pagos, comprobantes ni saldos por cobrar.
+Esta iteración no implementa seguimiento GPS, optimización automática de recorridos ni seguimiento público. La integración posterior con Ventas y Cobranzas incorpora la nota de venta, el saldo por cobrar y el comprobante operativo de entrega; este último no constituye una factura tributaria.
 
 ## Flujo operativo
 
@@ -105,6 +105,7 @@ Los permisos incorporados son:
 | `POST` | `/api/distribution-routes/:id/departure` | Registra la salida y el despacho de inventario. |
 | `GET` | `/api/distribution-routes/my-route` | Consulta rutas activas del responsable autenticado. |
 | `POST` | `/api/route-deliveries/:id/result` | Registra el resultado de una visita. |
+| `GET` | `/api/route-deliveries/:id/ticket-80mm` | Genera el comprobante térmico de 80 mm, previo o definitivo, de una entrega. |
 | `POST` | `/api/distribution-routes/:id/finish` | Finaliza una ruta con todas sus visitas registradas. |
 | `POST` | `/api/distribution-routes/:id/settlement` | Registra la liquidación operativa y devoluciones aceptadas. |
 | `GET` | `/api/inventario/retornos-ruta` | Lista órdenes de retorno pendientes en Almacén. |
@@ -155,6 +156,10 @@ En **Almacén > Preparación** la interfaz se divide en dos tablas. **Preparar**
 El modal muestra Cod-Producto, Nombre, Stock disponible, Solicitado, Cantidad a entregar, Diferencia, Verificado y Observación. La cantidad editable inicia con la solicitada; los faltantes se resaltan y toda diferencia exige observación. **Preparar** permanece deshabilitado hasta verificar todos los productos. En pantallas móviles las filas se presentan como tarjetas, los controles de cantidad admiten interacción táctil y las acciones se mantienen visibles.
 
 **Distribución > Pedidos pendientes** es la bandeja de recepción operativa. Lista únicamente preparaciones entregadas por Almacén y todavía no asignadas, con filtros por búsqueda, fecha comprometida y zona. La selección calcula productos y peso, exige una sola zona y compara la carga con el vehículo. **Crear ruta con seleccionados** guarda la ruta, sus responsables, las entregas y su secuencia inicial dentro de una sola transacción; ante cualquier inconsistencia no deja una ruta parcial.
+
+Cada entrega de una ruta permite abrir un **Ticket 80 mm** desde el detalle de la ruta, el reparto activo o el modal de visita. Antes de registrar el resultado se genera una nota previa con las cantidades preparadas. Después de la visita se genera el comprobante definitivo con cantidades entregadas, devoluciones, resultado, responsable, observación y, cuando corresponde, Cod-Venta y vencimiento. El documento es monocromático, de ancho físico 80 mm y altura dinámica para evitar cortes entre productos; incluye un espacio para firma o sello del cliente. En una entrega en fábrica, el comprobante definitivo se descarga automáticamente al completar la operación.
+
+La descarga respeta el mismo alcance de seguridad de la visita: Administrador y Comercialización pueden imprimir cualquier reparto, mientras el repartidor sólo puede imprimir entregas de rutas donde está asignado. Cada generación queda registrada en auditoría como `IMPRIMIR_TICKET_ENTREGA_80MM`.
 
 El recuadro **Flujo operativo** se retiró de Pedidos para evitar una vista duplicada. El **Resumen** principal concentra ahora el flujo Pedidos → Producción → Preparación → Distribución, muestra el detalle y total de trabajos pendientes según los permisos efectivos del usuario y permite abrir directamente cada módulo. El endpoint `GET /api/dashboard/operational-summary` calcula estos datos desde los estados operativos reales; para usuarios cliente mantiene el alcance restringido a sus propios pedidos.
 

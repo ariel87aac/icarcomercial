@@ -6,6 +6,7 @@ import { VisitResult } from '../distribucion/entidades/visit-result.entity';
 import { TrackingModule } from '../seguimiento-mensajeria/tracking.module';
 import { AccountLedgerService } from './account-ledger.service';
 import { AccountStatementService } from './account-statement.service';
+import { AccountStatementReportService } from './account-statement-report.service';
 import { CommercialOutboxWorkerService } from './commercial-outbox-worker.service';
 import { CommercialOutboxService } from './commercial-outbox.service';
 import { CommercialReportService } from './commercial-report.service';
@@ -22,6 +23,7 @@ import { SaleDetail } from './entidades/sale-detail.entity';
 import { Sale } from './entidades/sale.entity';
 import { VoucherSeries } from './entidades/voucher-series.entity';
 import { PaymentService } from './payment.service';
+import { PaymentReceiptService } from './payment-receipt.service';
 import { ReceivablesService } from './receivables.service';
 import { SaleService } from './sale.service';
 
@@ -49,7 +51,9 @@ import { SaleService } from './sale.service';
     AccountLedgerService,
     SaleService,
     PaymentService,
+    PaymentReceiptService,
     AccountStatementService,
+    AccountStatementReportService,
     ReceivablesService,
     CommercialReportService,
     CommercialSettingsService,

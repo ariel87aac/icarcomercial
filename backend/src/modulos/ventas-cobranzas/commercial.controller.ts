@@ -4,6 +4,7 @@ import { CurrentUser } from '../../compartido/decoradores/current-user.decorator
 import { RequirePermissions } from '../../compartido/decoradores/permissions.decorator';
 import { AuthenticatedUser } from '../../compartido/interfaces/authenticated-user.interface';
 import { AccountStatementService } from './account-statement.service';
+import { AccountStatementReportService } from './account-statement-report.service';
 import { CommercialReportService } from './commercial-report.service';
 import { CommercialSettingsService } from './commercial-settings.service';
 import {
@@ -22,6 +23,7 @@ import {
 } from './dto/commercial.dto';
 import { CommercialReportType, ReportFormat } from './entidades/commercial.enums';
 import { PaymentService } from './payment.service';
+import { PaymentReceiptService } from './payment-receipt.service';
 import { ReceivablesService } from './receivables.service';
 import { SaleService } from './sale.service';
 
@@ -30,7 +32,9 @@ export class CommercialController {
   constructor(
     private readonly sales: SaleService,
     private readonly payments: PaymentService,
+    private readonly paymentReceipts: PaymentReceiptService,
     private readonly accounts: AccountStatementService,
+    private readonly accountReports: AccountStatementReportService,
     private readonly receivables: ReceivablesService,
     private readonly reports: CommercialReportService,
     private readonly settings: CommercialSettingsService,
@@ -88,6 +92,15 @@ export class CommercialController {
   @RequirePermissions('commercial.payments.read')
   payment(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) { return this.payments.findOne(id, actor); }
 
+  @Get('payments/:id/receipt')
+  @RequirePermissions('commercial.payments.read')
+  async paymentReceipt(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser, @Res() response: Response) {
+    const file = await this.paymentReceipts.export(id, actor);
+    response.setHeader('Content-Type', file.mime);
+    response.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    response.send(file.content);
+  }
+
   @Post('payments/:id/confirm')
   @RequirePermissions('commercial.payments.confirm')
   confirmPayment(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() actor: AuthenticatedUser) { return this.payments.confirm(id, actor); }
@@ -107,6 +120,24 @@ export class CommercialController {
   @Get('receivables')
   @RequirePermissions('commercial.receivables.read')
   listReceivables(@Query() query: ReceivableQueryDto) { return this.receivables.findAll(query); }
+
+  @Get('reports/commercial/account-statements/customers')
+  @RequirePermissions('commercial.reports.read')
+  accountStatementCustomers() { return this.accountReports.customerOptions(); }
+
+  @Get('reports/commercial/account-statements/:customerId/export')
+  @RequirePermissions('commercial.reports.export')
+  async exportAccountStatement(
+    @Param('customerId', ParseUUIDPipe) customerId: string,
+    @Query() query: AccountQueryDto,
+    @CurrentUser() actor: AuthenticatedUser,
+    @Res() response: Response,
+  ) {
+    const file = await this.accountReports.export(customerId, query, actor);
+    response.setHeader('Content-Type', file.mime);
+    response.setHeader('Content-Disposition', `attachment; filename="${file.filename}"`);
+    response.send(file.content);
+  }
 
   @Get('reports/commercial/:type')
   @RequirePermissions('commercial.reports.read')

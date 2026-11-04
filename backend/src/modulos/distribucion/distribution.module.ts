@@ -28,6 +28,7 @@ import { VehicleDispatch } from './entidades/vehicle-dispatch.entity';
 import { VehicleDispatchController } from './vehicle-dispatch.controller';
 import { VehicleDispatchService } from './vehicle-dispatch.service';
 import { VehicleDispatchReportService } from './reportes/vehicle-dispatch-report.service';
+import { ThermalDeliveryTicketService } from './reportes/thermal-delivery-ticket.service';
 
 @Module({
   imports: [TrackingModule, CommercialModule, TypeOrmModule.forFeature([
@@ -54,7 +55,7 @@ import { VehicleDispatchReportService } from './reportes/vehicle-dispatch-report
     VehicleDispatch,
   ])],
   controllers: [DistributionRoutesController, RouteDeliveriesController, FactoryDeliveriesController, WarehouseReturnOrdersController, VehicleDispatchController],
-  providers: [DistributionService, VehicleDispatchService, VehicleDispatchReportService],
+  providers: [DistributionService, VehicleDispatchService, VehicleDispatchReportService, ThermalDeliveryTicketService],
   exports: [DistributionService, TypeOrmModule],
 })
 export class DistributionModule {}

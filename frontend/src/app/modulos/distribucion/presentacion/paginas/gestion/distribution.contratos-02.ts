@@ -50,6 +50,8 @@ export abstract class DistributionContratos02 extends DistributionContratos01 {
 
   protected abstract openVisit(delivery: RouteDelivery): void;
 
+  protected abstract printDeliveryTicket(delivery: RouteDelivery, download?: boolean): void;
+
   protected abstract registerVisit(rejected: boolean): void;
 
   protected abstract returnedFor(index: number): number;

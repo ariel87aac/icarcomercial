@@ -10,7 +10,7 @@ import { CommercialReportType, PaymentStatus, ReportFormat, SaleStatus } from '.
 import { Payment } from './entidades/payment.entity';
 import { Sale } from './entidades/sale.entity';
 import { ReceivablesService } from './receivables.service';
-import { createSimplePdf } from './simple-pdf';
+import { createCommercialPdfReport } from './commercial-report-pdf';
 
 @Injectable()
 export class CommercialReportService {
@@ -50,8 +50,7 @@ export class CommercialReportService {
       mime = 'text/csv; charset=utf-8';
       extension = 'csv';
     } else {
-      const lines = rows.length ? rows.flatMap((row) => [Object.entries(row).map(([key, value]) => `${key}: ${String(value ?? '')}`).join(' | ')]) : ['Sin resultados para los filtros seleccionados'];
-      content = createSimplePdf(`ICAR - Reporte ${type}`, lines);
+      content = await createCommercialPdfReport(type, rows, report, query, actor);
       mime = 'application/pdf';
       extension = 'pdf';
     }

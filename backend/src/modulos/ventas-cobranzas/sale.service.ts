@@ -18,9 +18,9 @@ import { PaymentApplication } from './entidades/payment-application.entity';
 import { SaleDetail } from './entidades/sale-detail.entity';
 import { Sale } from './entidades/sale.entity';
 import { VoucherSeries } from './entidades/voucher-series.entity';
-import { createSimplePdf } from './simple-pdf';
+import { createSaleVoucherReport, INTERNAL_VOUCHER_LEGEND } from './sale-voucher-report';
 
-export const INTERNAL_VOUCHER_LEGEND = 'DOCUMENTO INTERNO ICAR - NO CONSTITUYE FACTURA TRIBUTARIA';
+export { INTERNAL_VOUCHER_LEGEND };
 
 @Injectable()
 export class SaleService {
@@ -199,23 +199,17 @@ export class SaleService {
   async voucherPdf(id: string, actor: AuthenticatedUser): Promise<{ filename: string; content: Buffer }> {
     const item = await this.voucher(id, actor);
     const voucherNumber = `${item.series.series}-${String(item.number).padStart(8, '0')}`;
-    const lines = [
-      `Comprobante: ${voucherNumber}`,
-      `Cod-Venta: ${item.sale.code}`,
-      `Pedido: ${item.sale.order.code}`,
-      `Cliente: ${item.sale.customer.businessName}`,
-      `Fecha de emisión: ${item.sale.issuedDate}`,
-      `Vencimiento: ${item.sale.dueDate}`,
-      '',
-      ...item.sale.details.map((detail) => `${detail.productSnapshot} | ${detail.deliveredQuantity} ${detail.unitSnapshot} x Bs ${detail.unitPrice} | Bs ${detail.subtotal}`),
-      '',
-      `Total: Bs ${item.sale.total}`,
-      `Saldo: Bs ${item.sale.balance}`,
-      `Estado: ${item.sale.status}`,
-      '',
-      INTERNAL_VOUCHER_LEGEND,
-    ];
-    return { filename: `comprobante-${voucherNumber}.pdf`, content: createSimplePdf('ICAR - Comprobante interno', lines) };
+    const content = await createSaleVoucherReport(item.sale, voucherNumber, actor.name);
+    await this.audit.record({
+      userId: actor.id,
+      module: 'commercial',
+      action: 'EXPORTAR_COMPROBANTE_VENTA',
+      entity: 'ventas',
+      entityId: item.sale.id,
+      result: 'EXITOSO',
+      metadata: { saleCode: item.sale.code, voucherNumber },
+    });
+    return { filename: `comprobante-${voucherNumber}.pdf`, content };
   }
 
   async void(id: string, dto: VoidCommercialOperationDto, actor: AuthenticatedUser): Promise<Sale> {
